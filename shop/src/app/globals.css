@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-mist-50 text-carbon-900 antialiased;
+    font-feature-settings: "cv02", "cv03";
+  }
+
+  /* Sichtbarer Fokus für Tastaturbedienung – nie entfernen. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-signal-500 ring-offset-2 ring-offset-white;
+  }
+
+  /* Zahlenkolonnen (Preise, Mengen) laufen sauber untereinander. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Dezenter Glassmorphism – nur auf dunklem Grund, sonst wirkt es billig. */
+  .glass {
+    @apply border border-white/10 bg-white/[0.06] backdrop-blur-xl;
+  }
+
+  .card {
+    @apply rounded-2xl border border-mist-200 bg-white shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 font-display
+           text-[15px] font-bold tracking-tight transition-all duration-200 ease-precise
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-signal-500 text-white hover:bg-signal-600 hover:shadow-glow active:scale-[.985];
+  }
+
+  .btn-ghost {
+    @apply btn border border-mist-300 bg-white text-carbon-900 hover:border-carbon-900 hover:bg-mist-50;
+  }
+
+  .btn-dark {
+    @apply btn bg-carbon-900 text-white hover:bg-carbon-800 active:scale-[.985];
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-mist-300 bg-white px-4 py-3 text-[15px]
+           transition-colors placeholder:text-mist-500 focus:border-signal-500 focus:outline-none
+           focus:ring-2 focus:ring-signal-500/25;
+  }
+
+  .label {
+    @apply mb-1.5 block font-display text-xs font-bold uppercase tracking-[.1em] text-mist-700;
+  }
+
+  /* Kennzeichnung im Etiketten-Stil: Sendungs-, Bestell- und Artikelnummern. */
+  .code-chip {
+    @apply inline-flex items-center rounded-md bg-carbon-900/5 px-2 py-0.5 font-mono text-[13px]
+           tracking-tight text-carbon-800;
+  }
+
+  .section {
+    @apply mx-auto w-full max-w-[1280px] px-5 sm:px-8;
+  }
+
+  .eyebrow {
+    @apply font-display text-xs font-bold uppercase tracking-[.16em] text-signal-600;
+  }
+}
+
+/* Bewegung respektieren: alle Animationen abschalten, wenn gewünscht. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

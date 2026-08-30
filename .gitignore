@@ -28,3 +28,12 @@ backend/storage/
 
 # OS
 .DS_Store
+
+# Next.js / Shop
+shop/node_modules/
+shop/.next/
+shop/out/
+shop/public/uploads/
+shop/.env*
+!shop/.env.example
+next-env.d.ts
