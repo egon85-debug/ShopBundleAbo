@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Winterfeld Logistik – Verwaltung</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="login-view" class="login-wrap" hidden>
+    <form id="login-form" class="card login-card">
+      <h1>WINTERFELD LOGISTIK</h1>
+      <p class="muted">Verwaltungsbereich</p>
+      <label>E-Mail <input type="email" id="login-email" required autocomplete="username"></label>
+      <label>Passwort <input type="password" id="login-password" required autocomplete="current-password"></label>
+      <button type="submit" class="btn primary">Anmelden</button>
+      <p id="login-error" class="error" hidden></p>
+    </form>
+  </div>
+
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <strong>WINTERFELD LOGISTIK</strong>
+      <span id="user-info" class="muted"></span>
+      <button id="logout-btn" class="btn small">Abmelden</button>
+    </header>
+    <div class="layout">
+      <nav class="sidenav" id="nav">
+        <a href="#dashboard" class="active">Systemstatus</a>
+        <a href="#products">Artikel</a>
+        <a href="#suppliers">Lieferanten</a>
+        <a href="#locations">Lagerplätze</a>
+        <a href="#users">Benutzer</a>
+        <a href="#connections">Shop-Verbindungen</a>
+        <a href="#jobs">Jobs &amp; Fehler</a>
+        <a href="#audit">Audit-Log</a>
+      </nav>
+      <main id="main" class="content"></main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

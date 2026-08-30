@@ -36,7 +36,7 @@ spielt sie idempotent nach (`client_capture_id`, `Idempotency-Key`-Header).
 - `PATCH /products/{id}` — Feldänderungen (auditiert, Quelle `user`)
 - `POST /products/{id}/stock-movements` — einzige Schreiboperation für Bestand
 - `GET /products/{id}/stock-movements`, `GET /products/{id}/price-history`
-- `GET /products/{id}/images`, `POST /products/{id}/images`, `PATCH /images/{id}` (Primärbild, Reihenfolge)
+- Bilder sind in `GET /products/{id}` eingebettet (Originale + optimierte, mit URLs); Upload über `POST /captures/{id}/images`
 - `POST /products/{id}/reprice` — „Marktpreise aktualisieren“ (neuer Recherche-Lauf)
 - `GET /products/{id}/quality` — Shopbereitschafts-Prüfung mit konkreter Mängelliste
 
