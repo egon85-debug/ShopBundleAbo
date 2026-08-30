@@ -10,12 +10,28 @@ import { formatCents } from "@/lib/money";
 
 export const revalidate = 60;
 
+const EMPTY_LIST = { items: [], total: 0 };
+
+/**
+ * Die Startseite wird alle 60 Sekunden neu erzeugt. Ist die Datenbank in diesem
+ * Moment nicht erreichbar (etwa beim allerersten Deployment, bevor Migrationen
+ * gelaufen sind), rendert die Seite ihre statischen Abschnitte trotzdem und
+ * füllt die Produktbereiche beim nächsten Durchlauf auf.
+ */
+async function safely<T>(load: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await load();
+  } catch {
+    return fallback;
+  }
+}
+
 export default async function HomePage() {
   const [categories, bestsellers, newest, offers] = await Promise.all([
-    getCategoryTree(),
-    listProducts({ featuredOnly: true, limit: 4 }),
-    listProducts({ sort: "newest", limit: 4 }),
-    listProducts({ sort: "price_asc", limit: 8 }),
+    safely(() => getCategoryTree(), [] as Awaited<ReturnType<typeof getCategoryTree>>),
+    safely(() => listProducts({ featuredOnly: true, limit: 4 }), EMPTY_LIST),
+    safely(() => listProducts({ sort: "newest", limit: 4 }), EMPTY_LIST),
+    safely(() => listProducts({ sort: "price_asc", limit: 8 }), EMPTY_LIST),
   ]);
 
   const discounted = offers.items.filter(
