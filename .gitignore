@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# Env / Secrets
+.env
+*.pem
+*.key
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+# Storage / Daten
+backend/storage/
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
