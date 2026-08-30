@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
+markers = [
+    "integration: Tests, die eine echte PostgreSQL-Datenbank benötigen",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
