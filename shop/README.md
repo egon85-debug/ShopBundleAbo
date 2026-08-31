@@ -91,6 +91,27 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 - **3D** wird lazy geladen, respektiert `prefers-reduced-motion` und schaltet auf
   schwachen Geräten automatisch auf eine vereinfachte Szene.
 
+## Deployment auf Vercel
+
+Das Projekt ist für Vercel vorbereitet (Root-Verzeichnis: `shop`). Ablauf:
+
+1. Vercel-Projekt mit dem GitHub-Repository verknüpfen, Root Directory `shop`,
+   Production Branch `main`. Der Build läuft auch **ohne** gesetzte
+   Umgebungsvariablen durch (die Datenbankverbindung ist lazy).
+2. Unter *Settings → Environment Variables* mindestens setzen:
+   - `DATABASE_URL` – Supabase-Transaction-Pooler-URL (Port 6543). Pooler werden
+     automatisch erkannt; vorbereitete Anweisungen werden abgeschaltet.
+   - `SESSION_SECRET` – `openssl rand -hex 32`
+   - `NEXT_PUBLIC_SITE_URL` – die öffentliche URL des Deployments (für
+     Stripe-Redirects und E-Mail-Links)
+3. Redeploy auslösen. Stripe/DHL/SMTP-Zugangsdaten können jederzeit ergänzt
+   werden; bis dahin melden die betroffenen Funktionen einen klaren Hinweis.
+
+Supabase-Hinweis: Die Anwendung verbindet sich mit einer dedizierten Rolle
+(`shop_app`) direkt per Postgres. Auf allen Tabellen ist RLS aktiv und die
+öffentliche PostgREST-API (anon/authenticated) hat weder Grants noch Policies –
+Shop-Daten sind ausschließlich über die Anwendung erreichbar.
+
 ## Rechtliches
 
 Die Seiten Impressum, Datenschutz, AGB und Widerruf enthalten **ausdrücklich
