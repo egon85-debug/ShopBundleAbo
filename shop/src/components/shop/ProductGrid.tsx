@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Reveal } from "@/components/motion/Reveal";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatCents } from "@/lib/money";
 import {
@@ -99,7 +100,7 @@ export async function ProductGrid({
       <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
         {/* ── Filterspalte ─────────────────────────────────────────────── */}
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <form action={basePath} method="get" className="card space-y-6 p-5">
+          <form action={basePath} method="get" className="glas space-y-6 p-5">
             <div>
               <label htmlFor="filter-q" className="label">Suche</label>
               <input id="filter-q" type="search" name="q" defaultValue={search} placeholder="Produktname, SKU …" className="field" />
@@ -143,7 +144,7 @@ export async function ProductGrid({
             </div>
           </form>
 
-          <nav aria-label="Kategorien" className="card mt-5 p-5">
+          <nav aria-label="Kategorien" className="glas mt-5 p-5">
             <p className="label">Kategorien</p>
             <ul className="space-y-1">
               <li>
@@ -194,9 +195,19 @@ export async function ProductGrid({
             </div>
           ) : (
             <>
+              {/* Gestaffelt, aber bewusst ruhiger als auf der Startseite: hier
+                  wird eingekauft, nicht gestaunt. Der Versatz endet nach acht
+                  Karten, damit die letzte Reihe nicht spuerbar nachhinkt. */}
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {items.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                {items.map((product, index) => (
+                  <Reveal
+                    key={product.id}
+                    art="aufsteigen"
+                    className="raster-eintritt"
+                    verzoegerung={Math.min(index, 8) * 0.045}
+                  >
+                    <ProductCard product={product} />
+                  </Reveal>
                 ))}
               </div>
 

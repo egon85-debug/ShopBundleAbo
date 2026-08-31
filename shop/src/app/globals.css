@@ -204,3 +204,28 @@
     transition: none !important;
   }
 }
+
+/* ── Glasflaechen ─────────────────────────────────────────────────────────
+   Fuer die Filterleiste im Shop: milchig, damit die Produkte dahinter
+   durchschimmern, aber mit genug Deckkraft, dass die Beschriftungen lesbar
+   bleiben. Ohne backdrop-filter (aeltere Browser) faellt sie auf eine
+   deckende Flaeche zurueck – lesbar bleibt sie in jedem Fall. */
+.glas {
+  background: rgb(255 255 255 / .96);
+  border: 1px solid theme('colors.mist.200');
+  border-radius: theme('borderRadius.2xl');
+  box-shadow: theme('boxShadow.card');
+}
+@supports (backdrop-filter: blur(1px)) {
+  .glas {
+    background: rgb(255 255 255 / .74);
+    backdrop-filter: blur(18px) saturate(140%);
+  }
+}
+
+/* Produkte erscheinen im Shop gestaffelt – deutlich ruhiger als auf der
+   Startseite: kurzer Weg, kurze Dauer, kein Weichzeichner. */
+.raster-eintritt {
+  --reveal-dauer: .5s;
+}
+.raster-eintritt.reveal--aufsteigen { transform: translateY(14px); }

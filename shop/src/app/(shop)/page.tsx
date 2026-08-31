@@ -3,6 +3,7 @@ import Link from "next/link";
 import { KategorieHintergrund } from "@/components/three/KategorieHintergrund";
 import { LazyCartonReveal, LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
 import { HeroTitel } from "@/components/ui/HeroTitel";
+import { LogistikDashboard } from "@/components/ui/LogistikDashboard";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { listProducts } from "@/services/catalog";
@@ -140,34 +141,28 @@ export default async function HomePage() {
         <p className="eyebrow">Warum Winterfeld Logistik</p>
         <h2 className="mt-3 font-display text-display-md font-extrabold">Verlässlich in jedem Schritt</h2>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {[
+        <LogistikDashboard
+          punkte={[
             {
-              title: "Schneller Versand",
-              text: "Bezahlte Bestellungen gehen werktags in die Kommissionierung – Etikett und Tracking entstehen automatisch.",
+              titel: "Bestellung",
+              text: "Kuratiertes Sortiment, klare Daten, ehrliche Verfügbarkeit — Checkout auch ohne Konto.",
             },
             {
-              title: "Sichere Zahlung",
+              titel: "Sichere Zahlung",
               text: "Stripe verarbeitet alle Zahlungen. Kartendaten berühren unsere Server nie.",
             },
             {
-              title: shipping.map((option) => option.label).join(" & "),
+              titel: shipping.map((option) => option.label).join(" & "),
               text: shipping
                 .map((option) => `${option.label}: ${option.deliveryEstimate} · ${formatCents(option.priceCents)}`)
                 .join(" — "),
             },
             {
-              title: "Professionelle Abwicklung",
-              text: "Jede Statusänderung ist protokolliert, jede Sendung nachverfolgbar, jede Erstattung dokumentiert.",
+              titel: "Tracking",
+              text: "Etikett und Sendungsnummer entstehen automatisch. Jede Statusänderung ist protokolliert.",
             },
-          ].map((benefit, index) => (
-            <div key={benefit.title} className="card p-6">
-              <span className="font-mono text-xs text-signal-600">{String(index + 1).padStart(2, "0")}</span>
-              <h3 className="mt-2 font-display text-lg font-bold">{benefit.title}</h3>
-              <p className="mt-2 text-[15px] leading-relaxed text-mist-700">{benefit.text}</p>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
 
       {/* ── Newsletter ─────────────────────────────────────────────────── */}
