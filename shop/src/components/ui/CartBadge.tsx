@@ -1,11 +1,11 @@
 "use client";
 
-import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { WARENKORB_EREIGNIS } from "@/components/motion/cart-flight";
+import { reduzierteBewegung } from "@/components/motion/useInView";
 
 /**
  * Warenkorb-Schaltflaeche mit Artikelzaehler.
@@ -22,8 +22,7 @@ import { WARENKORB_EREIGNIS } from "@/components/motion/cart-flight";
 export function CartBadge() {
   const [count, setCount] = useState<number | null>(null);
   const pathname = usePathname();
-  const reduziert = useReducedMotion();
-  const steuerung = useAnimationControls();
+  const huelle = useRef<HTMLSpanElement>(null);
   const abbruch = useRef<AbortController | null>(null);
 
   const laden = useCallback(() => {
@@ -49,19 +48,21 @@ export function CartBadge() {
   useEffect(() => {
     const aufAenderung = () => {
       laden();
-      if (!reduziert) {
-        steuerung.start({
-          scale: [1, 1.09, 1],
-          transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
-        });
+      // Kurzer Impuls, wenn das Paket ankommt – ueber die Web-Animations-API,
+      // damit dafuer keine Bibliothek noetig ist.
+      if (!reduzierteBewegung()) {
+        huelle.current?.animate(
+          [{ transform: "scale(1)" }, { transform: "scale(1.09)" }, { transform: "scale(1)" }],
+          { duration: 420, easing: "cubic-bezier(.22,1,.36,1)" },
+        );
       }
     };
     window.addEventListener(WARENKORB_EREIGNIS, aufAenderung);
     return () => window.removeEventListener(WARENKORB_EREIGNIS, aufAenderung);
-  }, [laden, reduziert, steuerung]);
+  }, [laden]);
 
   return (
-    <motion.span animate={steuerung} style={{ display: "inline-block" }}>
+    <span ref={huelle} style={{ display: "inline-block" }}>
       <Link
         href="/warenkorb"
         data-warenkorb
@@ -69,17 +70,14 @@ export function CartBadge() {
       >
         Warenkorb
         {count !== null && count > 0 && (
-          <motion.span
+          <span
             key={count}
-            initial={reduziert ? false : { scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            className="ml-2 inline-block rounded-full bg-signal-500 px-2 py-0.5 font-mono text-xs tabular"
+            className="zaehler-eintritt ml-2 inline-block rounded-full bg-signal-500 px-2 py-0.5 font-mono text-xs tabular"
           >
             {count}
-          </motion.span>
+          </span>
         )}
       </Link>
-    </motion.span>
+    </span>
   );
 }

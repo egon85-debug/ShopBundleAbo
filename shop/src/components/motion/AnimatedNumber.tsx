@@ -1,48 +1,63 @@
 "use client";
 
-import { animate, useInView, useReducedMotion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+
+import { reduzierteBewegung, useInView } from "./useInView";
 
 /**
  * Zahl, die beim Erscheinen einmal hochzaehlt.
  *
  * Nur beim ersten Sichtbarwerden, nicht bei jedem Vorbeiscrollen – ein Preis,
- * der staendig zappelt, wirkt unserioes. Der Endwert steht sofort im DOM
- * (`aria-label`), damit Vorlesesoftware nicht die Zwischenschritte ansagt.
+ * der staendig zappelt, wirkt unserioes.
+ *
+ * Der Zwischenstand wird direkt in den Textknoten geschrieben, nicht ueber
+ * React-Zustand: sonst rendert die Seite waehrend der knappen Sekunde
+ * sechzigmal neu. Der Endwert steht ueber `aria-label` von Anfang an fest,
+ * damit Vorlesesoftware nicht die Zwischenschritte ansagt.
  */
 export function AnimatedNumber({
   wert,
   formatieren,
-  dauer = 0.9,
+  dauer = 900,
   className,
 }: {
   wert: number;
   formatieren: (wert: number) => string;
+  /** Dauer in Millisekunden. */
   dauer?: number;
   className?: string;
 }) {
-  const reduziert = useReducedMotion();
-  const ref = useRef<HTMLSpanElement>(null);
-  const sichtbar = useInView(ref, { once: true, margin: "0px 0px -8% 0px" });
-  const [anzeige, setAnzeige] = useState(() => (reduziert ? wert : 0));
+  const { ref, sichtbar } = useInView<HTMLSpanElement>("0px 0px -8% 0px");
+  const anzeige = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (reduziert) {
-      setAnzeige(wert);
+    const ziel = anzeige.current;
+    if (!ziel) return;
+
+    if (reduzierteBewegung() || !sichtbar) {
+      if (reduzierteBewegung()) ziel.textContent = formatieren(wert);
       return;
     }
-    if (!sichtbar) return;
-    const lauf = animate(0, wert, {
-      duration: dauer,
-      ease: [0.22, 1, 0.36, 1],
-      onUpdate: (aktuell) => setAnzeige(aktuell),
-    });
-    return () => lauf.stop();
-  }, [sichtbar, wert, dauer, reduziert]);
+
+    let rahmen = 0;
+    const start = performance.now();
+    const takt = (jetzt: number) => {
+      const anteil = Math.min(1, (jetzt - start) / dauer);
+      // Dieselbe Kurve wie alle anderen Bewegungen der Seite.
+      const weich = 1 - Math.pow(1 - anteil, 3);
+      ziel.textContent = formatieren(wert * weich);
+      if (anteil < 1) rahmen = requestAnimationFrame(takt);
+    };
+    rahmen = requestAnimationFrame(takt);
+    return () => cancelAnimationFrame(rahmen);
+  }, [sichtbar, wert, dauer, formatieren]);
 
   return (
     <span ref={ref} className={className} aria-label={formatieren(wert)}>
-      <span aria-hidden>{formatieren(anzeige)}</span>
+      {/* Startwert steht schon im Markup: ohne JavaScript bleibt der Preis lesbar. */}
+      <span ref={anzeige} aria-hidden>
+        {formatieren(wert)}
+      </span>
     </span>
   );
 }

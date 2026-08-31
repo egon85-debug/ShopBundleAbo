@@ -1,8 +1,7 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Magnetic } from "@/components/motion/MagneticButton";
 import { useRenderProfile } from "@/components/three/useRenderProfile";
@@ -15,47 +14,52 @@ import { useRenderProfile } from "@/components/three/useRenderProfile";
  * Laeuft keine Szene (reduzierte Bewegung, kein WebGL, schwaches Geraet), gibt
  * es nichts abzuwarten: dann steht alles sofort da.
  */
-const KURVE = [0.22, 1, 0.36, 1] as const;
-
+/**
+ * Eine Stufe des Einstiegs. Sichtbar wird sie ueber eine Klasse; wie die
+ * Bewegung aussieht, steht in globals.css (.hero-stufe).
+ */
 function Stufe({
   kinder,
   verzoegerung,
-  reduziert,
+  losgelaufen,
   className,
 }: {
   kinder: ReactNode;
   verzoegerung: number;
-  reduziert: boolean;
+  losgelaufen: boolean;
   className?: string;
 }) {
-  if (reduziert) return <div className={className}>{kinder}</div>;
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 24, filter: "blur(8px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.8, delay: verzoegerung, ease: KURVE }}
+    <div
+      className={["hero-stufe", losgelaufen ? "ist-sichtbar" : "", className].filter(Boolean).join(" ")}
+      style={{ transitionDelay: `${verzoegerung}s` }}
     >
       {kinder}
-    </motion.div>
+    </div>
   );
 }
 
 export function HeroTitel() {
-  const reduzierteBewegung = useReducedMotion();
   const profil = useRenderProfile();
+  const [losgelaufen, setLosgelaufen] = useState(false);
+
+  // Erst nach dem ersten Anstrich losfahren, damit der Uebergang auch
+  // tatsaechlich sichtbar ist statt schon im ersten Bild fertig zu sein.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLosgelaufen(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Warten hat nur Sinn, wenn dahinter wirklich etwas zusammengesetzt wird.
   const szeneLaeuft = profil !== "off";
-  const reduziert = Boolean(reduzierteBewegung) || !szeneLaeuft;
   const start = szeneLaeuft ? (profil === "full" ? 1.55 : 1.05) : 0;
 
   return (
     <div className="section relative z-10 flex min-h-[86vh] flex-col justify-center py-24">
-      <Stufe reduziert={reduziert} verzoegerung={start}
+      <Stufe losgelaufen={losgelaufen} verzoegerung={start}
         kinder={<p className="eyebrow text-signal-300">Winterfeld Logistik</p>} />
 
-      <Stufe reduziert={reduziert} verzoegerung={start + 0.14} className="mt-5"
+      <Stufe losgelaufen={losgelaufen} verzoegerung={start + 0.14} className="mt-5"
         kinder={
           <h1 className="max-w-3xl font-display text-display-xl font-extrabold text-balance">
             Logistik.
@@ -64,14 +68,14 @@ export function HeroTitel() {
           </h1>
         } />
 
-      <Stufe reduziert={reduziert} verzoegerung={start + 0.3} className="mt-6"
+      <Stufe losgelaufen={losgelaufen} verzoegerung={start + 0.3} className="mt-6"
         kinder={
           <p className="max-w-xl text-lg leading-relaxed text-mist-300">
             Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
           </p>
         } />
 
-      <Stufe reduziert={reduziert} verzoegerung={start + 0.42} className="mt-9"
+      <Stufe losgelaufen={losgelaufen} verzoegerung={start + 0.42} className="mt-9"
         kinder={
           <div className="flex flex-wrap gap-3">
             <Magnetic staerke={0.24}>
@@ -90,7 +94,7 @@ export function HeroTitel() {
           </div>
         } />
 
-      <Stufe reduziert={reduziert} verzoegerung={start + 0.56} className="mt-16"
+      <Stufe losgelaufen={losgelaufen} verzoegerung={start + 0.56} className="mt-16"
         kinder={
           <dl className="grid max-w-2xl grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-4">
             {[

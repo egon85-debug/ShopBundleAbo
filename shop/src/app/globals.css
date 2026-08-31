@@ -93,3 +93,114 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Perspektivische Produktkarten ─────────────────────────────────────────
+   Die Neigung kommt als CSS-Variable aus <Tilt>; hier steht nur, wie sie
+   aussieht. Ohne Zeigergeraet oder bei reduzierter Bewegung bleiben die
+   Variablen auf 0 und die Karte liegt flach. */
+.neigekarte {
+  --neigung-x: 0deg;
+  --neigung-y: 0deg;
+  --schein-x: 50%;
+  --schein-y: 0%;
+  --schein-staerke: 0;
+  perspective: 1000px;
+}
+.neigekarte > * {
+  transform: rotateX(var(--neigung-x)) rotateY(var(--neigung-y));
+  transform-style: preserve-3d;
+  transition: transform .45s cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
+}
+.neigekarte:hover > * {
+  /* Waehrend der Zeiger draufliegt, folgt die Karte schneller. */
+  transition-duration: .12s;
+}
+/* Wandernder Lichtschein – liegt ueber der Karte, faengt keine Klicks ab. */
+.neigekarte .schein {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--schein-staerke);
+  transition: opacity .35s ease;
+  background: radial-gradient(
+    380px circle at var(--schein-x) var(--schein-y),
+    rgba(255, 255, 255, .38),
+    transparent 55%
+  );
+  mix-blend-mode: soft-light;
+}
+@media (prefers-reduced-motion: reduce) {
+  .neigekarte > * { transform: none; transition: none; }
+  .neigekarte .schein { display: none; }
+}
+
+/* ── Scroll-Reveals ────────────────────────────────────────────────────────
+   Der Beobachter in <Reveal> setzt nur die Klasse "ist-sichtbar"; wie die
+   Bewegung aussieht, steht hier. Eine gemeinsame Kurve fuer die ganze Seite. */
+.reveal {
+  --reveal-dauer: .72s;
+  transition:
+    opacity var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
+    transform var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
+    filter var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
+    clip-path var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1);
+  opacity: 0;
+}
+.reveal--aufsteigen { transform: translateY(26px); }
+.reveal--maske { clip-path: inset(0 0 100% 0); transform: translateY(12px); }
+.reveal--schaerfen { filter: blur(14px); transform: scale(1.015); }
+.reveal--naeher { transform: scale(.94); }
+.reveal--seitlich { transform: translateX(-34px); }
+
+.reveal.ist-sichtbar {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  clip-path: inset(0 0 0% 0);
+}
+
+/* Wortweise erscheinende Ueberschriften. */
+.wortmaske { display: inline-block; overflow: hidden; vertical-align: bottom; }
+.wortmaske > .wort {
+  display: inline-block;
+  transform: translateY(108%);
+  opacity: 0;
+  transition:
+    transform .68s cubic-bezier(.22, 1, .36, 1),
+    opacity .68s cubic-bezier(.22, 1, .36, 1);
+}
+.wortmaske > .wort.ist-sichtbar { transform: none; opacity: 1; }
+
+/* Gestaffelter Einstieg der Startseite (siehe HeroTitel). */
+.hero-stufe {
+  opacity: 0;
+  transform: translateY(24px);
+  filter: blur(8px);
+  transition:
+    opacity .8s cubic-bezier(.22, 1, .36, 1),
+    transform .8s cubic-bezier(.22, 1, .36, 1),
+    filter .8s cubic-bezier(.22, 1, .36, 1);
+}
+.hero-stufe.ist-sichtbar { opacity: 1; transform: none; filter: none; }
+
+/* Zaehler im Warenkorb: erscheint mit kurzem Aufziehen. */
+.zaehler-eintritt { animation: zaehler-auf .32s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes zaehler-auf {
+  from { transform: scale(.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zaehler-eintritt { animation: none; }
+  .reveal,
+  .wortmaske > .wort,
+  .hero-stufe {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+}
