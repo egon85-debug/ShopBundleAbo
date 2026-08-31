@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
+import { HeroTitel } from "@/components/ui/HeroTitel";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { listProducts } from "@/services/catalog";
@@ -53,43 +54,7 @@ export default async function HomePage() {
           aria-hidden
         />
 
-        <div className="section relative z-10 flex min-h-[86vh] flex-col justify-center py-24">
-          <p className="eyebrow animate-fade-up text-signal-300">Winterfeld Logistik</p>
-          <h1 className="mt-5 max-w-3xl animate-fade-up font-display text-display-xl font-extrabold text-balance">
-            Logistik.
-            <br />
-            Einfach. <span className="text-signal-500">Digital.</span>
-          </h1>
-          <p className="mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-mist-300">
-            Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
-          </p>
-
-          <div className="mt-9 flex animate-fade-up flex-wrap gap-3">
-            <Link href="/shop" className="btn-primary">
-              Shop entdecken
-            </Link>
-            <Link
-              href="#kategorien"
-              className="btn border border-white/25 bg-white/5 text-white backdrop-blur hover:border-white/60 hover:bg-white/10"
-            >
-              Kategorien ansehen
-            </Link>
-          </div>
-
-          <dl className="mt-16 grid max-w-2xl grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-4">
-            {[
-              ["Versand", "DHL & Express"],
-              ["Zahlung", "Stripe-gesichert"],
-              ["Lieferzeit", "ab 1 Werktag"],
-              ["Tracking", "automatisch"],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="font-mono text-[11px] uppercase tracking-[.16em] text-mist-500">{label}</dt>
-                <dd className="mt-1 font-display text-[15px] font-bold text-white">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <HeroTitel />
       </section>
 
       {/* ── Kategorien ─────────────────────────────────────────────────── */}
