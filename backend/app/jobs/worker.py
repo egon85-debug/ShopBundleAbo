@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import socket
+import threading
 import time
 
 from app.db import get_sessionmaker
@@ -48,8 +49,12 @@ class Worker:
 
     def run_forever(self) -> None:
         log.info("Worker %s gestartet", self.worker_id)
-        signal.signal(signal.SIGTERM, self.stop)
-        signal.signal(signal.SIGINT, self.stop)
+        # Signalbehandlung geht nur im Hauptthread. Laeuft der Worker im
+        # API-Prozess mit (RUN_WORKER_IN_PROCESS), beendet ihn stattdessen die
+        # Lifespan-Abschaltung ueber stop().
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGTERM, self.stop)
+            signal.signal(signal.SIGINT, self.stop)
         while self._running:
             worked = self.process_one()
             if not worked:

@@ -1,5 +1,7 @@
 """Winterfeld Logistik — Backend-API."""
 import logging
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,12 +17,38 @@ logging.basicConfig(
 )
 
 
+log = logging.getLogger("winterfeld.app")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startet den Job-Worker im selben Prozess, wenn so konfiguriert.
+
+    Der Worker holt sich Jobs mit FOR UPDATE SKIP LOCKED — mehrere Worker sind
+    also unbedenklich, aber unnötig. Als Daemon-Thread beendet er sich mit dem
+    Prozess; SIGTERM des Hosters greift damit auch hier.
+    """
+    worker = None
+    if get_settings().run_worker_in_process:
+        from app.jobs.worker import Worker
+
+        worker = Worker()
+        threading.Thread(target=worker.run_forever, name="job-worker", daemon=True).start()
+        log.info("Job-Worker läuft im API-Prozess")
+    try:
+        yield
+    finally:
+        if worker is not None:
+            worker.stop()
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
         title="Winterfeld Logistik API",
         version="1.0.0",
         docs_url="/docs" if not settings.is_production else None,
+        lifespan=lifespan,
     )
 
     app.add_middleware(

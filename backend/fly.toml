@@ -1,0 +1,44 @@
+# Fly.io – ein Dienst, API und Job-Worker im selben Prozess.
+#
+#   fly launch --no-deploy --copy-config
+#   fly secrets set DATABASE_URL=… JWT_SECRET=… CREDENTIALS_KEY=…
+#   fly deploy
+#
+# Wächst die Last, wird aus RUN_WORKER_IN_PROCESS=false plus einem zweiten
+# Prozess ("worker") ein eigener Dienst – ohne Codeänderung.
+app = "winterfeld-logistik-api"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENVIRONMENT = "production"
+  PORT = "8000"
+  RUN_MIGRATIONS = "true"
+  RUN_WORKER_IN_PROCESS = "true"
+  WEB_CONCURRENCY = "1"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Der Job-Worker läuft mit — die Maschine darf nicht schlafen gelegt werden,
+  # sonst bleiben Aufträge liegen, bis wieder jemand die Seite aufruft.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[mounts]
+  source = "winterfeld_medien"
+  destination = "/app/storage"
