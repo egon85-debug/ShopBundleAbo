@@ -7,9 +7,27 @@ import { ProductGallery } from "@/components/shop/ProductGallery";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatCents, taxFromGross } from "@/lib/money";
 import { getShippingProvider } from "@/lib/shipping/registry";
-import { getProductBySlug } from "@/services/catalog";
+import { getProductBySlug, listProducts } from "@/services/catalog";
 
 export const revalidate = 60;
+
+/**
+ * Produktseiten werden schon beim Deployment erzeugt, damit Besucher eine
+ * fertige Seite bekommen statt auf eine Datenbankabfrage zu warten. Neue
+ * Produkte werden weiterhin beim ersten Aufruf ergaenzt (dynamicParams).
+ * Ist die Datenbank zur Bauzeit nicht erreichbar, entsteht einfach keine
+ * Vorabseite – der Build bricht deshalb nicht ab.
+ */
+export const dynamicParams = true;
+
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  try {
+    const { items } = await listProducts({ limit: 200 });
+    return items.map((item) => ({ slug: item.slug }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;

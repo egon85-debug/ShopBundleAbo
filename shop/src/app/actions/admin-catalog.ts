@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { and, asc, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -17,6 +17,7 @@ import {
   productRelations_,
   products,
 } from "@/db/schema";
+import { KATEGORIE_TAG } from "@/services/navigation";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { parseToCents } from "@/lib/money";
@@ -361,6 +362,7 @@ export async function saveCategoryAction(
     });
 
     revalidatePath("/admin/kategorien");
+    revalidateTag(KATEGORIE_TAG);
     revalidatePath("/shop");
     revalidatePath("/");
     return { ok: true, message: "Kategorie gespeichert.", id };
@@ -395,6 +397,7 @@ export async function deleteCategoryAction(formData: FormData): Promise<void> {
     oldValue: category.name,
   });
   revalidatePath("/admin/kategorien");
+  revalidateTag(KATEGORIE_TAG);
   revalidatePath("/shop");
 }
 
@@ -405,6 +408,7 @@ export async function toggleCategoryActiveAction(formData: FormData): Promise<vo
   if (!category) return;
   await db.update(categories).set({ isActive: !category.isActive }).where(eq(categories.id, categoryId));
   revalidatePath("/admin/kategorien");
+  revalidateTag(KATEGORIE_TAG);
   revalidatePath("/shop");
 }
 
@@ -417,6 +421,7 @@ export async function reorderCategoriesAction(orderedIds: string[]): Promise<voi
     }
   });
   revalidatePath("/admin/kategorien");
+  revalidateTag(KATEGORIE_TAG);
   revalidatePath("/shop");
   revalidatePath("/");
 }

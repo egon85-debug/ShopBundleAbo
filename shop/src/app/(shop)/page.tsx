@@ -3,7 +3,8 @@ import Link from "next/link";
 import { LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
-import { getCategoryTree, listProducts } from "@/services/catalog";
+import { listProducts } from "@/services/catalog";
+import { navigationCategories } from "@/services/navigation";
 import { shippingOptions } from "@/lib/shipping/registry";
 import { formatCents } from "@/lib/money";
 
@@ -28,7 +29,7 @@ async function safely<T>(load: () => Promise<T>, fallback: T): Promise<T> {
 
 export default async function HomePage() {
   const [categories, bestsellers, newest, offers] = await Promise.all([
-    safely(() => getCategoryTree(), [] as Awaited<ReturnType<typeof getCategoryTree>>),
+    navigationCategories(),
     safely(() => listProducts({ featuredOnly: true, limit: 4 }), EMPTY_LIST),
     safely(() => listProducts({ sort: "newest", limit: 4 }), EMPTY_LIST),
     safely(() => listProducts({ sort: "price_asc", limit: 8 }), EMPTY_LIST),
