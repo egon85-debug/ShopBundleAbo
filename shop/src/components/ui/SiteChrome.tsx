@@ -1,12 +1,32 @@
 import Link from "next/link";
 
 import { getCart } from "@/services/cart";
-import { getCategoryTree } from "@/services/catalog";
+import { getCategoryTree, type CategoryNode } from "@/services/catalog";
+
+/**
+ * Navigation und Warenkorbzähler kommen aus der Datenbank. Ist sie kurzzeitig
+ * nicht erreichbar, rendert die Seite trotzdem – ohne Kategorienliste statt mit
+ * einer Fehlerseite. So bleiben auch Rechts- und Informationsseiten abrufbar.
+ */
+async function safeCategories(): Promise<CategoryNode[]> {
+  try {
+    return await getCategoryTree();
+  } catch {
+    return [];
+  }
+}
+
+async function safeCartCount(): Promise<number> {
+  try {
+    return (await getCart())?.itemCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 /** Kopfzeile mit dynamischer Kategorienavigation (nichts ist hartkodiert). */
 export async function SiteHeader() {
-  const [categories, cart] = await Promise.all([getCategoryTree(), getCart()]);
-  const count = cart?.itemCount ?? 0;
+  const [categories, count] = await Promise.all([safeCategories(), safeCartCount()]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-mist-200 bg-white/85 backdrop-blur-xl">
@@ -65,7 +85,7 @@ export async function SiteHeader() {
 }
 
 export async function SiteFooter() {
-  const categories = await getCategoryTree();
+  const categories = await safeCategories();
 
   return (
     <footer className="mt-24 border-t border-carbon-700 bg-carbon-950 text-mist-300">
