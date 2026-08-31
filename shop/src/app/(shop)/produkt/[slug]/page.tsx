@@ -7,27 +7,16 @@ import { ProductGallery } from "@/components/shop/ProductGallery";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatCents, taxFromGross } from "@/lib/money";
 import { getShippingProvider } from "@/lib/shipping/registry";
-import { getProductBySlug, listProducts } from "@/services/catalog";
+import { getProductBySlug } from "@/services/catalog";
 
 export const revalidate = 60;
 
 /**
- * Produktseiten werden schon beim Deployment erzeugt, damit Besucher eine
- * fertige Seite bekommen statt auf eine Datenbankabfrage zu warten. Neue
- * Produkte werden weiterhin beim ersten Aufruf ergaenzt (dynamicParams).
- * Ist die Datenbank zur Bauzeit nicht erreichbar, entsteht einfach keine
- * Vorabseite – der Build bricht deshalb nicht ab.
+ * Bewusst kein generateStaticParams: Produktseiten entstehen beim ersten
+ * Aufruf und liegen danach im Zwischenspeicher (ISR). Ein Vorrendern beim
+ * Deployment wuerde den Build von der Erreichbarkeit der Datenbank abhaengig
+ * machen – eine Datenbankstoerung darf keine Auslieferung verhindern.
  */
-export const dynamicParams = true;
-
-export async function generateStaticParams(): Promise<{ slug: string }[]> {
-  try {
-    const { items } = await listProducts({ limit: 200 });
-    return items.map((item) => ({ slug: item.slug }));
-  } catch {
-    return [];
-  }
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
