@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
+import { KategorieHintergrund } from "@/components/three/KategorieHintergrund";
+import { LazyCartonReveal, LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
 import { HeroTitel } from "@/components/ui/HeroTitel";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
@@ -57,6 +58,11 @@ export default async function HomePage() {
         <HeroTitel />
       </section>
 
+      {/* ── Der Karton öffnet sich ─────────────────────────────────────
+          Führt vom Einstieg in den Shop: derselbe Karton, jetzt geöffnet,
+          und das Sortiment schwebt heraus – direkt in die Kategorien. */}
+      <LazyCartonReveal />
+
       {/* ── Kategorien ─────────────────────────────────────────────────── */}
       <section id="kategorien" className="section scroll-mt-24 py-20">
         <div className="flex items-end justify-between gap-6">
@@ -83,8 +89,11 @@ export default async function HomePage() {
               <Link
                 key={category.id}
                 href={`/shop/${category.slug}`}
-                className="group relative flex min-h-[190px] flex-col justify-end overflow-hidden rounded-2xl border border-mist-200 bg-carbon-900 p-6 text-white transition-all duration-300 ease-precise hover:-translate-y-1 hover:shadow-lift"
+                data-kategorie-kachel
+                className="gruppe group relative flex min-h-[190px] flex-col justify-end overflow-hidden rounded-2xl border border-mist-200 bg-carbon-900 p-6 text-white transition-all duration-300 ease-precise hover:-translate-y-1 hover:shadow-lift"
               >
+                {/* Raeumliche Ebene – liegt hinter allem, faengt keine Klicks ab. */}
+                <KategorieHintergrund name={category.name} />
                 {category.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
