@@ -1,8 +1,11 @@
 "use client";
 
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { WARENKORB_EREIGNIS } from "@/components/motion/cart-flight";
 
 /**
  * Warenkorb-Schaltflaeche mit Artikelzaehler.
@@ -11,35 +14,72 @@ import { useEffect, useState } from "react";
  * ausgeliefert werden kann. Solange die Antwort aussteht (oder wenn sie
  * ausbleibt), zeigt die Schaltflaeche einfach keinen Zaehler – nie einen
  * Fehler.
+ *
+ * Das Attribut `data-warenkorb` ist das Ziel des Flugs aus
+ * `cart-flight.ts`; darueber findet die Animation den Warenkorb, ohne dass
+ * beide Seiten voneinander wissen muessen.
  */
 export function CartBadge() {
   const [count, setCount] = useState<number | null>(null);
   const pathname = usePathname();
+  const reduziert = useReducedMotion();
+  const steuerung = useAnimationControls();
+  const abbruch = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const abort = new AbortController();
-    fetch("/api/warenkorb/anzahl", { signal: abort.signal, cache: "no-store" })
+  const laden = useCallback(() => {
+    abbruch.current?.abort();
+    const controller = new AbortController();
+    abbruch.current = controller;
+    fetch("/api/warenkorb/anzahl", { signal: controller.signal, cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (typeof data?.anzahl === "number") setCount(data.anzahl);
       })
       .catch(() => {
-        /* Zaehler bleibt verborgen. */
+        /* Zaehler bleibt, wie er ist. */
       });
-    return () => abort.abort();
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    laden();
+    return () => abbruch.current?.abort();
+  }, [laden, pathname]);
+
+  // Nach dem Hinzufuegen eines Produkts: neu laden und kurz reagieren.
+  useEffect(() => {
+    const aufAenderung = () => {
+      laden();
+      if (!reduziert) {
+        steuerung.start({
+          scale: [1, 1.09, 1],
+          transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
+        });
+      }
+    };
+    window.addEventListener(WARENKORB_EREIGNIS, aufAenderung);
+    return () => window.removeEventListener(WARENKORB_EREIGNIS, aufAenderung);
+  }, [laden, reduziert, steuerung]);
 
   return (
-    <Link
-      href="/warenkorb"
-      className="relative rounded-lg bg-carbon-900 px-4 py-2.5 text-[15px] font-bold text-white transition-colors hover:bg-carbon-800"
-    >
-      Warenkorb
-      {count !== null && count > 0 && (
-        <span className="ml-2 rounded-full bg-signal-500 px-2 py-0.5 font-mono text-xs tabular">
-          {count}
-        </span>
-      )}
-    </Link>
+    <motion.span animate={steuerung} style={{ display: "inline-block" }}>
+      <Link
+        href="/warenkorb"
+        data-warenkorb
+        className="relative rounded-lg bg-carbon-900 px-4 py-2.5 text-[15px] font-bold text-white transition-colors hover:bg-carbon-800"
+      >
+        Warenkorb
+        {count !== null && count > 0 && (
+          <motion.span
+            key={count}
+            initial={reduziert ? false : { scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            className="ml-2 inline-block rounded-full bg-signal-500 px-2 py-0.5 font-mono text-xs tabular"
+          >
+            {count}
+          </motion.span>
+        )}
+      </Link>
+    </motion.span>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { fliegeInDenWarenkorb } from "@/components/motion/cart-flight";
+import { Magnetic } from "@/components/motion/MagneticButton";
 import { addToCartAction, type ActionState } from "@/app/actions/shop";
 
 type Variant = { id: string; name: string; priceCents: number | null };
@@ -10,9 +12,15 @@ type Variant = { id: string; name: string; priceCents: number | null };
 function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn-primary w-full sm:w-auto" disabled={disabled || pending}>
-      {pending ? "Wird hinzugefügt …" : "In den Warenkorb"}
-    </button>
+    <Magnetic className="w-full sm:w-auto" staerke={0.22}>
+      <button
+        type="submit"
+        className="btn-primary w-full transition-transform duration-200 ease-precise active:scale-[.98] sm:w-auto"
+        disabled={disabled || pending}
+      >
+        {pending ? "Wird hinzugefügt …" : "In den Warenkorb"}
+      </button>
+    </Magnetic>
   );
 }
 
@@ -21,18 +29,34 @@ export function AddToCartForm({
   variants,
   disabled = false,
   maxQuantity = 99,
+  bildUrl = null,
 }: {
   productId: string;
   variants: Variant[];
   disabled?: boolean;
   maxQuantity?: number;
+  /** Wird beim Flug in den Warenkorb gezeigt. */
+  bildUrl?: string | null;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(addToCartAction, { ok: false });
   const [quantity, setQuantity] = useState(1);
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
+  const formular = useRef<HTMLFormElement>(null);
+  const letzteMeldung = useRef<string | undefined>(undefined);
+
+  // Erst wenn der Server bestaetigt hat, fliegt das Produkt los. Eine Animation
+  // vor der Bestaetigung wuerde einen Erfolg zeigen, den es noch nicht gibt.
+  useEffect(() => {
+    if (!state.ok || state.message === letzteMeldung.current) return;
+    letzteMeldung.current = state.message;
+    const quelle =
+      formular.current?.closest("[data-produkt-bereich]")?.querySelector("[data-produkt-bild]") ??
+      formular.current;
+    fliegeInDenWarenkorb(quelle, bildUrl);
+  }, [state, bildUrl]);
 
   return (
-    <form action={action} className="mt-6">
+    <form ref={formular} action={action} className="mt-6">
       <input type="hidden" name="productId" value={productId} />
       {variants.length > 0 && <input type="hidden" name="variantId" value={variantId} />}
 
