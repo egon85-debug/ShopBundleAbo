@@ -1,10 +1,12 @@
-# Betrieb auf einem eigenen Server (oder lokal zum Ausprobieren).
+# Betrieb des Backends als Container.
 #
-#   cp .env.example .env   # ausfüllen, insbesondere JWT_SECRET und CREDENTIALS_KEY
+# Mit einer verwalteten Datenbank (Supabase o. ae.) — der Normalfall:
+#   cp .env.example .env    # ausfuellen, vor allem DATABASE_URL, JWT_SECRET, CREDENTIALS_KEY
 #   docker compose up -d --build
 #
-# Bei einer verwalteten Datenbank (Supabase o. ä.) den Dienst "db" streichen und
-# DATABASE_URL in der .env auf die externe Datenbank zeigen lassen.
+# Mit eigener PostgreSQL im Container (zum Ausprobieren ohne Konto):
+#   docker compose --profile lokale-db up -d --build
+#   DATABASE_URL zeigt dann auf den Dienst "db" (siehe .env.example).
 services:
   api:
     build: .
@@ -16,18 +18,22 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Fotos und Sprachaufnahmen bei STORAGE_BACKEND=local.
       - medien:/app/storage
-    depends_on:
-      db:
-        condition: service_healthy
 
+  # Nur mit --profile lokale-db. Der API-Container wartet beim Start von sich
+  # aus auf die Datenbank, ein depends_on ist deshalb nicht noetig — und wuerde
+  # den Betrieb ohne diesen Dienst verhindern.
   db:
+    profiles: ["lokale-db"]
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: winterfeld
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in der .env gesetzt sein}
       POSTGRES_DB: winterfeld
+    ports:
+      - "5432:5432"
     volumes:
       - datenbank:/var/lib/postgresql/data
     healthcheck:

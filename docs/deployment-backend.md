@@ -37,18 +37,36 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 verschlüsselten Shop-Zugangsdaten unlesbar. Alle weiteren Variablen (KI-Anbieter,
 S3, Ratenbegrenzung) stehen in `backend/.env.example`.
 
-## Eigener Server mit Docker
+## Mit Docker starten
 
 ```bash
 cd backend
-cp .env.example .env          # ausfüllen: JWT_SECRET, CREDENTIALS_KEY, POSTGRES_PASSWORD
+cp .env.example .env          # ausfüllen: DATABASE_URL, JWT_SECRET, CREDENTIALS_KEY
 docker compose up -d --build
 curl http://localhost:8000/health     # {"status":"ok"}
 ```
 
-Die mitgelieferte `docker-compose.yml` bringt PostgreSQL mit. Bei einer
-verwalteten Datenbank den Dienst `db` streichen und `DATABASE_URL` auf sie
-zeigen lassen.
+Das genügt mit einer verwalteten Datenbank (Supabase o. ä.). Wer ohne fremdes
+Konto ausprobieren will, startet PostgreSQL gleich mit:
+
+```bash
+docker compose --profile lokale-db up -d --build
+```
+
+Der API-Container wartet beim Start selbst auf die Datenbank
+(`DB_WAIT_SECONDS`, Vorgabe 60 s) und meldet im Klartext, wenn sie nicht
+antwortet — ein frisch gestarteter PostgreSQL-Container braucht ein paar
+Sekunden, und das soll den ersten Start nicht scheitern lassen.
+
+### Supabase als Datenbank
+
+Die Verbindungszeichenkette gehört aus dem Dashboard kopiert
+(`Connect` → `Session pooler`), nicht geraten: der direkte Host
+`db.<ref>.supabase.co` ist im kostenlosen Tarif nur über IPv6 erreichbar, der
+Pooler antwortet auch über IPv4. Das Präfix muss `postgresql+psycopg2://`
+lauten.
+
+### Ins Netz stellen
 
 Vor die API gehört ein Reverse Proxy mit TLS (Caddy, nginx). Die API selbst
 spricht HTTP und vertraut `X-Forwarded-*` — sie darf deshalb **nicht** direkt
