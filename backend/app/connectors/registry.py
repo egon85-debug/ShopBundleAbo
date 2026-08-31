@@ -3,11 +3,13 @@ Neue Shopsysteme = neue Adapterklasse + Registrierung hier."""
 import json
 
 from app.connectors.base import ShopConnector, ShopConnectorError
+from app.connectors.winterfeld import WinterfeldShopConnector
 from app.connectors.woocommerce import WooCommerceConnector
 from app.models.shop import ShopConnection
 from app.utils.security import decrypt_credentials
 
 _CONNECTORS: dict[str, type[ShopConnector]] = {
+    WinterfeldShopConnector.connector_type: WinterfeldShopConnector,
     WooCommerceConnector.connector_type: WooCommerceConnector,
 }
 

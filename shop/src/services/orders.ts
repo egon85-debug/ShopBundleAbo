@@ -24,6 +24,7 @@ import {
   shippingConfirmationMail,
   type OrderMailData,
 } from "@/lib/email/templates";
+import { meldeVerkauf } from "@/lib/lager-meldung";
 import { sendMail } from "@/lib/email/send";
 import { siteUrl } from "@/lib/env";
 import { getShippingProvider, type CarrierCode } from "@/lib/shipping/registry";
@@ -208,6 +209,13 @@ export async function markOrderPaid(orderId: string, paymentIntentId: string, me
         );
     }
   });
+
+  // Verkauf an die Lagererfassung melden, damit dort dieselbe Bewegung entsteht.
+  // Ein Fehler darf die bereits bezahlte Bestellung nicht scheitern lassen.
+  await meldeVerkauf(
+    order.orderNumber,
+    order.items.map((item) => ({ sku: item.sku, quantity: item.quantity })),
+  );
 
   const data = mailData(order);
   const mail = paymentConfirmationMail(data);

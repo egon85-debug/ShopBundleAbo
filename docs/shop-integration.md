@@ -48,3 +48,95 @@ ohne Änderung an Services, Jobs oder UI.
 4. Bestellungen: Webhook `POST /shop/webhooks/{connection_id}/order`
    (HMAC-signiert) → Bestandsabbuchung als Movement `sale` mit Referenz auf die
    Bestellnummer.
+
+## Connector „winterfeld" — der eigene Shop
+
+`connectors/winterfeld.py` spricht mit dem Next.js-Shop in diesem Repository
+(Verzeichnis `shop/`). Der Shop nimmt Artikel über **einen** Endpunkt entgegen,
+der anlegt oder aktualisiert:
+
+```
+POST /api/ingest/produkt
+x-api-key: <INGEST_API_KEY>
+```
+
+Schlüssel ist die **SKU** (bei bereits übernommenen Artikeln alternativ die vom
+Shop vergebene `id`). Derselbe Artikel zweimal geschickt ergibt denselben
+Datensatz, nicht zwei — ein Wiederholungsversuch nach einem Netzwerkfehler ist
+damit gefahrlos.
+
+### Zugang
+
+Ein eigener Maschinenschlüssel, **nicht** der Admin-Login des Shops: ein
+Maschinenzugang bekommt so nie Sitzungsrechte im Backoffice.
+
+- Im Shop: Umgebungsvariable `INGEST_API_KEY`, mindestens 32 Zeichen
+  (`openssl rand -hex 32`). Ist sie nicht gesetzt, antwortet der Endpunkt mit
+  `503` — ein fehlendes Geheimnis führt nie zu offenem Zugang.
+- Im Lager-Backend: als Zugangsdaten der Shop-Verbindung
+  (`{"api_key": "…"}`), verschlüsselt in `shop_connections.credentials_encrypted`.
+  Der Schlüssel steht in keiner Quelldatei.
+
+### Feldabbildung
+
+| Lager | Shop | Anmerkung |
+|---|---|---|
+| `sku` | `sku` | fachlicher Schlüssel, eindeutig |
+| `price` | `preisCents` | ganzzahliger Centbetrag, nie Fließkomma |
+| `stock_quantity` | `bestand` | Bestand des Hauptartikels |
+| `condition` | `merkmale.Zustand` | |
+| `ean` | `merkmale.EAN` | |
+| `category` | `kategorien[]` | wird angelegt, falls unbekannt — nichts ist fest verdrahtet |
+| `image_urls` | `bilder[]` | Reihenfolge bleibt erhalten |
+
+Nur mitgeschickte Felder werden geschrieben. Was das Lager nicht kennt — etwa
+ein im Backoffice gepflegter SEO-Text — bleibt unangetastet.
+
+### Antworten
+
+| Status | Bedeutung |
+|---|---|
+| `201` | Artikel neu angelegt |
+| `200` | Artikel aktualisiert |
+| `401` | API-Schlüssel falsch oder fehlt |
+| `422` | Daten unvollständig, mit Feldliste |
+| `503` | `INGEST_API_KEY` im Shop nicht gesetzt |
+
+Netzwerkfehler und `5xx` werden als `ShopConnectorError` gemeldet: der Job läuft
+in den normalen Retry mit wachsendem Abstand, der Artikel bleibt „Shopbereit“.
+
+### Einrichtung
+
+1. Im Shop (Vercel) `INGEST_API_KEY` setzen und neu deployen.
+2. Im Lager-Backend eine Shop-Verbindung anlegen:
+   ```
+   POST /shop/connections
+   { "name": "Winterfeld Shop",
+     "connector_type": "winterfeld",
+     "base_url": "https://…vercel.app",
+     "credentials": { "api_key": "…" },
+     "webhook_secret": "…" }
+   ```
+3. `POST /shop/connections/{id}/test` — prüft Erreichbarkeit, Datenbankzustand
+   (über `/api/health`) **und** den Schlüssel.
+4. In der Tablet-App „JETZT VERÖFFENTLICHEN“ mit dieser Verbindung wählen.
+
+### Rückrichtung: Verkauf bucht Bestand ab
+
+Sobald eine Bestellung bezahlt ist (`markOrderPaid`), meldet der Shop sie an
+`POST /shop/webhooks/{connection_id}/order`, signiert mit HMAC-SHA256 über
+`webhook_secret`. Jede Position wird über die SKU zugeordnet und als Movement
+`sale` gebucht — jede Bestandsänderung bleibt nachvollziehbar.
+
+Dafür braucht der Shop zwei weitere Umgebungsvariablen:
+
+```
+LAGER_WEBHOOK_URL=https://lager.example.de/shop/webhooks/<connection_id>/order
+LAGER_WEBHOOK_SECRET=<gleicher Wert wie webhook_secret der Verbindung>
+```
+
+Fehlt eine davon, unterbleibt die Meldung — der Shop läuft normal weiter.
+Ist das Lager nicht erreichbar, wird der Fehler protokolliert, die bezahlte
+Bestellung aber **nicht** zurückgerollt: eine Rückmeldung darf einen
+abgeschlossenen Zahlungsvorgang nie scheitern lassen. Der Bestand ist dann im
+Lager nachzuziehen.
