@@ -20,19 +20,37 @@ export function usesTransactionPooler(url: string): boolean {
   return /pooler\./i.test(url) || /:6543\b/.test(url) || /[?&]pgbouncer=true/i.test(url);
 }
 
-function createClient() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL ist nicht gesetzt (siehe shop/.env.example)");
-
+/**
+ * Verbindungsoptionen. Die Zeitlimits sind der Grund, weshalb eine kurzzeitige
+ * Stoerung nicht mehr als haengende Seite beim Kunden ankommt:
+ *
+ * - `connect_timeout`  bricht einen Verbindungsaufbau ab, statt bis zum
+ *   Funktions-Zeitlimit zu warten. Die Seite zeigt dann ihre Ersatzinhalte.
+ * - `idle_timeout`     schliesst ungenutzte Verbindungen von sich aus. Pooler
+ *   raeumen ihrerseits nach ca. 10 Minuten auf; eine serverlose Instanz, die
+ *   danach wieder aufwacht, wuerde sonst auf einen bereits geschlossenen Socket
+ *   schreiben und den ersten Aufruf verlieren.
+ * - `max_lifetime`     erneuert langlebige Verbindungen regelmaessig.
+ */
+export function connectionOptions(url: string) {
   const pooled = usesTransactionPooler(url);
-  const client = postgres(url, {
+  return {
     // Serverless-Instanzen halten je nur wenige Verbindungen; hinter einem
     // Pooler genuegt eine pro Instanz. Im Dev-Modus eine, damit Hot Reload
     // keine Verbindungen leakt.
     max: process.env.NODE_ENV === "production" ? (pooled ? 1 : 10) : 1,
     prepare: !pooled,
-  });
-  return drizzle(client, { schema });
+    connect_timeout: 10,
+    idle_timeout: 20,
+    max_lifetime: 60 * 10,
+  } satisfies postgres.Options<Record<string, never>>;
+}
+
+function createClient() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL ist nicht gesetzt (siehe shop/.env.example)");
+
+  return drizzle(postgres(url, connectionOptions(url)), { schema });
 }
 
 function getDb(): Database {

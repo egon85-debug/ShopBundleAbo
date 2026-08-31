@@ -1,32 +1,19 @@
 import Link from "next/link";
 
-import { getCart } from "@/services/cart";
-import { getCategoryTree, type CategoryNode } from "@/services/catalog";
+import { CartBadge } from "@/components/ui/CartBadge";
+import { navigationCategories } from "@/services/navigation";
 
 /**
- * Navigation und Warenkorbzähler kommen aus der Datenbank. Ist sie kurzzeitig
- * nicht erreichbar, rendert die Seite trotzdem – ohne Kategorienliste statt mit
- * einer Fehlerseite. So bleiben auch Rechts- und Informationsseiten abrufbar.
+ * Kopf- und Fusszeile zeigen die Kategorien aus der Datenbank – zwischen-
+ * gespeichert und mit Ersatzwert, damit eine kurzzeitig langsame oder nicht
+ * erreichbare Datenbank keine Seite lahmlegt. Der Warenkorbzähler kommt aus
+ * einem eigenen Aufruf im Browser (siehe CartBadge), weil er an einem Cookie
+ * hängt und die Seiten sonst nicht mehr statisch ausgeliefert werden könnten.
  */
-async function safeCategories(): Promise<CategoryNode[]> {
-  try {
-    return await getCategoryTree();
-  } catch {
-    return [];
-  }
-}
-
-async function safeCartCount(): Promise<number> {
-  try {
-    return (await getCart())?.itemCount ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 /** Kopfzeile mit dynamischer Kategorienavigation (nichts ist hartkodiert). */
 export async function SiteHeader() {
-  const [categories, count] = await Promise.all([safeCategories(), safeCartCount()]);
+  const categories = await navigationCategories();
 
   return (
     <header className="sticky top-0 z-50 border-b border-mist-200 bg-white/85 backdrop-blur-xl">
@@ -67,17 +54,7 @@ export async function SiteHeader() {
           <Link href="/konto" className="rounded-lg px-3 py-2 text-[15px] font-semibold hover:bg-mist-100">
             Konto
           </Link>
-          <Link
-            href="/warenkorb"
-            className="relative rounded-lg bg-carbon-900 px-4 py-2.5 text-[15px] font-bold text-white transition-colors hover:bg-carbon-800"
-          >
-            Warenkorb
-            {count > 0 && (
-              <span className="ml-2 rounded-full bg-signal-500 px-2 py-0.5 font-mono text-xs tabular">
-                {count}
-              </span>
-            )}
-          </Link>
+          <CartBadge />
         </div>
       </div>
     </header>
@@ -85,7 +62,7 @@ export async function SiteHeader() {
 }
 
 export async function SiteFooter() {
-  const categories = await safeCategories();
+  const categories = await navigationCategories();
 
   return (
     <footer className="mt-24 border-t border-carbon-700 bg-carbon-950 text-mist-300">
