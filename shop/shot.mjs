@@ -18,8 +18,31 @@
  *   node shot.mjs /ziel/pfad               → dorthin
  *   BASIS=http://127.0.0.1:3000 node shot.mjs
  */
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { chromium } from "playwright";
+
+/**
+ * Chromium finden.
+ *
+ * In manchen Umgebungen liegt bereits ein Browser bereit (Playwright-Ablage),
+ * dessen Versionsnummer nicht zu der der installierten Bibliothek passt.
+ * Playwright sucht dann vergeblich. Statt einen zweiten Browser zu laden,
+ * nehmen wir den vorhandenen.
+ */
+function chromiumPfad() {
+  if (process.env.CHROMIUM_PFAD) return process.env.CHROMIUM_PFAD;
+  const ablage = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (!ablage || !existsSync(ablage)) return undefined;
+  const kandidat = readdirSync(ablage)
+    .filter((name) => name.startsWith("chromium-"))
+    .sort()
+    .pop();
+  if (!kandidat) return undefined;
+  const voll = path.join(ablage, kandidat, "chrome-linux", "chrome");
+  return existsSync(voll) ? voll : undefined;
+}
 
 const ZIEL = process.argv[2] ?? "./aufnahmen";
 const BASIS = process.env.BASIS ?? "http://127.0.0.1:3000";
@@ -43,6 +66,7 @@ const browser = await chromium.launch({
   // In Containern ohne Grafikkarte rechnet SwiftShader WebGL auf der CPU –
   // sonst bliebe jede 3D-Szene auf den Aufnahmen schwarz.
   args: ["--no-sandbox", "--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+  executablePath: chromiumPfad(),
 });
 const seite = await browser.newPage({ viewport: { width: BREITE, height: HOEHE } });
 

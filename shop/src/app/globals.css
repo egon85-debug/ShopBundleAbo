@@ -229,3 +229,29 @@
   --reveal-dauer: .5s;
 }
 .raster-eintritt.reveal--aufsteigen { transform: translateY(14px); }
+
+/* ── Kopfzeile über der dunklen Heldenszene ───────────────────────────────
+   Durchsichtig allein genügt nicht: die Beschriftung ist für hellen Grund
+   gebaut und wäre auf der dunklen Szene unlesbar. Beides gehört zusammen,
+   deshalb steht die Umfärbung hier neben dem durchsichtigen Zustand. */
+header[data-ueber-helden] {
+  color: #EFF3F7;
+}
+header[data-ueber-helden] a { color: #EFF3F7; }
+header[data-ueber-helden] a:hover { background-color: rgb(255 255 255 / .12); }
+/* Wortmarke: heller Schriftzug, Untertitel im helleren Markenblau. */
+header[data-ueber-helden] .text-carbon-900 { color: #FFFFFF; }
+header[data-ueber-helden] .text-signal-600 { color: #7FA8FF; }
+/* Suchfeld als milchige Fläche statt weißem Kasten. */
+header[data-ueber-helden] .field {
+  background-color: rgb(255 255 255 / .10);
+  border-color: rgb(255 255 255 / .22);
+  color: #EFF3F7;
+}
+header[data-ueber-helden] .field::placeholder { color: rgb(239 243 247 / .6); }
+/* Der Warenkorb bleibt die einzige gefüllte Fläche – jetzt hell auf dunkel. */
+header[data-ueber-helden] [data-warenkorb] {
+  background-color: #FFFFFF;
+  color: #0A1018;
+}
+header[data-ueber-helden] [data-warenkorb]:hover { background-color: #EFF3F7; }

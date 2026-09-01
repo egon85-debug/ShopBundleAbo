@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
@@ -7,24 +8,23 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * Inhalt nicht. So bleibt die Navigation selbst eine Server-Komponente und
  * die Kategorien werden weiterhin auf dem Server gerendert.
  *
- * Am Seitenanfang liegt die Kopfzeile ueber der Heldenszene und laesst sie
- * durchscheinen. Sobald gescrollt wird, ruecken die Kanten zusammen, der
- * Hintergrund wird milchig und eine feine Linie trennt sie vom Inhalt.
+ * Am Seitenanfang der Startseite liegt sie ueber der dunklen Heldenszene: dort
+ * wird sie durchsichtig und ihre Beschriftung hell (siehe globals.css,
+ * [data-ueber-helden]). Eine durchsichtige Kopfzeile mit dunkler Schrift waere
+ * auf dunklem Grund unlesbar – deshalb gehoert beides zusammen.
+ *
+ * Sobald gescrollt wird, ruecken die Kanten zusammen, der Hintergrund wird
+ * milchig und eine feine Linie trennt sie vom Inhalt.
  *
  * Bewusst kein Ein- und Ausblenden beim Scrollen nach oben und unten: eine
  * Navigation, die verschwindet, kostet beim Einkaufen mehr, als die Ruhe
  * bringt.
  */
-export function FloatingHeader({
-  children,
-  ueberHelden = false,
-}: {
-  children: ReactNode;
-  /** Startet die Seite mit einer dunklen Szene direkt unter der Kopfzeile? */
-  ueberHelden?: boolean;
-}) {
+export function FloatingHeader({ children }: { children: ReactNode }) {
   const [gescrollt, setGescrollt] = useState(false);
   const letzterWert = useRef(false);
+  // Nur die Startseite beginnt mit einer dunklen Szene unter der Kopfzeile.
+  const ueberHelden = usePathname() === "/";
 
   useEffect(() => {
     const pruefen = () => {

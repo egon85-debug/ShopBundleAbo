@@ -1,8 +1,11 @@
 "use client";
 
+import { RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type MutableRefObject } from "react";
-import type { Group, Mesh } from "three";
+import { DoubleSide, type Group, type Mesh } from "three";
+
+import { etikettTextur, wellpappeTexturen } from "./materials";
 
 /**
  * Der Winterfeld-Faltkarton – ein Bauteil fuer drei Zwecke.
@@ -22,10 +25,14 @@ import type { Group, Mesh } from "three";
  * ueber den Komponentenbaum zu animieren waere um Groessenordnungen teurer.
  */
 
-const WELLPAPPE = "#C89B63";
 const WELLPAPPE_INNEN = "#B98A52";
 const WELLPAPPE_KANTE = "#8E6A3C";
 const KLEBEBAND = "#EFE3D0";
+
+/** Radius der gebrochenen Kante. Reale Pappe hat keine mathematisch scharfe
+ *  Kante – dieser schmale Rand faengt Licht und macht den Unterschied
+ *  zwischen einem Gegenstand und einem Quader. */
+const FASE = 0.012;
 
 /** Wandstaerke in Szeneneinheiten – zweiwellige Pappe, sichtbar aber duenn. */
 const WAND = 0.022;
@@ -53,14 +60,19 @@ export function Carton({
   masse = STANDARD_MASSE,
   groesse = 2,
   klebeband = true,
+  etikettZeigen = true,
   ...props
 }: {
   regler: MutableRefObject<Kartonregler>;
   masse?: Kartonmasse;
   groesse?: number;
   klebeband?: boolean;
+  /** Versandetikett auf der Vorderwand zeigen. */
+  etikettZeigen?: boolean;
 } & React.ComponentProps<"group">) {
   const { b, h, t } = useMemo(() => masseInEinheiten(masse, groesse), [masse, groesse]);
+  const { farbe, rauheit } = useMemo(() => wellpappeTexturen(), []);
+  const etikettBild = useMemo(() => etikettTextur(), []);
   const spreizung = groesse * 0.55;
 
   const boden = useRef<Mesh>(null);
@@ -74,6 +86,7 @@ export function Carton({
   const klappeRechts = useRef<Group>(null);
   const klappeLinks = useRef<Group>(null);
   const band = useRef<Mesh>(null);
+  const etikettFlaeche = useRef<Mesh>(null);
 
   useFrame(() => {
     const { aufbau, deckel } = regler.current;
@@ -109,60 +122,65 @@ export function Carton({
     if (klappeLinks.current) klappeLinks.current.rotation.z = -klappe;
     // Klebeband gehoert nur auf den fertigen, geschlossenen Karton.
     if (band.current) band.current.visible = aufbau > 0.97 && deckel < 0.05;
+    // Das Etikett klebt auf der Vorderwand und macht deren Bewegung mit.
+    if (etikettFlaeche.current) {
+      etikettFlaeche.current.position.z = t / 2 + weg + WAND * 0.6;
+      etikettFlaeche.current.rotation.x = -kippen * 0.4;
+      etikettFlaeche.current.visible = aufbau > 0.55;
+    }
   });
 
   return (
     <group {...props}>
-      <mesh ref={boden} castShadow receiveShadow>
-        <boxGeometry args={[b, WAND, t]} />
-        <meshStandardMaterial color={WELLPAPPE_INNEN} roughness={0.92} />
-      </mesh>
+      <RoundedBox ref={boden} args={[b, WAND, t]} radius={FASE} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_INNEN} roughness={1} />
+      </RoundedBox>
 
-      <mesh ref={vorne} castShadow receiveShadow>
-        <boxGeometry args={[b, h, WAND]} />
-        <meshStandardMaterial color={WELLPAPPE} roughness={0.88} />
-      </mesh>
+      <RoundedBox ref={vorne} args={[b, h, WAND]} radius={FASE} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} roughness={1} />
+      </RoundedBox>
 
-      <mesh ref={hinten} castShadow receiveShadow>
-        <boxGeometry args={[b, h, WAND]} />
-        <meshStandardMaterial color={WELLPAPPE_INNEN} roughness={0.9} />
-      </mesh>
+      <RoundedBox ref={hinten} args={[b, h, WAND]} radius={FASE} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_INNEN} roughness={1} />
+      </RoundedBox>
 
-      <mesh ref={links} castShadow receiveShadow>
-        <boxGeometry args={[WAND, h, t]} />
-        <meshStandardMaterial color={WELLPAPPE_KANTE} roughness={0.9} />
-      </mesh>
+      <RoundedBox ref={links} args={[WAND, h, t]} radius={FASE} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_KANTE} roughness={1} />
+      </RoundedBox>
 
-      <mesh ref={rechts} castShadow receiveShadow>
-        <boxGeometry args={[WAND, h, t]} />
-        <meshStandardMaterial color={WELLPAPPE_KANTE} roughness={0.9} />
-      </mesh>
+      <RoundedBox ref={rechts} args={[WAND, h, t]} radius={FASE} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_KANTE} roughness={1} />
+      </RoundedBox>
+
+      {/* Das Versandetikett – Signature-Element der Marke, sitzt vorn oben. */}
+      {etikettZeigen && (
+        <mesh ref={etikettFlaeche} position={[b * 0.06, h * 0.06, t / 2 + WAND * 0.6]}>
+          <planeGeometry args={[b * 0.42, b * 0.26]} />
+          <meshStandardMaterial map={etikettBild} roughness={0.72} side={DoubleSide} />
+        </mesh>
+      )}
 
       {/* Vier Deckelklappen, jeweils an der Oberkante ihrer Wand angeschlagen. */}
       <group ref={deckelHalter}>
         <group ref={klappeVorn} position={[0, 0, t / 2]}>
-          <mesh position={[0, 0, -t / 4]} castShadow>
-            <boxGeometry args={[b, WAND, t / 2]} />
-            <meshStandardMaterial color={WELLPAPPE} roughness={0.88} />
-          </mesh>
+          <RoundedBox args={[b, WAND, t / 2]} radius={FASE} smoothness={2} position={[0, 0, -t / 4]} castShadow>
+            <meshStandardMaterial map={farbe} roughnessMap={rauheit} roughness={1} />
+          </RoundedBox>
         </group>
         <group ref={klappeHinten} position={[0, 0, -t / 2]}>
-          <mesh position={[0, 0, t / 4]} castShadow>
-            <boxGeometry args={[b, WAND, t / 2]} />
-            <meshStandardMaterial color={WELLPAPPE} roughness={0.88} />
-          </mesh>
+          <RoundedBox args={[b, WAND, t / 2]} radius={FASE} smoothness={2} position={[0, 0, t / 4]} castShadow>
+            <meshStandardMaterial map={farbe} roughnessMap={rauheit} roughness={1} />
+          </RoundedBox>
         </group>
         <group ref={klappeRechts} position={[b / 2, 0, 0]}>
-          <mesh position={[-b / 4, 0, 0]} castShadow>
-            <boxGeometry args={[b / 2, WAND, t * 0.98]} />
-            <meshStandardMaterial color={WELLPAPPE_INNEN} roughness={0.9} />
-          </mesh>
+          <RoundedBox args={[b / 2, WAND, t * 0.98]} radius={FASE} smoothness={2} position={[-b / 4, 0, 0]} castShadow>
+            <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_INNEN} roughness={1} />
+          </RoundedBox>
         </group>
         <group ref={klappeLinks} position={[-b / 2, 0, 0]}>
-          <mesh position={[b / 4, 0, 0]} castShadow>
-            <boxGeometry args={[b / 2, WAND, t * 0.98]} />
-            <meshStandardMaterial color={WELLPAPPE_INNEN} roughness={0.9} />
-          </mesh>
+          <RoundedBox args={[b / 2, WAND, t * 0.98]} radius={FASE} smoothness={2} position={[b / 4, 0, 0]} castShadow>
+            <meshStandardMaterial map={farbe} roughnessMap={rauheit} color={WELLPAPPE_INNEN} roughness={1} />
+          </RoundedBox>
         </group>
 
         {klebeband && (

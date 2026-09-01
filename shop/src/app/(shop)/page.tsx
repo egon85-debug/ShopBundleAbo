@@ -46,7 +46,9 @@ export default async function HomePage() {
   return (
     <>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="relative isolate overflow-hidden bg-carbon-950 text-white">
+      {/* Die Szene beginnt hinter der Kopfzeile, nicht darunter: nur so ist eine
+          durchsichtige Kopfzeile auch wirklich dunkel hinterlegt. */}
+      <section className="relative isolate -mt-16 overflow-hidden bg-carbon-950 pt-16 text-white sm:-mt-[72px] sm:pt-[72px]">
         <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-50" />
         <div className="absolute inset-0">
           <LazyHeroScene />

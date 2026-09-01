@@ -13,11 +13,11 @@ import { navigationCategories } from "@/services/navigation";
  */
 
 /** Kopfzeile mit dynamischer Kategorienavigation (nichts ist hartkodiert). */
-export async function SiteHeader({ ueberHelden = false }: { ueberHelden?: boolean }) {
+export async function SiteHeader() {
   const categories = await navigationCategories();
 
   return (
-    <FloatingHeader ueberHelden={ueberHelden}>
+    <FloatingHeader>
       <div className="section flex h-full items-center gap-6">
         <Link href="/" className="flex shrink-0 flex-col leading-none">
           <span className="font-display text-[15px] font-extrabold tracking-[.14em] text-carbon-900">
