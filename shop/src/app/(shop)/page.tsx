@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-import { LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
+import { KategorieHintergrund } from "@/components/three/KategorieHintergrund";
+import { LazyCartonReveal, LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
+import { HeroTitel } from "@/components/ui/HeroTitel";
+import { LogistikDashboard } from "@/components/ui/LogistikDashboard";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { listProducts } from "@/services/catalog";
@@ -53,44 +56,13 @@ export default async function HomePage() {
           aria-hidden
         />
 
-        <div className="section relative z-10 flex min-h-[86vh] flex-col justify-center py-24">
-          <p className="eyebrow animate-fade-up text-signal-300">Winterfeld Logistik</p>
-          <h1 className="mt-5 max-w-3xl animate-fade-up font-display text-display-xl font-extrabold text-balance">
-            Logistik.
-            <br />
-            Einfach. <span className="text-signal-500">Digital.</span>
-          </h1>
-          <p className="mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-mist-300">
-            Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
-          </p>
-
-          <div className="mt-9 flex animate-fade-up flex-wrap gap-3">
-            <Link href="/shop" className="btn-primary">
-              Shop entdecken
-            </Link>
-            <Link
-              href="#kategorien"
-              className="btn border border-white/25 bg-white/5 text-white backdrop-blur hover:border-white/60 hover:bg-white/10"
-            >
-              Kategorien ansehen
-            </Link>
-          </div>
-
-          <dl className="mt-16 grid max-w-2xl grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-4">
-            {[
-              ["Versand", "DHL & Express"],
-              ["Zahlung", "Stripe-gesichert"],
-              ["Lieferzeit", "ab 1 Werktag"],
-              ["Tracking", "automatisch"],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="font-mono text-[11px] uppercase tracking-[.16em] text-mist-500">{label}</dt>
-                <dd className="mt-1 font-display text-[15px] font-bold text-white">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        <HeroTitel />
       </section>
+
+      {/* ── Der Karton öffnet sich ─────────────────────────────────────
+          Führt vom Einstieg in den Shop: derselbe Karton, jetzt geöffnet,
+          und das Sortiment schwebt heraus – direkt in die Kategorien. */}
+      <LazyCartonReveal />
 
       {/* ── Kategorien ─────────────────────────────────────────────────── */}
       <section id="kategorien" className="section scroll-mt-24 py-20">
@@ -118,8 +90,11 @@ export default async function HomePage() {
               <Link
                 key={category.id}
                 href={`/shop/${category.slug}`}
-                className="group relative flex min-h-[190px] flex-col justify-end overflow-hidden rounded-2xl border border-mist-200 bg-carbon-900 p-6 text-white transition-all duration-300 ease-precise hover:-translate-y-1 hover:shadow-lift"
+                data-kategorie-kachel
+                className="gruppe group relative flex min-h-[190px] flex-col justify-end overflow-hidden rounded-2xl border border-mist-200 bg-carbon-900 p-6 text-white transition-all duration-300 ease-precise hover:-translate-y-1 hover:shadow-lift"
               >
+                {/* Raeumliche Ebene – liegt hinter allem, faengt keine Klicks ab. */}
+                <KategorieHintergrund name={category.name} />
                 {category.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -166,34 +141,28 @@ export default async function HomePage() {
         <p className="eyebrow">Warum Winterfeld Logistik</p>
         <h2 className="mt-3 font-display text-display-md font-extrabold">Verlässlich in jedem Schritt</h2>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {[
+        <LogistikDashboard
+          punkte={[
             {
-              title: "Schneller Versand",
-              text: "Bezahlte Bestellungen gehen werktags in die Kommissionierung – Etikett und Tracking entstehen automatisch.",
+              titel: "Bestellung",
+              text: "Kuratiertes Sortiment, klare Daten, ehrliche Verfügbarkeit — Checkout auch ohne Konto.",
             },
             {
-              title: "Sichere Zahlung",
+              titel: "Sichere Zahlung",
               text: "Stripe verarbeitet alle Zahlungen. Kartendaten berühren unsere Server nie.",
             },
             {
-              title: shipping.map((option) => option.label).join(" & "),
+              titel: shipping.map((option) => option.label).join(" & "),
               text: shipping
                 .map((option) => `${option.label}: ${option.deliveryEstimate} · ${formatCents(option.priceCents)}`)
                 .join(" — "),
             },
             {
-              title: "Professionelle Abwicklung",
-              text: "Jede Statusänderung ist protokolliert, jede Sendung nachverfolgbar, jede Erstattung dokumentiert.",
+              titel: "Tracking",
+              text: "Etikett und Sendungsnummer entstehen automatisch. Jede Statusänderung ist protokolliert.",
             },
-          ].map((benefit, index) => (
-            <div key={benefit.title} className="card p-6">
-              <span className="font-mono text-xs text-signal-600">{String(index + 1).padStart(2, "0")}</span>
-              <h3 className="mt-2 font-display text-lg font-bold">{benefit.title}</h3>
-              <p className="mt-2 text-[15px] leading-relaxed text-mist-700">{benefit.text}</p>
-            </div>
-          ))}
-        </div>
+          ]}
+        />
       </section>
 
       {/* ── Newsletter ─────────────────────────────────────────────────── */}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gilt ausschliesslich fuer Debug-Builds.
+
+  Beim Testlauf laeuft das Backend auf einem Rechner im selben Netz
+  (http://192.168.x.x:8000) – ohne Zertifikat. Android blockiert unverschluesselte
+  Verbindungen ab targetSdk 28 grundsaetzlich; ohne diese Ausnahme koennte das
+  Tablet den Server nicht erreichen.
+
+  Der Release-Build hat diese Datei nicht: dort bleibt HTTPS Pflicht.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

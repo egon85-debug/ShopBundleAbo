@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CartBadge } from "@/components/ui/CartBadge";
+import { FloatingHeader } from "@/components/ui/FloatingHeader";
 import { navigationCategories } from "@/services/navigation";
 
 /**
@@ -12,12 +13,12 @@ import { navigationCategories } from "@/services/navigation";
  */
 
 /** Kopfzeile mit dynamischer Kategorienavigation (nichts ist hartkodiert). */
-export async function SiteHeader() {
+export async function SiteHeader({ ueberHelden = false }: { ueberHelden?: boolean }) {
   const categories = await navigationCategories();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-mist-200 bg-white/85 backdrop-blur-xl">
-      <div className="section flex h-16 items-center gap-6 sm:h-[72px]">
+    <FloatingHeader ueberHelden={ueberHelden}>
+      <div className="section flex h-full items-center gap-6">
         <Link href="/" className="flex shrink-0 flex-col leading-none">
           <span className="font-display text-[15px] font-extrabold tracking-[.14em] text-carbon-900">
             WINTERFELD
@@ -57,7 +58,7 @@ export async function SiteHeader() {
           <CartBadge />
         </div>
       </div>
-    </header>
+    </FloatingHeader>
   );
 }
 

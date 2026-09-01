@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # Jobs
     job_max_attempts: int = 5
     job_retry_base_seconds: int = 30
+    # Job-Worker im selben Prozess wie die API starten. Für kleine Installationen
+    # (ein Lager, wenige Tablets) genügt das und spart einen zweiten Dienst.
+    # Bei mehreren API-Prozessen liefe er mehrfach – dann besser als eigener
+    # Dienst betreiben ("worker" als Startbefehl des Containers).
+    run_worker_in_process: bool = False
 
     # Rate Limiting
     rate_limit_auth_per_minute: int = 10

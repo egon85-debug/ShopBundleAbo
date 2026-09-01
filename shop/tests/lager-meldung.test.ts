@@ -41,7 +41,7 @@ describe("Verkaufsmeldung an die Lagererfassung", () => {
     ]);
 
     expect(ergebnis).toEqual({ gemeldet: true });
-    const [url, optionen] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, optionen] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://lager.example.de/shop/webhooks/abc/order");
 
     const koerper = optionen.body as string;

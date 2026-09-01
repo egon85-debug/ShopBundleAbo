@@ -11,6 +11,11 @@ import dynamic from "next/dynamic";
  * die Szene selbst nichts (siehe useRenderProfile).
  */
 const HeroScene = dynamic(() => import("./HeroScene"), { ssr: false });
+const CartonRevealScene = dynamic(() => import("./CartonReveal"), {
+  ssr: false,
+  // Platzhalter haelt die Hoehe des Scroll-Abschnitts, bis die Szene da ist.
+  loading: () => <div className="h-[300vh] bg-carbon-950" aria-hidden />,
+});
 const PackageJourneyScene = dynamic(() => import("./PackageJourney"), {
   ssr: false,
   // Platzhalter hält die Höhe des Scroll-Abschnitts, bis die Szene geladen ist.
@@ -19,6 +24,10 @@ const PackageJourneyScene = dynamic(() => import("./PackageJourney"), {
 
 export function LazyHeroScene() {
   return <HeroScene />;
+}
+
+export function LazyCartonReveal() {
+  return <CartonRevealScene />;
 }
 
 export function LazyPackageJourney() {

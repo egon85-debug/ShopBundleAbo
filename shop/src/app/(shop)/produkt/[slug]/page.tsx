@@ -3,31 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AddToCartForm } from "@/components/ui/AddToCartForm";
-import { ProductGallery } from "@/components/shop/ProductGallery";
+import { ProduktAnsicht } from "@/components/shop/ProduktAnsicht";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatCents, taxFromGross } from "@/lib/money";
 import { getShippingProvider } from "@/lib/shipping/registry";
-import { getProductBySlug, listProducts } from "@/services/catalog";
+import { getProductBySlug } from "@/services/catalog";
 
 export const revalidate = 60;
 
 /**
- * Produktseiten werden schon beim Deployment erzeugt, damit Besucher eine
- * fertige Seite bekommen statt auf eine Datenbankabfrage zu warten. Neue
- * Produkte werden weiterhin beim ersten Aufruf ergaenzt (dynamicParams).
- * Ist die Datenbank zur Bauzeit nicht erreichbar, entsteht einfach keine
- * Vorabseite – der Build bricht deshalb nicht ab.
+ * Bewusst kein generateStaticParams: Produktseiten entstehen beim ersten
+ * Aufruf und liegen danach im Zwischenspeicher (ISR). Ein Vorrendern beim
+ * Deployment wuerde den Build von der Erreichbarkeit der Datenbank abhaengig
+ * machen – eine Datenbankstoerung darf keine Auslieferung verhindern.
  */
-export const dynamicParams = true;
-
-export async function generateStaticParams(): Promise<{ slug: string }[]> {
-  try {
-    const { items } = await listProducts({ limit: 200 });
-    return items.map((item) => ({ slug: item.slug }));
-  } catch {
-    return [];
-  }
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -90,11 +79,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
-        <ProductGallery
+        <ProduktAnsicht
           images={product.images.map((image) => ({ url: image.url, alt: image.alt ?? product.name }))}
           videoUrl={product.videoUrl}
           model3dUrl={product.model3dUrl}
           productName={product.name}
+          // Nur Produkte mit vollstaendigen Massen bekommen die raeumliche
+          // Ansicht – dann steht dort der richtige Koerper, kein Platzhalter.
+          masse={
+            product.lengthMm && product.widthMm && product.heightMm
+              ? { laenge: product.lengthMm, breite: product.widthMm, hoehe: product.heightMm }
+              : null
+          }
         />
 
         <div>
@@ -145,6 +141,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             }))}
             disabled={!inStock}
             maxQuantity={product.allowBackorder ? 99 : Math.max(product.available, 1)}
+            bildUrl={product.images[0]?.url ?? null}
           />
 
           {product.description && (
