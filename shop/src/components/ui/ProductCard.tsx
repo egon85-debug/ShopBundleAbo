@@ -66,7 +66,7 @@ export function ProductCard({ product }: { product: ProductListItem }) {
             <div className="mt-4 flex items-end justify-between gap-3">
               <div>
                 <p className="font-display text-xl font-extrabold tabular text-carbon-900">
-                  <AnimatedNumber wert={product.priceCents} formatieren={(c) => formatCents(Math.round(c))} />
+                  <AnimatedNumber wert={product.priceCents} format="preis" />
                 </p>
                 {hasDiscount && (
                   <p className="text-sm text-mist-500 line-through tabular">
@@ -77,11 +77,7 @@ export function ProductCard({ product }: { product: ProductListItem }) {
               <span className={`font-mono text-xs ${inStock ? "text-emerald-600" : "text-mist-500"}`}>
                 {product.available > 0 ? (
                   <>
-                    <AnimatedNumber
-                      wert={product.available}
-                      formatieren={(wert) => String(Math.round(wert))}
-                      dauer={0.75}
-                    />{" "}
+                    <AnimatedNumber wert={product.available} format="anzahl" dauer={750} />{" "}
                     auf Lager
                   </>
                 ) : product.allowBackorder ? (

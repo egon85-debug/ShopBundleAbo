@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { formatCents } from "@/lib/money";
+
 import { reduzierteBewegung, useInView } from "./useInView";
 
 /**
@@ -14,19 +16,30 @@ import { reduzierteBewegung, useInView } from "./useInView";
  * React-Zustand: sonst rendert die Seite waehrend der knappen Sekunde
  * sechzigmal neu. Der Endwert steht ueber `aria-label` von Anfang an fest,
  * damit Vorlesesoftware nicht die Zwischenschritte ansagt.
+ *
+ * Die Formatierung wird ueber einen Namen gewaehlt, nicht ueber eine
+ * uebergebene Funktion: Server-Komponenten duerfen keine Funktionen an
+ * Client-Komponenten reichen, und genau das ist die haeufigste Verwendung.
  */
+export type Zahlenformat = "preis" | "anzahl";
+
+const FORMATE: Record<Zahlenformat, (wert: number) => string> = {
+  preis: (wert) => formatCents(Math.round(wert)),
+  anzahl: (wert) => String(Math.round(wert)),
+};
 export function AnimatedNumber({
   wert,
-  formatieren,
+  format = "anzahl",
   dauer = 900,
   className,
 }: {
   wert: number;
-  formatieren: (wert: number) => string;
+  format?: Zahlenformat;
   /** Dauer in Millisekunden. */
   dauer?: number;
   className?: string;
 }) {
+  const formatieren = FORMATE[format];
   const { ref, sichtbar } = useInView<HTMLSpanElement>("0px 0px -8% 0px");
   const anzeige = useRef<HTMLSpanElement>(null);
 
