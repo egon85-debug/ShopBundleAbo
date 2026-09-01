@@ -118,3 +118,32 @@ Die Seiten Impressum, Datenschutz, AGB und Widerruf enthalten **ausdrücklich
 gekennzeichnete Platzhalter**. Sie sind keine Rechtsberatung und müssen vor dem
 Livegang durch die tatsächlichen Unternehmensdaten ersetzt und rechtlich geprüft
 werden.
+
+## Vor dem Deployment: gegen eine gefüllte Datenbank bauen
+
+`next build` **ohne** `DATABASE_URL` ist kein verlässliches Signal. Alle
+Datenzugriffe auf der Startseite sind abgesichert und liefern dann leere
+Listen — es wird also keine einzige Produktkarte gerendert. Zwei Fehler sind
+genau dadurch bis in die Produktion gekommen:
+
+1. Prerendering der Produktseiten scheiterte, sobald `generateStaticParams`
+   echte Slugs lieferte (behoben: es wird nicht mehr vorgerendert).
+2. Eine Funktion wurde als Eigenschaft an eine Client-Komponente gereicht —
+   das fällt erst auf, wenn die Karte tatsächlich gerendert wird.
+
+Deshalb vor jedem Deployment einmal gegen echte Daten bauen:
+
+```bash
+# PostgreSQL starten (lokal oder im Container), dann:
+export DATABASE_URL="postgres://…"
+psql "$DATABASE_URL" -f drizzle/0000_initiales_schema.sql
+npm run db:seed
+rm -rf .next && NODE_ENV=production npm run build
+```
+
+Der Build muss mit Rückgabewert 0 enden **und** mindestens ein Produkt auf der
+Startseite gerendert haben:
+
+```bash
+grep -c "neigekarte" .next/server/app/index.html   # > 0
+```
