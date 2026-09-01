@@ -113,7 +113,7 @@ export default function PackageJourney({ onStationChange }: { onStationChange?: 
 
   return (
     <div ref={containerRef} className="relative h-[420vh]">
-      <div className="sticky top-0 flex h-screen items-center overflow-hidden bg-carbon-950">
+      <div data-dunkel className="sticky top-0 flex h-screen items-center overflow-hidden bg-carbon-950">
         <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-40" />
 
         {profile !== "off" && (

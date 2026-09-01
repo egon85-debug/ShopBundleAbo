@@ -22,7 +22,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  */
 export function FloatingHeader({ children }: { children: ReactNode }) {
   const [gescrollt, setGescrollt] = useState(false);
+  // Liegt gerade ein dunkler Abschnitt unter der Kopfzeile?
+  const [aufDunklem, setAufDunklem] = useState(false);
   const letzterWert = useRef(false);
+  const letzterGrund = useRef(false);
   // Nur die Startseite beginnt mit einer dunklen Szene unter der Kopfzeile.
   const ueberHelden = usePathname() === "/";
 
@@ -33,24 +36,45 @@ export function FloatingHeader({ children }: { children: ReactNode }) {
         letzterWert.current = jetzt;
         setGescrollt(jetzt);
       }
+
+      // Welcher Abschnitt liegt unmittelbar unter der Kopfzeile? Abschnitte mit
+      // dunklem Grund tragen data-dunkel. Ohne diese Pruefung stand die helle
+      // Kopfzeile als Fremdkoerper ueber den dunklen 3D-Abschnitten.
+      // Deutlich unterhalb der Kopfzeile abtasten: direkt darunter liegt noch
+      // sie selbst (sie ist klebend und liegt oben auf), und die Abfrage
+      // liefert dann immer die Kopfzeile statt des Abschnitts dahinter.
+      const darunter = document.elementFromPoint(window.innerWidth / 2, (jetzt ? 56 : 72) + 40);
+      const dunklerGrund = Boolean(darunter?.closest("[data-dunkel]"));
+      if (dunklerGrund !== letzterGrund.current) {
+        letzterGrund.current = dunklerGrund;
+        setAufDunklem(dunklerGrund);
+      }
     };
     pruefen();
     window.addEventListener("scroll", pruefen, { passive: true });
-    return () => window.removeEventListener("scroll", pruefen);
+    window.addEventListener("resize", pruefen, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", pruefen);
+      window.removeEventListener("resize", pruefen);
+    };
   }, []);
 
-  const dunkel = ueberHelden && !gescrollt;
+  // Am Seitenanfang der Startseite durchsichtig, ueber dunklen Abschnitten
+  // dunkel-milchig, sonst hell. In allen drei Faellen mit passender Schrift.
+  const dunkel = (ueberHelden && !gescrollt) || aufDunklem;
 
   return (
     <header
       data-ueber-helden={dunkel ? "" : undefined}
       className={[
         "sticky top-0 z-50 transition-[background-color,border-color,backdrop-filter,box-shadow] duration-300 ease-precise",
-        gescrollt
-          ? "border-b border-mist-200 bg-white/80 shadow-[0_1px_0_rgba(10,16,24,.04)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/70"
+        dunkel && gescrollt
+          ? "border-b border-white/10 bg-carbon-950/70 backdrop-blur-xl"
           : dunkel
             ? "border-b border-transparent bg-transparent"
-            : "border-b border-mist-200 bg-white/85 backdrop-blur-xl",
+            : gescrollt
+              ? "border-b border-mist-200 bg-white/80 shadow-[0_1px_0_rgba(10,16,24,.04)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/70"
+              : "border-b border-mist-200 bg-white/85 backdrop-blur-xl",
       ].join(" ")}
     >
       <div

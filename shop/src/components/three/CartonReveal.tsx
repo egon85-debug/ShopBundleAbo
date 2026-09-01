@@ -6,6 +6,7 @@ import { Suspense, useRef, useState, type RefObject } from "react";
 import type { Group } from "three";
 
 import { useScrollProgress } from "@/components/motion/useScrollProgress";
+import { Messwerte } from "@/components/ui/Messwerte";
 
 import { Carton, STANDARD_MASSE, type Kartonregler } from "./Carton";
 import { Luftpolsterfolie, Packband, Packpapier, Transportbox, Versandetiketten } from "./ProductShapes";
@@ -141,7 +142,7 @@ export default function CartonReveal() {
 
   return (
     <div ref={ref} className="relative h-[300vh]" aria-hidden={profil !== "off" ? undefined : true}>
-      <div className="sticky top-0 flex h-screen items-center overflow-hidden bg-carbon-950">
+      <div data-dunkel className="sticky top-0 flex h-screen items-center overflow-hidden bg-carbon-950">
         <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-30" />
 
         {profil !== "off" && (
@@ -179,6 +180,15 @@ export default function CartonReveal() {
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-r from-carbon-950 via-carbon-950/70 to-transparent lg:via-carbon-950/40"
           aria-hidden
+        />
+
+        <Messwerte
+          ecke="unten-rechts"
+          werte={[
+            { text: "// 5 Artikel im Karton" },
+            { text: "// Polstern · Kleben · Etikettieren · Lagern" },
+            { text: "// alle sofort lieferbar", status: "gut" },
+          ]}
         />
 
         {/* Die Beschriftung traegt den Abschnitt auch ohne 3D. */}

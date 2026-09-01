@@ -4,6 +4,7 @@ import { KategorieHintergrund } from "@/components/three/KategorieHintergrund";
 import { LazyCartonReveal, LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
 import { HeroTitel } from "@/components/ui/HeroTitel";
 import { LogistikDashboard } from "@/components/ui/LogistikDashboard";
+import { Messwerte } from "@/components/ui/Messwerte";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { listProducts } from "@/services/catalog";
@@ -48,7 +49,10 @@ export default async function HomePage() {
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       {/* Die Szene beginnt hinter der Kopfzeile, nicht darunter: nur so ist eine
           durchsichtige Kopfzeile auch wirklich dunkel hinterlegt. */}
-      <section className="relative isolate -mt-16 overflow-hidden bg-carbon-950 pt-16 text-white sm:-mt-[72px] sm:pt-[72px]">
+      <section
+        data-dunkel
+        className="relative isolate -mt-16 overflow-hidden bg-carbon-950 pt-16 text-white sm:-mt-[72px] sm:pt-[72px]"
+      >
         <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-50" />
         <div className="absolute inset-0">
           <LazyHeroScene />
@@ -56,6 +60,16 @@ export default async function HomePage() {
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-r from-carbon-950 via-carbon-950/85 to-transparent"
           aria-hidden
+        />
+
+        {/* Anmerkungen am Rand – echte Werte des abgebildeten Kartons. */}
+        <Messwerte
+          ecke="unten-rechts"
+          werte={[
+            { text: "// Faltkarton 300 × 200 × 150 mm" },
+            { text: "// zweiwellig · FEFCO 0201" },
+            { text: "// versandbereit", status: "gut" },
+          ]}
         />
 
         <HeroTitel />

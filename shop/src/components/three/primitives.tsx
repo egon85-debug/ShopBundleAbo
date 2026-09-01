@@ -1,8 +1,11 @@
 "use client";
 
+import { RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { Group, Mesh } from "three";
+
+import { wellpappeTexturen } from "./materials";
 
 /**
  * Bausteine der Logistikszene – bewusst aus einfachen Grundkörpern gebaut:
@@ -21,21 +24,27 @@ export function Parcel({
   size = 1,
   ...props
 }: { size?: number } & React.ComponentProps<"group">) {
+  const { farbe, rauheit } = useMemo(() => wellpappeTexturen(), []);
   return (
     <group {...props}>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[size, size * 0.78, size * 0.86]} />
-        <meshStandardMaterial color={CARTON} roughness={0.85} metalness={0.02} />
-      </mesh>
+      <RoundedBox
+        args={[size, size * 0.78, size * 0.86]}
+        radius={size * 0.012}
+        smoothness={2}
+        castShadow
+        receiveShadow
+      >
+        <meshStandardMaterial map={farbe} roughnessMap={rauheit} roughness={1} />
+      </RoundedBox>
       {/* Klebeband längs */}
       <mesh position={[0, size * 0.391, 0]}>
         <boxGeometry args={[size * 0.16, size * 0.008, size * 0.87]} />
         <meshStandardMaterial color={TAPE} roughness={0.6} />
       </mesh>
-      {/* Kantenandeutung */}
+      {/* Dunklere Schnittkante unten – so sieht angeschnittene Pappe aus. */}
       <mesh position={[0, -size * 0.39, 0]}>
         <boxGeometry args={[size * 1.001, size * 0.02, size * 0.861]} />
-        <meshStandardMaterial color={CARTON_DARK} roughness={0.9} />
+        <meshStandardMaterial color={CARTON_DARK} roughness={0.95} />
       </mesh>
     </group>
   );
@@ -54,20 +63,19 @@ export function DeliveryTruck({
 
   return (
     <group {...props}>
-      {/* Kofferaufbau */}
-      <mesh castShadow position={[-0.35, 0.62, 0]}>
-        <boxGeometry args={[2.5, 1.25, 1.35]} />
-        <meshStandardMaterial color={TRUCK_BODY} roughness={0.35} metalness={0.12} />
-      </mesh>
+      {/* Kofferaufbau – lackiertes Blech: glatt, mit gerichteten Reflexen. */}
+      <RoundedBox args={[2.5, 1.25, 1.35]} radius={0.05} smoothness={3} castShadow position={[-0.35, 0.62, 0]}>
+        <meshStandardMaterial color={TRUCK_BODY} roughness={0.18} metalness={0.35} />
+      </RoundedBox>
       {/* Fahrerhaus */}
-      <mesh castShadow position={[1.24, 0.5, 0]}>
-        <boxGeometry args={[0.92, 1.0, 1.3]} />
-        <meshStandardMaterial color={TRUCK_CAB} roughness={0.3} metalness={0.2} />
-      </mesh>
+      <RoundedBox args={[0.92, 1.0, 1.3]} radius={0.08} smoothness={3} castShadow position={[1.24, 0.5, 0]}>
+        <meshStandardMaterial color={TRUCK_CAB} roughness={0.16} metalness={0.4} />
+      </RoundedBox>
       {/* Windschutzscheibe */}
+      {/* Windschutzscheibe – Glas: sehr glatt, stark spiegelnd. */}
       <mesh position={[1.71, 0.66, 0]}>
         <boxGeometry args={[0.04, 0.44, 1.12]} />
-        <meshStandardMaterial color="#0A1018" roughness={0.15} metalness={0.6} />
+        <meshStandardMaterial color="#111926" roughness={0.04} metalness={0.9} />
       </mesh>
       {detailed && (
         <mesh position={[-0.35, 0.62, 0.681]}>
@@ -99,14 +107,14 @@ export function Container({
 }: { ribs?: number } & React.ComponentProps<"group">) {
   return (
     <group {...props}>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[3.2, 1.4, 1.4]} />
-        <meshStandardMaterial color={CONTAINER} roughness={0.72} metalness={0.25} />
-      </mesh>
+      {/* Seecontainer – lackierter Stahl: matt, aber deutlich metallisch. */}
+      <RoundedBox args={[3.2, 1.4, 1.4]} radius={0.03} smoothness={2} castShadow receiveShadow>
+        <meshStandardMaterial color={CONTAINER} roughness={0.5} metalness={0.62} />
+      </RoundedBox>
       {Array.from({ length: ribs }).map((_, index) => (
         <mesh key={index} position={[-1.5 + (index * 3) / (ribs - 1), 0, 0.705]}>
           <boxGeometry args={[0.05, 1.32, 0.02]} />
-          <meshStandardMaterial color="#111926" roughness={0.8} metalness={0.3} />
+          <meshStandardMaterial color="#0D141F" roughness={0.45} metalness={0.7} />
         </mesh>
       ))}
     </group>
