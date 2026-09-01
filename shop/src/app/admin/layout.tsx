@@ -12,6 +12,20 @@ const NAV = [
   { href: "/admin/kategorien", label: "Kategorien" },
 ];
 
+/**
+ * Der gesamte Adminbereich wird immer frisch gerendert, nie vorab erzeugt.
+ *
+ * Backoffice-Seiten zeigen den aktuellen Stand hinter einer Anmeldung – eine
+ * beim Deployment eingefrorene Fassung waere nicht nur veraltet, sie wuerde den
+ * Build auch von der Erreichbarkeit der Datenbank abhaengig machen. Genau daran
+ * ist er gescheitert: /admin/produkte/neu war die einzige Seite ohne diese
+ * Festlegung und hat beim Vorrendern die Datenbank befragt.
+ *
+ * Die Angabe steht hier im Layout und gilt damit auch fuer jede Seite, die
+ * spaeter dazukommt.
+ */
+export const dynamic = "force-dynamic";
+
 /** Adminbereich: geschützt; ohne gültige Sitzung führt jeder Pfad zum Login. */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "";

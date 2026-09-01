@@ -7,6 +7,9 @@ import { categories, products } from "@/db/schema";
 
 export const metadata: Metadata = { title: "Produkt anlegen", robots: { index: false } };
 
+// Wie alle Backoffice-Seiten: nie vorab erzeugen (siehe admin/layout.tsx).
+export const dynamic = "force-dynamic";
+
 export default async function NewProductPage() {
   const [allCategories, allProducts] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.position), asc(categories.name)),
