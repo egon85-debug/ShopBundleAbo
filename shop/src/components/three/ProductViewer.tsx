@@ -1,6 +1,6 @@
 "use client";
 
-import { Html, OrbitControls } from "@react-three/drei";
+import { ContactShadows, Environment, Html, Lightformer, OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, useRef, useState } from "react";
 import type { Group } from "three";
@@ -139,15 +139,34 @@ export default function ProductViewer({
           camera={{ position: [3.2, 2.1, 4.2], fov: 38 }}
         >
           <Suspense fallback={null}>
-            <ambientLight intensity={0.75} />
+            <ambientLight intensity={0.55} />
             <directionalLight
               position={[4, 6, 4]}
-              intensity={2.1}
+              intensity={2.3}
               castShadow={detailliert}
               shadow-mapSize={[1024, 1024]}
             />
-            <directionalLight position={[-4, 2, -3]} intensity={0.7} color="#7FA8FF" />
+            <directionalLight position={[-4, 2, -3]} intensity={1.2} color="#9DBEFF" />
+            {/* Umgebungsreflexion, damit Pappe und Klebeband ihr Licht bekommen. */}
+            <Environment resolution={128}>
+              <Lightformer form="rect" intensity={2.2} position={[3, 4, 3]} scale={[7, 5, 1]} color="#FFFFFF" />
+              <Lightformer form="rect" intensity={1.1} position={[-4, 1, -3]} scale={[6, 4, 1]} color="#DCE7F7" />
+            </Environment>
             <AnimierterKarton zustand={zustand} masse={masse} detailliert={detailliert} />
+            {/* Kontaktschatten: der Karton liegt auf einer Flaeche, statt im
+                hellen Kasten zu schweben. Im zerlegten Zustand entfaellt er –
+                dort liegt bewusst nichts auf. */}
+            {zustand !== "zerlegt" && (
+              <ContactShadows
+                position={[0, -1.5, 0]}
+                scale={6}
+                opacity={0.32}
+                blur={2.4}
+                far={2.5}
+                resolution={detailliert ? 512 : 256}
+                color="#1A2534"
+              />
+            )}
             <OrbitControls
               enablePan={false}
               enableZoom={false}

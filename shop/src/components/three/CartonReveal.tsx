@@ -110,16 +110,19 @@ function Szene({
         <Packpapier />
       </group>
 
-      {/* Der Karton steht auf etwas – ohne Kontaktschatten schwebte die ganze
-          Szene im Nichts. */}
+      {/* Auch die schwebenden Stuecke werfen einen Schatten nach unten. Ohne
+          ihn haengen sie ohne Bezug im Raum – der Schatten stellt die Beziehung
+          zum Karton her, obwohl sie ihn nicht beruehren. */}
       <ContactShadows
-        position={[0, -1.15, 0]}
-        scale={8}
-        opacity={0.5}
-        blur={2.6}
-        far={3}
+        position={[0, -1.1, 0]}
+        scale={9}
+        opacity={0.42}
+        blur={3.2}
+        far={5}
         resolution={detailliert ? 512 : 256}
       />
+
+
     </group>
   );
 }

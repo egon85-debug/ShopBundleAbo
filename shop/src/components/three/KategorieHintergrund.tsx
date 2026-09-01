@@ -27,9 +27,11 @@ export function KategorieHintergrund({ name }: { name: string }) {
   const [geladen, setGeladen] = useState(false);
   const aktiv = useRef(false);
 
-  // Nur auf Geraeten, die die volle Darstellung tragen. Auf Mobilgeraeten gibt
-  // es ohnehin kein Schweben – dort waere die Szene reine Last ohne Nutzen.
-  const moeglich = profil === "full" && sichtbar;
+  // Ueberall dort, wo 3D ueberhaupt laeuft. Vorher war "full" verlangt – damit
+  // blieb die Ebene auf jedem Geraet mit wenigen Kernen oder ohne
+  // Hardwarebeschleunigung unsichtbar, also auch dort, wo sie problemlos
+  // liefe. Geladen wird sie ohnehin erst beim ersten Darueberfahren.
+  const moeglich = profil !== "off" && sichtbar;
 
   useEffect(() => {
     if (!moeglich) return;

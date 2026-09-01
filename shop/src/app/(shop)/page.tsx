@@ -111,6 +111,18 @@ export default async function HomePage() {
               >
                 {/* Raeumliche Ebene – liegt hinter allem, faengt keine Klicks ab. */}
                 <KategorieHintergrund name={category.name} />
+
+                {/* Feines Raster als Grund: eine leere Kachel war bisher eine
+                    schwarze Flaeche. Das Raster gibt ihr Tiefe, auch bevor die
+                    raeumliche Ebene erwacht. */}
+                <span
+                  className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-[.55] transition-opacity duration-500 group-hover:opacity-100"
+                  aria-hidden
+                />
+                <span
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-br from-signal-500/[.14] via-transparent to-transparent"
+                  aria-hidden
+                />
                 {category.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -121,8 +133,9 @@ export default async function HomePage() {
                   />
                 )}
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-carbon-950 via-carbon-950/45 to-transparent" />
-                <span className="relative font-mono text-xs text-signal-300">
+                <span className="relative flex items-center gap-2 font-mono text-xs text-signal-300">
                   {String(index + 1).padStart(2, "0")}
+                  <span className="text-mist-500">// {category.slug}</span>
                 </span>
                 <h3 className="relative mt-1 font-display text-xl font-bold">{category.name}</h3>
                 {category.children.length > 0 && (

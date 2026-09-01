@@ -94,6 +94,10 @@ export default function HeroScene() {
         {/* Gegenlicht von links: zeichnet die Kante des Kartons und hellt die
             Schattenseite so weit auf, dass die Wellpappe dort lesbar bleibt. */}
         <directionalLight position={[-6, 3, 2]} intensity={2.2} color="#9DBEFF" />
+        {/* Aufheller direkt auf die Schattenseite: ohne ihn lag die linke
+            Kartonwand fast im Schwarz und die Wellpappe war dort nicht mehr
+            zu erkennen. Schwach genug, dass die Plastizitaet bleibt. */}
+        <directionalLight position={[-3, 0.5, 4]} intensity={1.1} color="#C8D8F5" />
         <pointLight position={[6.5, 1.2, 3.5]} intensity={9} color="#FFB020" distance={18} />
 
         {/* Umgebungsreflexion aus Leuchtflaechen – ohne sie wirkt jedes Material
