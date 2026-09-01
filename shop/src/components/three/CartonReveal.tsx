@@ -1,5 +1,6 @@
 "use client";
 
+import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useRef, useState, type RefObject } from "react";
 import type { Group } from "three";
@@ -22,12 +23,19 @@ import { useRenderProfile } from "./useRenderProfile";
  * so bleibt der Besucher Herr ueber das Tempo.
  */
 
+/**
+ * Wohin die Produkte aus dem Karton steigen.
+ *
+ * Alle Ziele liegen rechts und oberhalb des Kartons – die linke Bildhaelfte
+ * gehoert der Schrift. Vorher flogen sie in alle Richtungen, zwei davon aus
+ * dem Bild heraus und eines mitten in die Ueberschrift.
+ */
 const INHALT = [
-  { name: "Luftpolsterfolie", ziel: [-2.15, 0.95, 0.7] },
-  { name: "Packband", ziel: [2.05, 1.15, 0.55] },
-  { name: "Versandetiketten", ziel: [-1.75, -0.85, 1.05] },
-  { name: "Transportbox", ziel: [2.25, -0.7, 0.2] },
-  { name: "Packpapier", ziel: [0.15, 1.75, -0.55] },
+  { name: "Luftpolsterfolie", ziel: [-1.25, 1.35, 0.5] },
+  { name: "Packband", ziel: [1.35, 1.15, 0.75] },
+  { name: "Versandetiketten", ziel: [1.55, -0.35, 0.95] },
+  { name: "Transportbox", ziel: [-0.15, 1.9, -0.2] },
+  { name: "Packpapier", ziel: [1.9, 0.5, -0.35] },
 ] as const;
 
 /** Ordnet einem Abschnitt des Fortschritts einen Wert von 0 bis 1 zu. */
@@ -63,12 +71,14 @@ function Szene({
     }
 
     // Die Kamera faehrt heran und hebt sich leicht – eine Fahrt, kein Schnitt.
+    // Bewusst massvoll: vorher fuellte der Karton am Ende das halbe Bild als
+    // braune Flaeche und lag ueber der Schrift.
     const naehe = stufe(p, 0.05, 0.7);
-    const zielZ = 8.4 - naehe * 3.5;
-    const zielY = 0.6 + naehe * 1.5;
+    const zielZ = 9.6 - naehe * 1.6;
+    const zielY = 0.5 + naehe * 1.1;
     camera.position.z += (zielZ - camera.position.z) * Math.min(delta * 2.4, 1);
     camera.position.y += (zielY - camera.position.y) * Math.min(delta * 2.4, 1);
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, 0.2, 0);
 
     // Die Produkte steigen aus dem Karton und ordnen sich im Halbkreis.
     if (inhalt.current) {
@@ -87,8 +97,9 @@ function Szene({
   });
 
   return (
-    <group ref={buehne}>
-      <Carton regler={regler} masse={STANDARD_MASSE} groesse={2.9} klebeband={false} />
+    // Die Buehne sitzt rechts der Bildmitte: links steht die Schrift.
+    <group ref={buehne} position={[1.9, 0, 0]}>
+      <Carton regler={regler} masse={STANDARD_MASSE} groesse={2.2} klebeband={false} />
 
       <group ref={inhalt}>
         <Luftpolsterfolie />
@@ -98,12 +109,16 @@ function Szene({
         <Packpapier />
       </group>
 
-      {detailliert && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2.1, 0]} receiveShadow>
-          <planeGeometry args={[40, 40]} />
-          <meshStandardMaterial color="#0B1119" roughness={1} />
-        </mesh>
-      )}
+      {/* Der Karton steht auf etwas – ohne Kontaktschatten schwebte die ganze
+          Szene im Nichts. */}
+      <ContactShadows
+        position={[0, -1.15, 0]}
+        scale={8}
+        opacity={0.5}
+        blur={2.6}
+        far={3}
+        resolution={detailliert ? 512 : 256}
+      />
     </group>
   );
 }
@@ -138,15 +153,33 @@ export default function CartonReveal() {
             camera={{ position: [0, 0.6, 8.4], fov: 42 }}
           >
             <Suspense fallback={null}>
-              <ambientLight intensity={0.6} />
-              <directionalLight position={[4, 8, 5]} intensity={2.2} castShadow={detailliert} />
-              <pointLight position={[-6, 2, 3]} intensity={16} color="#2D6FFF" distance={22} />
-              <pointLight position={[5, 1, 4]} intensity={9} color="#FFB020" distance={18} />
-              <fog attach="fog" args={["#070B11", 9, 24]} />
+              {/* Dieselbe Lichtsetzung wie im Einstieg: Fuehrung, kuehles
+                  Gegenlicht fuer die Kanten, warme Aufhellung. */}
+              <ambientLight intensity={0.4} />
+              <directionalLight
+                position={[4, 8, 5]}
+                intensity={2.4}
+                castShadow={detailliert}
+                shadow-mapSize={[1024, 1024]}
+              />
+              <directionalLight position={[-6, 3, 2]} intensity={2.0} color="#9DBEFF" />
+              <pointLight position={[5, 1, 4]} intensity={7} color="#FFB020" distance={16} />
+              <Environment resolution={detailliert ? 256 : 128}>
+                <Lightformer form="rect" intensity={2.4} position={[3, 4, 4]} scale={[8, 5, 1]} color="#FFF4E2" />
+                <Lightformer form="rect" intensity={1.3} position={[-5, 1, -3]} scale={[7, 5, 1]} color="#7FA8FF" />
+              </Environment>
+              <fog attach="fog" args={["#070B11", 11, 28]} />
               <Szene fortschritt={fortschritt} detailliert={detailliert} />
             </Suspense>
           </Canvas>
         )}
+
+        {/* Weiche Abdunklung nach links: selbst wenn ein Gegenstand einmal
+            weit wandert, bleibt die Schrift darauf lesbar. */}
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-carbon-950 via-carbon-950/70 to-transparent lg:via-carbon-950/40"
+          aria-hidden
+        />
 
         {/* Die Beschriftung traegt den Abschnitt auch ohne 3D. */}
         <div className="section pointer-events-none relative z-10">

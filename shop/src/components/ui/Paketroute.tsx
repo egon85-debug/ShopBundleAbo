@@ -5,15 +5,12 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Das Signature-Element: eine feine Route, die sich durch die Seite zieht.
  *
- * Ein Paket wandert beim Scrollen die Stationen entlang, die eine Sendung im
- * Haus durchlaeuft. Die Linie liegt am linken Rand, nimmt keine Breite vom
- * Inhalt und verschwindet auf schmalen Bildschirmen ganz – dort waere sie nur
- * im Weg.
+ * Ein Paket wandert beim Scrollen an einer feinen Linie entlang. Sie liegt am
+ * linken Rand, nimmt keine Breite vom Inhalt und verschwindet auf schmalen
+ * Bildschirmen ganz – dort waere sie nur im Weg.
  *
  * Sie ist reine Zier: fuer Vorlesesoftware unsichtbar, ohne Klickflaeche.
  */
-const STATIONEN = ["Bestellung", "Kommissionierung", "DHL", "Transport", "Zustellung"] as const;
-
 export function Paketroute() {
   const [anteil, setAnteil] = useState(0);
   const rahmen = useRef(0);
@@ -40,8 +37,6 @@ export function Paketroute() {
     };
   }, []);
 
-  const aktuelle = Math.min(STATIONEN.length - 1, Math.floor(anteil * STATIONEN.length));
-
   return (
     <div
       aria-hidden
@@ -61,13 +56,11 @@ export function Paketroute() {
         style={{ top: `calc(18vh + ${anteil * 64}vh)` }}
       />
 
-      {/* Aktuelle Station, quer gestellt neben der Linie. */}
-      <span
-        className="absolute left-4 whitespace-nowrap font-mono text-[10px] uppercase tracking-[.18em] text-mist-500 transition-[top] duration-150 ease-linear"
-        style={{ top: `calc(18vh + ${anteil * 64}vh - 6px)` }}
-      >
-        {STATIONEN[aktuelle]}
-      </span>
+      {/* Bewusst ohne Beschriftung: der Stationsname stand neben der Linie und
+          lief in die Rubriken der Abschnitte hinein ("KOMMISSIONIERUNG" lag
+          ueber "WAS DRIN IST"). Linie und wanderndes Paket tragen das Element
+          auch allein; die Stationen stehen ohnehin im Abschnitt "Der Weg Ihrer
+          Sendung". */}
     </div>
   );
 }
