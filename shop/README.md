@@ -147,3 +147,18 @@ Startseite gerendert haben:
 ```bash
 grep -c "neigekarte" .next/server/app/index.html   # > 0
 ```
+
+## Gestaltung: ansehen, nicht nur bauen
+
+Ein grüner Build sagt nichts über das Aussehen. Nach jeder Änderung an
+Oberfläche oder 3D-Szenen:
+
+```bash
+npm install --no-save playwright     # einmalig je Umgebung
+npm start &                          # Shop läuft auf :3000
+node shot.mjs                        # Aufnahmen nach ./aufnahmen
+```
+
+Dann die Bilder tatsächlich ansehen. Geprüft wird mindestens: kollidiert kein
+3D-Objekt mit Text, hat die Kopfzeile über dunklen Abschnitten genug Kontrast,
+stehen Objekte mit Schatten statt frei im Raum.
