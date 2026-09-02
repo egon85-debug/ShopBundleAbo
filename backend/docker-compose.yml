@@ -7,6 +7,11 @@
 # Mit eigener PostgreSQL im Container (zum Ausprobieren ohne Konto):
 #   docker compose --profile lokale-db up -d --build
 #   DATABASE_URL zeigt dann auf den Dienst "db" (siehe .env.example).
+#
+# Auf einem Server im Internet zusaetzlich den Reverse Proxy starten:
+#   DOMAIN=lager.ihre-domain.de in die .env, dann
+#   docker compose --profile proxy up -d --build
+#   Caddy holt das TLS-Zertifikat selbst, sobald der Name hierher zeigt.
 services:
   api:
     build: .
@@ -16,7 +21,12 @@ services:
       RUN_MIGRATIONS: "true"
       RUN_WORKER_IN_PROCESS: "true"
     ports:
-      - "8000:8000"
+      # Ausdruecklich nur auf die lokale Schnittstelle: die API spricht HTTP
+      # und vertraut den X-Forwarded-Kopfzeilen. Waere sie direkt aus dem
+      # Internet erreichbar, koennte jeder diese Kopfzeilen selbst setzen.
+      # Von aussen fuehrt der Weg ausschliesslich ueber den Reverse Proxy.
+      # Zum Ausprobieren auf dem eigenen Rechner reicht das genauso.
+      - "127.0.0.1:8000:8000"
     volumes:
       # Fotos und Sprachaufnahmen bei STORAGE_BACKEND=local.
       - medien:/app/storage
@@ -33,7 +43,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in der .env gesetzt sein}
       POSTGRES_DB: winterfeld
     ports:
-      - "5432:5432"
+      # Ebenfalls nur lokal. Eine Datenbank gehoert nie offen ins Netz.
+      - "127.0.0.1:5432:5432"
     volumes:
       - datenbank:/var/lib/postgresql/data
     healthcheck:
@@ -42,6 +53,27 @@ services:
       timeout: 5s
       retries: 12
 
+  # Nur mit --profile proxy. Nimmt HTTPS entgegen und reicht an die API
+  # weiter; das Zertifikat besorgt und erneuert Caddy selbst.
+  proxy:
+    profiles: ["proxy"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN muss in der .env stehen, z. B. lager.ihre-domain.de}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_daten:/data
+      - caddy_konfig:/config
+      - caddy_logs:/var/log/caddy
+
 volumes:
   datenbank:
   medien:
+  caddy_daten:
+  caddy_konfig:
+  caddy_logs:
