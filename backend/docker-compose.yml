@@ -12,6 +12,12 @@
 #   DOMAIN=lager.ihre-domain.de in die .env, dann
 #   docker compose --profile proxy up -d --build
 #   Caddy holt das TLS-Zertifikat selbst, sobald der Name hierher zeigt.
+#
+# Auf einem Rechner zu Hause oder im Betrieb (hinter dem Router, keine feste
+# oeffentliche IP) stattdessen den Tunnel starten:
+#   TUNNEL_TOKEN=... in die .env (Cloudflare Zero Trust -> Networks -> Tunnels),
+#   docker compose --profile tunnel up -d --build
+#   Kein offener Port am Router noetig; TLS macht Cloudflare.
 services:
   api:
     build: .
@@ -70,6 +76,19 @@ services:
       - caddy_daten:/data
       - caddy_konfig:/config
       - caddy_logs:/var/log/caddy
+
+  # Nur mit --profile tunnel. Baut eine ausgehende Verbindung zu Cloudflare
+  # auf, ueber die Anfragen an https://<Ihr Name> hereinkommen. Der Router
+  # bleibt zu, eine oeffentliche IP ist nicht noetig. Der Tunnel erreicht die
+  # API ueber das Compose-Netz direkt — im Cloudflare-Dashboard als
+  # "Public Hostname" den Dienst http://api:8000 eintragen.
+  tunnel:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?TUNNEL_TOKEN muss in der .env stehen (Cloudflare Zero Trust -> Networks -> Tunnels)}
 
 volumes:
   datenbank:

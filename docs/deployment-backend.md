@@ -72,6 +72,31 @@ Vor die API gehört ein Reverse Proxy mit TLS (Caddy, nginx). Die API selbst
 spricht HTTP und vertraut `X-Forwarded-*` — sie darf deshalb **nicht** direkt
 aus dem Internet erreichbar sein.
 
+### Zu Hause oder im Betrieb hinter dem Router
+
+Ein Rechner hinter einem gewöhnlichen Router hat keine feste öffentliche
+Adresse, und der Router lässt eingehende Verbindungen nicht durch. Statt
+Ports am Router zu öffnen, baut der Rechner selbst eine ausgehende Verbindung
+zu Cloudflare auf, über die Anfragen an einen Namen wie `lager.ihre-domain.de`
+hereinkommen:
+
+```
+docker compose --profile tunnel up -d --build
+```
+
+Voraussetzungen: ein Cloudflare-Konto (kostenlos), die Domain mit ihren
+Nameservern bei Cloudflare, und ein Tunnel unter Zero Trust → Networks →
+Tunnels. Das dort angezeigte Token kommt als `TUNNEL_TOKEN` in die `.env`.
+Als „Public Hostname" des Tunnels wird der Dienst `http://api:8000`
+eingetragen — der Tunnel-Container erreicht die API über das Compose-Netz,
+der Port 8000 bleibt weiterhin nur lokal gebunden. TLS übernimmt Cloudflare,
+Caddy wird in dieser Variante nicht gebraucht.
+
+Damit der Shop die Bilder laden kann, muss `MEDIA_PUBLIC_BASE_URL` auf
+`https://lager.ihre-domain.de/api/v1/media` zeigen. Und: der Rechner muss
+durchlaufen. Der Shop meldet Verkäufe sofort ans Lager; ist der Rechner in
+dem Moment aus, bleibt der Lagerbestand für diese Bestellung zu hoch.
+
 ## Fly.io
 
 ```bash
