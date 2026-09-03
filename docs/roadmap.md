@@ -21,7 +21,9 @@
 - Bestandsführung ausschließlich über Movements, Audit-Log, Preis-Historie.
 - Offline-Puffer + Upload-Queue + Idempotenz auf dem Tablet.
 - Rollen (Mitarbeiter, Lagerleiter, Shop-Manager, Admin), Adminbereich (Benutzer,
-  Lieferanten, Lagerplätze, Shop-Verbindungen, Jobs/Fehler, Audit-Log, Systemstatus).
+  Lieferanten, Lagerplätze, Shop-Verbindungen, Jobs/Fehler, Audit-Log, Systemstatus,
+  Freigabe: Original und optimiertes Bild nebeneinander, Hauptbild wählen, Optimierung
+  ablehnen, Veröffentlichung nach Qualitätsprüfung).
 - Provider-Abstraktion mit realen HTTP-Implementierungen (Anthropic Vision/LLM,
   Whisper-kompatible STT, konfigurierbare Preisrecherche-API, Pillow-Bildpipeline,
   Local-/S3-Storage).

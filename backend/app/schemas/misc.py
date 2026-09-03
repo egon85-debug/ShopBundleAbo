@@ -99,6 +99,12 @@ class ListingOut(ApiModel):
     generated_at: datetime | None
 
 
+class ImageUpdate(BaseModel):
+    """Änderung an einem Produktbild aus der Freigabeansicht."""
+    is_primary: bool | None = None
+    sort_order: int | None = None
+
+
 class ListingUpdate(BaseModel):
     seo_title: str | None = None
     short_description: str | None = None

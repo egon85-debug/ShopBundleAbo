@@ -115,6 +115,42 @@ const views = {
     };
   },
 
+  // ── Freigabe: Bilder prüfen, Hauptbild wählen, veröffentlichen ─────────────
+  // Hier sieht man vor der Veröffentlichung, was der Shop tatsächlich bekommt:
+  // je Aufnahme das Original und daneben die optimierte Fassung. Originale
+  // werden nie verändert oder gelöscht – abgelehnt wird nur die Optimierung.
+
+  async freigabe(productId) {
+    if (productId) return freigabeDetail(productId);
+    const [bereit, pruefen] = await Promise.all([
+      api("/products?status=shop_ready&limit=100"),
+      api("/products?status=review_required&limit=100"),
+    ]);
+    const items = [...bereit.items, ...pruefen.items];
+    main().innerHTML = `
+      <h2>Freigabe</h2>
+      <p class="muted">${bereit.total} shopbereit · ${pruefen.total} noch zu prüfen.
+        Klick auf eine Kachel öffnet die Bildprüfung.</p>
+      ${items.length === 0 ? '<div class="card muted">Nichts zu tun – alle Artikel sind veröffentlicht oder noch in Bearbeitung.</div>' : ""}
+      <div class="freigabe-grid">
+        ${items.map((p) => {
+          const bild = hauptbild(p);
+          const optimiert = p.images.filter((i) => i.kind === "optimized").length;
+          return `<a class="kachel card" href="#freigabe/${p.id}">
+            <div class="kachel-bild">${bild
+              ? `<img src="${esc(bild.url)}" alt="" loading="lazy">`
+              : '<span class="muted">kein Bild</span>'}</div>
+            <div class="kachel-text">
+              <strong>${esc(p.product_name || "(ohne Namen)")}</strong>
+              <span class="muted">${esc(p.internal_sku)}${p.manufacturer ? " · " + esc(p.manufacturer) : ""}</span>
+              <span>${fmtMoney(p.sale_price)} · ${p.available_quantity} verfügbar</span>
+              <span>${statusBadge(p.processing_status)}
+                <span class="muted">${optimiert} optimierte Bild${optimiert === 1 ? "" : "er"}</span></span>
+            </div></a>`;
+        }).join("")}
+      </div>`;
+  },
+
   async suppliers() {
     const suppliers = await api("/suppliers");
     main().innerHTML = `
@@ -296,6 +332,171 @@ const views = {
   },
 };
 
+// ── Freigabe-Detail ──────────────────────────────────────────────────────────
+
+const BILDROLLEN = { front: "Vorderseite", back: "Rückseite", packaging: "Verpackung",
+  barcode: "Barcode", type_plate: "Typenschild", serial_number: "Seriennummer",
+  accessories: "Zubehör", damage: "Schaden", other: "Sonstiges" };
+
+/** Das Bild, das der Shop als erstes zeigen würde: Hauptbild, sonst erstes optimiertes. */
+function hauptbild(product) {
+  const optimiert = product.images.filter((i) => i.kind === "optimized");
+  return optimiert.find((i) => i.is_primary) || optimiert[0] || null;
+}
+
+/** Original und zugehörige Optimierung nebeneinander – so, wie sie zusammengehören. */
+function bildpaare(product) {
+  const originale = product.images.filter((i) => i.kind === "original");
+  const optimierte = product.images.filter((i) => i.kind === "optimized");
+  const paare = originale.map((o) => ({
+    original: o,
+    optimiert: optimierte.filter((x) => x.source_image_id === o.id),
+  }));
+  // Optimierungen ohne bekanntes Original (z. B. Import) nicht verschlucken.
+  const zugeordnet = new Set(paare.flatMap((p) => p.optimiert.map((x) => x.id)));
+  for (const x of optimierte) {
+    if (!zugeordnet.has(x.id)) paare.push({ original: null, optimiert: [x] });
+  }
+  return paare.sort((a, b) => {
+    const ra = (a.original || a.optimiert[0]).role, rb = (b.original || b.optimiert[0]).role;
+    return (ra !== "front") - (rb !== "front")
+      || (a.original || a.optimiert[0]).sort_order - (b.original || b.optimiert[0]).sort_order;
+  });
+}
+
+function darfFreigeben() {
+  return ["shop_manager", "warehouse_manager", "admin"].includes(currentUser?.role);
+}
+
+async function freigabeDetail(productId) {
+  const [product, quality, connections] = await Promise.all([
+    api("/products/" + productId),
+    api("/products/" + productId + "/quality"),
+    api("/shop/connections").catch(() => []),
+  ]);
+  const aktiv = connections.filter((c) => c.is_active);
+  const paare = bildpaare(product);
+  const optimierte = product.images.filter((i) => i.kind === "optimized");
+  const darf = darfFreigeben();
+
+  const figur = (bild, art) => {
+    if (!bild) return `<figure class="bild-figur bild-leer"><span class="muted">${
+      art === "optimized" ? "noch nicht optimiert" : "kein Original vorhanden"}</span></figure>`;
+    const hauptmarke = bild.is_primary ? '<span class="hauptbild-marke">Hauptbild</span>' : "";
+    const masse = bild.width && bild.height ? `${bild.width} × ${bild.height} px` : "";
+    const aktionen = art === "optimized" && darf ? `<div class="bild-aktionen">
+        ${bild.is_primary ? "" : `<button class="btn small" data-hauptbild="${bild.id}">Als Hauptbild</button>`}
+        <button class="btn small" data-sortieren="${bild.id}" data-richtung="-1" title="weiter nach vorn">↑</button>
+        <button class="btn small" data-sortieren="${bild.id}" data-richtung="1" title="weiter nach hinten">↓</button>
+        <button class="btn small danger" data-ablehnen="${bild.id}">Ablehnen</button>
+      </div>` : "";
+    return `<figure class="bild-figur">${hauptmarke}
+      <a href="${esc(bild.url)}" target="_blank" rel="noopener"><img src="${esc(bild.url)}" alt=""></a>
+      <figcaption><span>${art === "optimized" ? "Optimiert" : "Original"}</span>
+        <span class="muted">${masse}${bild.sort_order != null && art === "optimized" ? " · Pos. " + bild.sort_order : ""}</span>
+      </figcaption>${aktionen}</figure>`;
+  };
+
+  main().innerHTML = `
+    <p><a href="#freigabe">← Zurück zur Übersicht</a></p>
+    <div class="freigabe-kopf">
+      <div>
+        <h2>${esc(product.product_name || "(ohne Namen)")}</h2>
+        <p class="muted">${esc(product.internal_sku)}${product.manufacturer ? " · " + esc(product.manufacturer) : ""}
+          ${product.model ? " · " + esc(product.model) : ""} · ${fmtMoney(product.sale_price)}
+          · ${product.available_quantity} verfügbar</p>
+      </div>
+      <div>${statusBadge(product.processing_status)} ${statusBadge(product.publication_status)}</div>
+    </div>
+
+    <div class="card pruefliste">
+      <strong>Qualitätsprüfung</strong>
+      ${quality.is_shop_ready
+        ? '<p class="ok">✓ Alle Pflichtangaben vorhanden – der Artikel kann veröffentlicht werden.</p>'
+        : `<p class="error">Es fehlt noch:</p><ul>${quality.missing.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`}
+      ${optimierte.length === 0 ? '<p class="error">Es gibt noch kein optimiertes Bild. Der Shop bekommt nur optimierte Bilder.</p>' : ""}
+      ${optimierte.length > 0 && !optimierte.some((i) => i.is_primary)
+        ? '<p class="error">Kein Hauptbild gewählt – der Shop nimmt sonst das erste optimierte Bild.</p>' : ""}
+    </div>
+
+    <h3>Bilder (${product.images.length}) – so kommen sie in den Shop</h3>
+    ${!darf ? '<p class="muted">Hauptbild wählen und Bilder ablehnen dürfen Shop-Manager, Lagerleiter und Administratoren.</p>' : ""}
+    ${paare.length === 0 ? '<div class="card muted">Für diesen Artikel wurden noch keine Bilder erfasst.</div>' : ""}
+    ${paare.map((paar) => {
+      const rolle = (paar.original || paar.optimiert[0]).role;
+      const optimiert = paar.optimiert.length ? paar.optimiert : [null];
+      return `<section class="bildpaar card">
+        <header><strong>${esc(BILDROLLEN[rolle] || rolle)}</strong></header>
+        <div class="bildpaar-spalten">
+          ${figur(paar.original, "original")}
+          ${optimiert.map((x) => figur(x, "optimized")).join("")}
+        </div></section>`;
+    }).join("")}
+
+    ${darf ? `<div class="card" id="veroeffentlichen">
+      <strong>Veröffentlichen</strong>
+      ${aktiv.length === 0
+        ? '<p class="muted">Keine aktive Shop-Verbindung. Unter <a href="#connections">Shop-Verbindungen</a> anlegen.</p>'
+        : `<div class="toolbar">
+            <label>Shop <select id="pub-conn">${aktiv.map((c) =>
+              `<option value="${c.id}">${esc(c.name)} (${esc(c.connector_type)})</option>`).join("")}</select></label>
+            <button class="btn primary" id="pub-btn" ${quality.is_shop_ready && optimierte.length ? "" : "disabled"}>
+              Jetzt veröffentlichen</button>
+          </div>`}
+      <p id="pub-result"></p>
+    </div>` : ""}`;
+
+  const neuLaden = () => freigabeDetail(productId);
+  const melde = (text, fehler) => {
+    const out = document.getElementById("pub-result");
+    if (out) out.innerHTML = `<span class="${fehler ? "error" : "ok"}">${esc(text)}</span>`;
+    else alert(text);
+  };
+  const aktion = async (fn) => {
+    try { await fn(); await neuLaden(); }
+    catch (err) { melde("Fehler: " + err.message, true); }
+  };
+
+  main().querySelectorAll("[data-hauptbild]").forEach((btn) => {
+    btn.onclick = () => aktion(() => api(
+      `/products/${productId}/images/${btn.dataset.hauptbild}`,
+      { method: "PATCH", body: { is_primary: true } }));
+  });
+  main().querySelectorAll("[data-sortieren]").forEach((btn) => {
+    btn.onclick = () => aktion(() => {
+      const bild = product.images.find((i) => i.id === btn.dataset.sortieren);
+      const ziel = Math.max(0, bild.sort_order + Number(btn.dataset.richtung));
+      return api(`/products/${productId}/images/${bild.id}`,
+        { method: "PATCH", body: { sort_order: ziel } });
+    });
+  });
+  main().querySelectorAll("[data-ablehnen]").forEach((btn) => {
+    btn.onclick = () => {
+      if (!confirm("Optimiertes Bild ablehnen? Es wird entfernt und kommt nicht in den Shop. "
+                   + "Das Original bleibt erhalten.")) return;
+      aktion(() => api(`/products/${productId}/images/${btn.dataset.ablehnen}`,
+                       { method: "DELETE" }));
+    };
+  });
+  const pubBtn = document.getElementById("pub-btn");
+  if (pubBtn) {
+    pubBtn.onclick = async () => {
+      pubBtn.disabled = true;
+      melde("Veröffentlichung wird gestartet …");
+      try {
+        const conn = document.getElementById("pub-conn").value;
+        await api(`/shop/products/${productId}/publish?connection_id=${encodeURIComponent(conn)}`,
+                  { method: "POST" });
+        melde("✓ Veröffentlichung gestartet – Fortschritt unter „Jobs & Fehler“.");
+        setTimeout(neuLaden, 1200);
+      } catch (err) {
+        melde("Fehler: " + err.message, true);
+        pubBtn.disabled = false;
+      }
+    };
+  }
+}
+
 // ── Navigation & Auth-Flow ───────────────────────────────────────────────────
 
 function showLogin() {
@@ -314,12 +515,13 @@ async function showApp() {
 }
 
 function navigate() {
-  const route = (location.hash || "#dashboard").slice(1);
+  // Routen haben die Form "#ansicht" oder "#ansicht/<id>" (z. B. #freigabe/<artikel-id>).
+  const [route, param] = (location.hash || "#dashboard").slice(1).split("/", 2);
   document.querySelectorAll("#nav a").forEach((a) =>
     a.classList.toggle("active", a.getAttribute("href") === "#" + route));
   const view = views[route] || views.dashboard;
   main().innerHTML = '<p class="muted">Lade …</p>';
-  view().catch((err) => {
+  view(param ? decodeURIComponent(param) : undefined).catch((err) => {
     main().innerHTML = `<p class="error">Fehler: ${esc(err.message)}</p>`;
   });
 }
