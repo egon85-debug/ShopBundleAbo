@@ -71,9 +71,16 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
-    admin_dir = Path(__file__).resolve().parents[2] / "admin"
-    if admin_dir.is_dir():
-        app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True), name="admin")
+    # backend/admin im Quellbaum, /app/admin im Container — derselbe relative
+    # Pfad, weil das Verzeichnis neben dem Paket "app" liegt. Der zweite
+    # Kandidat faengt aeltere Arbeitskopien ab, in denen es noch im
+    # Projektstamm lag.
+    for admin_dir in (Path(__file__).resolve().parents[1] / "admin",
+                      Path(__file__).resolve().parents[2] / "admin"):
+        if admin_dir.is_dir():
+            app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True),
+                      name="admin")
+            break
 
     return app
 

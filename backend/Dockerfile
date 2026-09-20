@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+# Der Verwaltungsbereich wird vom Backend unter /admin ausgeliefert.
+COPY admin ./admin
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
