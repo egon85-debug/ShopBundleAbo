@@ -71,7 +71,9 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
-    @app.get("/app", include_in_schema=False)
+    # HEAD gehoert dazu: Download-Manager auf dem Handy fragen damit zuerst
+    # Groesse und Wiederaufnahme ab und brechen sonst ab (405).
+    @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
     def app_herunterladen():
         """Android-App zum Installieren (auf dem Handy im Browser oeffnen).
         FileResponse beherrscht Range-Anfragen: ein abgebrochener Download

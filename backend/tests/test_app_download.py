@@ -41,6 +41,13 @@ def test_holen_und_ausliefern(client):
     assert res.headers["content-type"] == "application/vnd.android.package-archive"
     assert "winterfeld-lager-1.0.47.apk" in res.headers["content-disposition"]
 
+    # Download-Manager fragen zuerst per HEAD nach Groesse und Wiederaufnahme
+    kopf = client.head("/app")
+    assert kopf.status_code == 200
+    assert kopf.headers["content-length"] == str(len(APK))
+    assert kopf.headers["accept-ranges"] == "bytes"
+    assert kopf.content == b""
+
     # Abgebrochener Download laesst sich fortsetzen
     teil = client.get("/app", headers={"Range": "bytes=1000-"})
     assert teil.status_code == 206
