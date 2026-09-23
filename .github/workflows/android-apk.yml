@@ -30,6 +30,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          # Ausdruecklich angeben: die Vorgabe enthaelt das alte Paket
+          # "tools", das es in aktuellen SDK-Werkzeugen nicht mehr gibt.
+          packages: "platforms;android-35 build-tools;34.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit-Tests und APK bauen
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
