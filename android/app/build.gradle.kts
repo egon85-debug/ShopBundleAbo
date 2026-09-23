@@ -5,6 +5,19 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Versionsnummer aus der Git-Geschichte: steigt mit jedem Commit, lokal wie in
+// der CI gleich. Android installiert ein APK nur als Update, wenn die Nummer
+// nicht kleiner ist als die installierte — und so laesst sich am Geraet
+// ablesen, welcher Stand laeuft. Ohne Git (z. B. Quellarchiv) gilt 1.
+val gitCommitCount: Int = runCatching {
+    providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }
+        .standardOutput.asText.get().trim().toInt()
+}.getOrDefault(1)
+val gitShortSha: String = runCatching {
+    providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }
+        .standardOutput.asText.get().trim()
+}.getOrDefault("ohne-git")
+
 android {
     namespace = "de.winterfeld.logistik"
     compileSdk = 35
@@ -13,8 +26,34 @@ android {
         applicationId = "de.winterfeld.logistik"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = gitCommitCount
+        versionName = "1.0.$gitCommitCount ($gitShortSha)"
+
+        // Vorgabe im Anmeldebildschirm; fuer einen anderen Server beim Bauen
+        // mit -PserverUrl=https://… ueberschreiben.
+        val serverUrl = (project.findProperty("serverUrl") as String?)
+            ?: "https://lager.winterfeld-logistik.de"
+        buildConfigField("String", "DEFAULT_SERVER_URL", "\"$serverUrl\"")
+    }
+
+    signingConfigs {
+        // Fester Testschluessel fuer Debug-Builds. Er ist KEIN Geheimnis: die
+        // Werte sind die ueblichen Android-Debug-Vorgaben, und ein Debug-Build
+        // ist ohnehin nicht fuer die Veroeffentlichung gedacht. Er sorgt nur
+        // dafuer, dass jeder Build — hier wie in der CI — dieselbe Signatur
+        // traegt und sich ueber die installierte Version aktualisieren laesst.
+        // Ohne ihn erzeugt jede Maschine einen eigenen Zufallsschluessel, und
+        // jedes Update verlangt eine Deinstallation samt lokal gepufferter
+        // Aufnahmen.
+        //
+        // Release-Builds brauchen einen eigenen, geheimen Schluessel, der nie
+        // ins Repository gehoert (siehe docs/android-build.md).
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -30,7 +69,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

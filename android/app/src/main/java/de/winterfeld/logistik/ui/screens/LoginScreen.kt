@@ -19,13 +19,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import de.winterfeld.logistik.BuildConfig
+import de.winterfeld.logistik.data.remote.ServerUrl
 import de.winterfeld.logistik.data.repo.AuthRepository
 import de.winterfeld.logistik.ui.components.BigButton
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -> Unit) {
-    var serverUrl by remember { mutableStateOf(initialServerUrl) }
+    var serverUrl by remember {
+        mutableStateOf(initialServerUrl.ifEmpty { BuildConfig.DEFAULT_SERVER_URL })
+    }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -39,12 +45,20 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
         Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(),
                verticalArrangement = Arrangement.spacedBy(14.dp)) {
             OutlinedTextField(value = serverUrl, onValueChange = { serverUrl = it },
-                label = { Text("Server-URL") }, modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("https://logistik.example.de") })
+                label = { Text("Server-Adresse") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri,
+                                                  autoCorrectEnabled = false),
+                placeholder = { Text(BuildConfig.DEFAULT_SERVER_URL) })
             OutlinedTextField(value = email, onValueChange = { email = it },
-                label = { Text("E-Mail") }, modifier = Modifier.fillMaxWidth())
+                label = { Text("E-Mail") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email,
+                                                  autoCorrectEnabled = false))
             OutlinedTextField(value = password, onValueChange = { password = it },
                 label = { Text("Passwort") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             BigButton(if (busy) "Anmelden …" else "ANMELDEN", enabled = !busy) {
@@ -54,7 +68,7 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
                         auth.login(serverUrl, email.trim(), password)
                         onLoggedIn()
                     } catch (e: Exception) {
-                        error = "Anmeldung fehlgeschlagen: ${e.message}"
+                        error = ServerUrl.anmeldeFehler(e)
                     } finally { busy = false }
                 }
             }

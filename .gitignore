@@ -37,3 +37,11 @@ shop/public/uploads/
 shop/.env*
 !shop/.env.example
 next-env.d.ts
+
+# Signaturschluessel fuer Release-Builds sind Geheimnisse und gehoeren nie ins
+# Repository. Ausnahme: android/app/debug.keystore — ein bewusst oeffentlicher
+# Testschluessel mit den Android-Debug-Vorgaben, nur fuer Debug-Builds.
+*.jks
+*.keystore
+!android/app/debug.keystore
+keystore.properties

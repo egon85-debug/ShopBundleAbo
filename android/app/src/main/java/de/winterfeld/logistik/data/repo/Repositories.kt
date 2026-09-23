@@ -17,12 +17,13 @@ import de.winterfeld.logistik.data.remote.dto.UserDto
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.util.UUID
+import de.winterfeld.logistik.data.remote.ServerUrl
 
 class AuthRepository(private val api: ApiClient, private val tokenStore: TokenStore) {
     val isLoggedIn: Boolean get() = tokenStore.isLoggedIn
 
     suspend fun login(serverUrl: String, email: String, password: String): UserDto {
-        tokenStore.baseUrl = serverUrl
+        tokenStore.baseUrl = ServerUrl.normalize(serverUrl)
         val tokens = api.service().login(LoginRequest(email, password))
         tokenStore.accessToken = tokens.accessToken
         tokenStore.refreshToken = tokens.refreshToken
