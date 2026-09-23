@@ -34,6 +34,14 @@ android {
         val serverUrl = (project.findProperty("serverUrl") as String?)
             ?: "https://lager.winterfeld-logistik.de"
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"$serverUrl\"")
+
+        // Nur ARM: das sind alle Handys und Tablets ab Android 8. x86 laeuft
+        // nur auf Emulatoren am PC und brachte 11 MB Maschinencode mit (die
+        // Barcode-Erkennung liefert je Prozessortyp eine eigene Bibliothek).
+        // Fuer einen Emulator bauen: -PalleAbis
+        if (!project.hasProperty("alleAbis")) {
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        }
     }
 
     signingConfigs {
@@ -81,7 +89,6 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.navigation:navigation-compose:2.8.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")

@@ -1,7 +1,10 @@
 name: Android-App
 
-# Baut bei jeder Aenderung an der App ein installierbares APK. Es liegt danach
-# unter Actions → dieser Lauf → Artifacts zum Herunterladen bereit.
+# Baut bei jeder Aenderung an der App ein installierbares APK. Auf dem
+# Hauptzweig wird es als Release veroeffentlicht — direkt als .apk, ohne ZIP,
+# immer unter derselben Adresse:
+#   https://github.com/<besitzer>/<repo>/releases/latest
+# Fuer Pull Requests und andere Zweige bleibt es beim Artifact.
 on:
   push:
     branches: ["**"]
@@ -12,6 +15,9 @@ on:
     paths:
       - "android/**"
   workflow_dispatch:
+
+permissions:
+  contents: write   # fuer das Release mit dem APK
 
 jobs:
   apk:
@@ -37,11 +43,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit-Tests und APK bauen
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
-      - name: Versionsnummer ermitteln
+      - name: Versionsnummer ermitteln und APK benennen
         id: version
-        run: echo "name=$(git rev-list --count HEAD)-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          count=$(git rev-list --count HEAD)
+          sha=$(git rev-parse --short HEAD)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "winterfeld-lager-1.0.$count.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: winterfeld-lager-${{ steps.version.outputs.name }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: winterfeld-lager-${{ steps.version.outputs.count }}-${{ steps.version.outputs.sha }}
+          path: android/winterfeld-lager-1.0.${{ steps.version.outputs.count }}.apk
           retention-days: 30
+      - name: Als Release veroeffentlichen
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-1.0.${{ steps.version.outputs.count }}
+          target_commitish: ${{ github.sha }}
+          name: Winterfeld Lager 1.0.${{ steps.version.outputs.count }} (${{ steps.version.outputs.sha }})
+          make_latest: true
+          files: android/winterfeld-lager-1.0.${{ steps.version.outputs.count }}.apk
+          body: |
+            Android-App fuer die Artikelerfassung im Lager.
+
+            Installieren: die .apk-Datei unten auf dem Geraet antippen. Beim
+            ersten Mal fragt Android, ob der Browser Apps installieren darf.
+            Eine vorhandene Version wird dabei aktualisiert, die Daten bleiben.

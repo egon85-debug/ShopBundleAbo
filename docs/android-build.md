@@ -3,8 +3,13 @@
 ## Das APK holen
 
 Bei jeder Aenderung unter `android/` baut GitHub Actions ein installierbares
-APK (Workflow „Android-App"). Es liegt unter **Actions → der Lauf →
-Artifacts** als `winterfeld-lager-<nummer>-<commit>` zum Herunterladen bereit.
+APK (Workflow „Android-App"). Auf dem Hauptzweig erscheint es als Release —
+direkt als `.apk`, immer unter derselben Adresse:
+
+    https://github.com/egon85-debug/Winterfeld-Logistik/releases/latest
+
+Fuer Pull Requests und andere Zweige liegt es unter **Actions → der Lauf →
+Artifacts** (als ZIP).
 
 Auf dem Geraet einmalig die Installation aus unbekannten Quellen fuer den
 Browser oder Dateimanager erlauben, dann das APK oeffnen.
@@ -19,6 +24,9 @@ cd android
 
 Voraussetzungen: JDK 17 oder neuer, Android-SDK mit Plattform 35
 (`ANDROID_HOME` gesetzt).
+
+Das APK enthaelt nur ARM-Maschinencode (alle Handys und Tablets ab Android 8).
+Fuer einen x86-Emulator am PC: `./gradlew assembleDebug -PalleAbis`.
 
 Anderer Server als Vorgabe im Anmeldebildschirm:
 

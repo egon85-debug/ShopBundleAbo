@@ -7,9 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -47,11 +44,11 @@ fun SyncBadge(pendingCount: Int, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (pendingCount == 0) {
-            Icon(Icons.Filled.CloudDone, contentDescription = null,
+            Icon(SyncIcons.CloudDone, contentDescription = null,
                  tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(22.dp))
             Text("Synchronisiert", color = MaterialTheme.colorScheme.secondary)
         } else {
-            Icon(Icons.Filled.Cloud, contentDescription = null,
+            Icon(SyncIcons.Cloud, contentDescription = null,
                  tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
             Text("$pendingCount Artikel warten auf Upload",
                  color = MaterialTheme.colorScheme.error)
