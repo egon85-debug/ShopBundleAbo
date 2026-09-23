@@ -83,6 +83,16 @@ android {
     }
 }
 
+// Bildschirmfotos der Oberflaeche ohne Handy oder Emulator (Paparazzi rendert
+// die Compose-Screens auf der JVM). Nur bei Bedarf, damit normale Builds und
+// die CI nichts davon mitschleppen:
+//   ./gradlew -Pscreenshots :app:recordPaparazziDebug
+// Die Bilder landen in app/src/test/snapshots/images/.
+if (project.hasProperty("screenshots")) {
+    apply(plugin = "app.cash.paparazzi")
+    android.sourceSets["test"].java.srcDir("src/screenshotTest/java")
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)
@@ -93,6 +103,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
+    // Artikelbilder in Liste und Detailansicht
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Kamera + Barcode
     implementation("androidx.camera:camera-camera2:1.3.4")

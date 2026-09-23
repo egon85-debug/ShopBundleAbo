@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -38,10 +40,11 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().padding(24.dp),
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
            verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
            horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("WINTERFELD LOGISTIK", style = MaterialTheme.typography.displayLarge)
+        Text("Winterfeld Logistik", style = MaterialTheme.typography.headlineMedium)
+        Text("Anmeldung Lager-App", color = MaterialTheme.colorScheme.outline)
         Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(),
                verticalArrangement = Arrangement.spacedBy(14.dp)) {
             OutlinedTextField(value = serverUrl, onValueChange = { serverUrl = it },
@@ -61,7 +64,7 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            BigButton(if (busy) "Anmelden …" else "ANMELDEN", enabled = !busy) {
+            BigButton(if (busy) "Anmelden …" else "Anmelden", enabled = !busy) {
                 busy = true; error = null
                 scope.launch {
                     try {

@@ -46,3 +46,4 @@ next-env.d.ts
 *.keystore
 !android/app/debug.keystore
 keystore.properties
+android/app/src/test/snapshots/

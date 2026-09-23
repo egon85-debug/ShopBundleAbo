@@ -34,6 +34,20 @@ Anderer Server als Vorgabe im Anmeldebildschirm:
 ./gradlew assembleDebug -PserverUrl=https://anderer.server.de
 ```
 
+## Bildschirme ansehen ohne Handy
+
+Die wichtigsten Screens lassen sich in Handygroesse als Bild rendern
+(Paparazzi, laeuft auf der JVM — kein Emulator noetig):
+
+```
+./gradlew -Pscreenshots :app:recordPaparazziDebug
+# → app/src/test/snapshots/images/*.png
+```
+
+Die Beispieldaten stehen in `app/src/screenshotTest/…/ScreenshotTest.kt`.
+Ohne `-Pscreenshots` ist Paparazzi nicht aktiv; normale Builds und die CI
+bleiben davon unberuehrt.
+
 ## Versionsnummer
 
 `versionCode` ist die Zahl der Commits, `versionName` zusaetzlich der

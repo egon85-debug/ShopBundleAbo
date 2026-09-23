@@ -107,6 +107,29 @@ class TestOhneKi:
         felder = [q["field"] for q in state["open_questions"]]
         assert "product_name" in felder
 
+    def test_name_in_der_app_eintragen_beantwortet_die_rueckfrage(self, client, employee):
+        """Die App-Detailansicht aendert Felder per PATCH. Wer dort den Namen
+        eintraegt, soll die Frage danach nicht mehr offen sehen."""
+        _ohne_ki()
+        headers = auth_headers(client)
+        state = _erfassen(client, headers, mit_sprache=False)
+
+        # Leeren beantwortet nichts ...
+        leer = client.patch(f"/api/v1/products/{state['id']}", headers=headers,
+                            json={"product_name": None})
+        assert "product_name" in [q["field"] for q in leer.json()["open_questions"]]
+
+        antwort = client.patch(f"/api/v1/products/{state['id']}", headers=headers,
+                               json={"product_name": "Bosch GSR 18V-55"})
+        assert antwort.status_code == 200, antwort.text
+        produkt = antwort.json()
+        assert produkt["product_name"] == "Bosch GSR 18V-55"
+        assert produkt["field_sources"]["product_name"] == "user"
+        # ... nur die Frage zum Namen ist weg, die uebrigen bleiben.
+        felder = [q["field"] for q in produkt["open_questions"]]
+        assert "product_name" not in felder
+        assert len(felder) == len(state["open_questions"]) - 1
+
     def test_mit_ki_keine_namensrueckfrage(self, client, employee):
         # Gegenprobe mit den ueblichen Test-Doubles: der Name wird erkannt.
         state = _erfassen(client, auth_headers(client), capture_id="cap-mit-ki")

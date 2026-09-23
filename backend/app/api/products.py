@@ -100,6 +100,12 @@ def update_product(product_id: str, body: ProductUpdate,
     if supplier_name:
         changes["supplier_id"] = supplier_service.match_or_create(db, supplier_name).id
     product_service.apply_user_update(db, product=product, changes=changes, user=user)
+    # Eine Rückfrage zu einem Feld ist beantwortet, sobald jemand das Feld selbst
+    # ausfüllt (z. B. den Namen in der App-Detailansicht).
+    filled = {field for field, value in changes.items() if value not in (None, "")}
+    if product.open_questions and filled:
+        product.open_questions = [q for q in product.open_questions
+                                  if q.get("field") not in filled]
     db.commit()
     db.refresh(product)
     return product_out(product)

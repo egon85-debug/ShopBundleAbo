@@ -15,6 +15,8 @@ import de.winterfeld.logistik.data.remote.dto.PageDto
 import de.winterfeld.logistik.data.remote.dto.ProductDto
 import de.winterfeld.logistik.data.remote.dto.UserDto
 import kotlinx.coroutines.flow.Flow
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.UUID
 import de.winterfeld.logistik.data.remote.ServerUrl
@@ -94,14 +96,26 @@ class CaptureRepository(
 
 class ProductRepository(private val api: ApiClient) {
     suspend fun dashboard(): DashboardDto = api.service().dashboard()
-    suspend fun list(query: String?, status: String?, offset: Int = 0): PageDto<ProductDto> =
-        api.service().products(query = query, status = status, offset = offset)
+    /** [filter]: Bearbeitungsstatus, außer "published" — das ist der Veröffentlichungsstatus. */
+    suspend fun list(query: String?, filter: String?, offset: Int = 0): PageDto<ProductDto> =
+        if (filter == "published")
+            api.service().products(query = query, publicationStatus = filter, offset = offset)
+        else api.service().products(query = query, status = filter, offset = offset)
     suspend fun get(id: String): ProductDto = api.service().product(id)
     suspend fun getCaptureState(serverId: String): ProductDto = api.service().getCapture(serverId)
+    /** Ändert Felder; null leert ein Feld (deshalb mit serializeNulls gesendet). */
     suspend fun patch(id: String, fields: Map<String, Any?>): ProductDto =
-        api.service().patchProduct(id, fields)
+        api.service().patchProduct(id, patchBody(fields))
+    /** Beantwortet eine Rückfrage — auch nach dem Speichern der Erfassung. */
+    suspend fun answer(id: String, answer: AnswerDto): ProductDto =
+        api.service().sendAnswers(id, AnswersRequest(listOf(answer)))
     suspend fun sendAnswersDirect(serverId: String, answers: List<AnswerDto>): ProductDto =
         api.service().sendAnswers(serverId, AnswersRequest(answers))
     suspend fun suppliers() = api.service().suppliers()
     suspend fun storageLocations() = api.service().storageLocations()
 }
+
+/** JSON für PATCH: Gson ließe null-Werte sonst weg, und "Feld leeren" käme nie an. */
+fun patchBody(fields: Map<String, Any?>): okhttp3.RequestBody =
+    com.google.gson.GsonBuilder().serializeNulls().create().toJson(fields)
+        .toRequestBody("application/json".toMediaType())
