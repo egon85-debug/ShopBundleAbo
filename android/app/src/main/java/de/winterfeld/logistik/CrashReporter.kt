@@ -24,6 +24,7 @@ object CrashReporter {
     private const val DATEI = "absturzbericht.txt"
     private const val PREFS = "absturzberichte"
     private const val ZULETZT = "zuletzt_gemeldet"
+    private const val GEZEIGT = "zuletzt_gezeigt"
     private const val MAX_ZEICHEN = 60_000
 
     data class Bericht(val art: String, val text: String, val zeitpunkt: Long)
@@ -37,8 +38,9 @@ object CrashReporter {
         val vorher = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, fehler ->
             runCatching {
-                datei.writeText("Thread: ${thread.name}\n\n${fehler.stackTraceToString()}"
-                    .take(MAX_ZEICHEN))
+                val zeit = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.GERMANY).format(Date())
+                datei.writeText(("App ${BuildConfig.VERSION_NAME}\n${geraet()}\n$zeit\n" +
+                    "Thread: ${thread.name}\n\n${fehler.stackTraceToString()}").take(MAX_ZEICHEN))
             }
             vorher?.uncaughtException(thread, fehler)
         }
@@ -55,6 +57,25 @@ object CrashReporter {
             berichte += systemBerichte(context, zuletztGemeldet(context))
         }
         return berichte.sortedBy { it.zeitpunkt }
+    }
+
+    /**
+     * Absturz, der noch nicht auf dem Sicherheitsbildschirm gezeigt wurde.
+     * Ein Absturz beim Start verhindert sonst, dass der Bericht je den Server
+     * erreicht — der Bildschirm kommt ohne Compose und ohne Container aus.
+     */
+    fun anzuzeigenderAbsturz(context: Context): String? {
+        val datei = File(context.filesDir, DATEI)
+        if (!datei.exists()) return null
+        val gezeigt = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(GEZEIGT, 0L)
+        return if (datei.lastModified() == gezeigt) null else datei.readText()
+    }
+
+    fun alsGezeigtMerken(context: Context) {
+        val datei = File(context.filesDir, DATEI)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(GEZEIGT, datei.lastModified()).apply()
     }
 
     fun gemeldet(context: Context, berichte: List<Bericht>) {

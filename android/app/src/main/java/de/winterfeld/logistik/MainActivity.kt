@@ -49,6 +49,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Beim letzten Mal abgestürzt? Erst den Bericht zeigen — mit einfachen
+        // Android-Views, damit das auch klappt, wenn der Absturz in der
+        // normalen Oberfläche oder beim Start liegt.
+        CrashReporter.anzuzeigenderAbsturz(this)?.let { bericht ->
+            AbsturzAnzeige.zeigen(this, bericht) {
+                CrashReporter.alsGezeigtMerken(this)
+                recreate()
+            }
+            return
+        }
         val container = (application as WinterfeldApp).container
         SyncWorker.schedule(this) // liegengebliebene Uploads direkt anstoßen
 

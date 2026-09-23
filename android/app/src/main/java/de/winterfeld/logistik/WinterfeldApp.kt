@@ -19,13 +19,16 @@ class AppContainer(context: Context, val tokenStore: TokenStore = TokenStore(con
 }
 
 open class WinterfeldApp : Application() {
-    lateinit var container: AppContainer
-        private set
+    /**
+     * Erst beim ersten Zugriff gebaut: scheitert der Aufbau (z. B. der
+     * verschlüsselte Speicher), startet die App trotzdem so weit, dass sie den
+     * Absturzbericht anzeigen kann.
+     */
+    val container: AppContainer by lazy { createContainer() }
 
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this)
-        container = createContainer()
     }
 
     /** Tests ersetzen hier Teile, etwa die Token-Ablage. */

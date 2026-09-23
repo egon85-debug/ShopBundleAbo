@@ -50,11 +50,10 @@ class TestApp : WinterfeldApp() {
  * Artikel ohne KI-Erkennung und einer mit.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(application = TestApp::class, sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
+@Config(application = TestApp::class, sdk = [35], qualifiers = "w411dp-h891dp-xxhdpi")
 class AppDurchklickTest {
 
     private val server = FakeServer()
-    private val absturzVorher = true
 
     @get:Rule(order = 0)
     val serverRule = object : ExternalResource() {
@@ -64,8 +63,12 @@ class AppDurchklickTest {
             tokens.baseUrl = server.url
             tokens.accessToken = "test-access"
             tokens.refreshToken = "test-refresh"
-            if (absturzVorher) java.io.File(ApplicationProvider.getApplicationContext<TestApp>()
-                .filesDir, "absturzbericht.txt").writeText("Thread: main\n\njava.lang.X: kaputt")
+            // Ein Absturz vom letzten Mal, der schon auf dem Sicherheitsbildschirm
+            // gezeigt wurde: die normale App schickt ihn beim Start an den Server.
+            val context = ApplicationProvider.getApplicationContext<TestApp>()
+            java.io.File(context.filesDir, "absturzbericht.txt")
+                .writeText("Thread: main\n\njava.lang.X: kaputt")
+            CrashReporter.alsGezeigtMerken(context)
         }
         override fun after() = server.stop()
     }
