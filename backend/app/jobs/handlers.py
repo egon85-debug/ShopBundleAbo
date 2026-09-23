@@ -21,6 +21,7 @@ from app.models import (
     VoiceRecording,
 )
 from app.models.base import utcnow
+from app.providers.base import ProviderNotConfigured
 from app.providers.registry import (
     get_image_optimizer,
     get_llm,
@@ -63,8 +64,18 @@ def handle_recognize_product(db: Session, job: Job) -> None:
 
     started = time.monotonic()
     data = get_storage().get(image.storage_key)
-    vision = get_vision()
-    analysis = vision.analyze_product_image(data, image.content_type)
+    try:
+        vision = get_vision()
+        analysis = vision.analyze_product_image(data, image.content_type)
+    except ProviderNotConfigured as exc:
+        # Ohne Erkennung ist der Artikel nicht verloren: die Angaben kommen im
+        # Kontrollbildschirm von Hand, und die Bilder brauchen keine KI.
+        log.warning("Erkennung fuer %s uebersprungen: %s", product.id, exc)
+        _refresh_questions(db, product, [])
+        queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
+                      payload={"product_id": product.id}, product_id=product.id)
+        db.commit()
+        return
     conflicts = merge_service.merge_vision(product, analysis)
     _record_ai_run(db, product_id=product.id, kind="vision", provider=vision.name,
                    input_ref=image.storage_key, raw=analysis.model_dump(mode="json"),
@@ -90,11 +101,17 @@ def handle_research_product(db: Session, job: Job) -> None:
     if product is None:
         return
     started = time.monotonic()
-    research = get_research()
-    candidates = research.identify_product(
-        ean=product.ean, mpn=product.mpn,
-        query=" ".join(filter(None, [product.manufacturer, product.product_name, product.model])) or None,
-    )
+    try:
+        research = get_research()
+        candidates = research.identify_product(
+            ean=product.ean, mpn=product.mpn,
+            query=" ".join(filter(None, [product.manufacturer, product.product_name,
+                                         product.model])) or None,
+        )
+    except ProviderNotConfigured as exc:
+        # Recherche ist eine Ergaenzung — ohne sie bleibt es bei Foto und Eingabe.
+        log.warning("Produktrecherche fuer %s uebersprungen: %s", product.id, exc)
+        return
     _record_ai_run(db, product_id=product.id, kind="product_research", provider=research.name,
                    input_ref=product.ean or product.mpn,
                    raw={"count": len(candidates)},
@@ -123,11 +140,15 @@ def handle_research_prices(db: Session, job: Job) -> None:
     db.commit()
 
     query = " ".join(filter(None, [product.manufacturer, product.product_name, product.model]))
-    if not (product.ean or query):
-        return
-    research = get_research()
-    offers = research.find_offers(ean=product.ean, query=query, condition=product.condition)
-    pricing_service.evaluate_offers(db, product=product, offers=offers)
+    if product.ean or query:
+        try:
+            research = get_research()
+            offers = research.find_offers(ean=product.ean, query=query,
+                                          condition=product.condition)
+            pricing_service.evaluate_offers(db, product=product, offers=offers)
+        except ProviderNotConfigured as exc:
+            log.warning("Preisrecherche fuer %s uebersprungen: %s", product.id, exc)
+    # Auch ohne Recherche weiter zur Pruefung — sonst haengt der Artikel.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
     _refresh_questions(db, product, [])
     db.commit()
@@ -146,9 +167,17 @@ def handle_transcribe_voice(db: Session, job: Job) -> None:
             db.commit()
         return
     audio = get_storage().get(recording.storage_key)
-    stt = get_stt()
-    started = time.monotonic()
-    transcript = stt.transcribe(audio, job.payload.get("content_type", "audio/mp4"))
+    try:
+        stt = get_stt()
+        started = time.monotonic()
+        transcript = stt.transcribe(audio, job.payload.get("content_type", "audio/mp4"))
+    except ProviderNotConfigured as exc:
+        # Die Aufnahme bleibt erhalten; sobald ein Dienst eingerichtet ist,
+        # laesst sich der Auftrag im Adminbereich erneut anstossen.
+        log.warning("Transkription fuer %s uebersprungen: %s", recording.id, exc)
+        recording.status = "stt_unavailable"
+        db.commit()
+        return
     recording.transcript = transcript
     recording.status = "transcribed"
     _record_ai_run(db, product_id=recording.product_id, kind="stt", provider=stt.name,
@@ -173,19 +202,28 @@ def handle_extract_voice_data(db: Session, job: Job) -> None:
     product = db.get(Product, recording.product_id)
     if product is None:
         return
-    llm = get_llm()
-    started = time.monotonic()
-    extraction = llm.extract_voice_data(recording.transcript)
+    # Das Gesagte zuerst am Artikel sichern: es ist die Benutzerangabe und
+    # bleibt auch dann lesbar, wenn die Auswertung nicht moeglich ist.
+    transcript_note = recording.transcript.strip()
+    if transcript_note not in (product.voice_transcript or ""):
+        product.voice_transcript = (
+            (product.voice_transcript + "\n" + transcript_note)
+            if product.voice_transcript else transcript_note
+        )
+    try:
+        llm = get_llm()
+        started = time.monotonic()
+        extraction = llm.extract_voice_data(recording.transcript)
+    except ProviderNotConfigured as exc:
+        log.warning("Sprachauswertung fuer %s uebersprungen: %s", product.id, exc)
+        recording.status = "transcribed"
+        db.commit()
+        return
     conflicts = merge_service.merge_voice(db, product, extraction)
     _record_ai_run(db, product_id=product.id, kind="extraction", provider=llm.name,
                    input_ref=recording.id, raw=extraction.model_dump(mode="json"),
                    validated=extraction.model_dump(mode="json"),
                    confidence=extraction.confidence, started=started)
-    transcript_note = recording.transcript.strip()
-    product.voice_transcript = (
-        (product.voice_transcript + "\n" + transcript_note)
-        if product.voice_transcript else transcript_note
-    )
     recording.status = "extracted"
     _refresh_questions(db, product, conflicts)
     db.commit()
@@ -258,11 +296,17 @@ def handle_generate_shoptext(db: Session, job: Job) -> None:
     product.processing_status = ProcessingStatus.SHOPTEXT_GENERATING.value
     db.commit()
     started = time.monotonic()
-    listing = listing_service.generate(db, product)
-    _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
-                   input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
-                   confidence={}, started=started)
+    try:
+        listing = listing_service.generate(db, product)
+        _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
+                       input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
+                       confidence={}, started=started)
+    except ProviderNotConfigured as exc:
+        # Texte lassen sich spaeter schreiben oder neu erzeugen — der Artikel
+        # darf deswegen nicht in "Shoptext wird erstellt" haengen bleiben.
+        log.warning("Shoptext fuer %s uebersprungen: %s", product.id, exc)
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
+    _refresh_questions(db, product, [])
     db.commit()
 
 

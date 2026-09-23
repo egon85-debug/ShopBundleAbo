@@ -53,14 +53,18 @@ class TestWorker:
         assert "Kein Handler" in job.last_error
 
     def test_handler_exception_marks_failed_not_lost(self, db, engine, providers):
-        """Provider-Fehler (z. B. fehlender API-Key) → Retry, keine Datenverluste."""
+        """Voruebergehender Provider-Fehler (z. B. Verbindung weg) → Retry, keine Datenverluste.
+
+        Ein fehlender API-Key ist kein voruebergehender Fehler und laeuft
+        anders — siehe test_pipeline_without_ai.py.
+        """
         from app.providers import registry
-        from app.providers.base import ProviderNotConfigured, VisionProvider
+        from app.providers.base import VisionProvider
 
         class BrokenVision(VisionProvider):
             name = "broken"
             def analyze_product_image(self, image_bytes, content_type):
-                raise ProviderNotConfigured("Kein API-Key")
+                raise ConnectionError("Verbindung zum Anbieter abgebrochen")
 
         registry.set_override(VisionProvider, BrokenVision())
         from app.services import product_service
@@ -84,6 +88,6 @@ class TestWorker:
         db.expire_all()
         job = db.query(Job).filter(Job.job_type == "recognize_product").one()
         assert job.status == JobStatus.FAILED.value
-        assert "ProviderNotConfigured" in job.last_error
+        assert "ConnectionError" in job.last_error
         # Produkt existiert weiter — Artikel wurde nicht verloren.
         assert db.get(type(product), product.id) is not None

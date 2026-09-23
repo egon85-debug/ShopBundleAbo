@@ -41,14 +41,22 @@ def build_questions(product: Product, conflicts: list[str]) -> list[dict]:
             ],
         ))
 
-    # 3. Fehlender Bestand
+    # 3. Kein Artikelname — etwa weil die Bilderkennung nicht eingerichtet ist
+    #    oder auf dem Foto nichts Lesbares fand. Ohne Namen gibt es keinen Shop.
+    if not product.product_name:
+        questions.append(_question(
+            "Ich konnte den Artikel nicht erkennen. Wie heißt er?",
+            field="product_name",
+        ))
+
+    # 4. Fehlender Bestand
     if not product.stock_quantity:
         questions.append(_question(
             "Ich habe keinen Bestand erkannt. Wie viele Stück sind vorhanden?",
             field="stock_quantity", kind="number",
         ))
 
-    # 4. Netto/Brutto unklar (niedrige Confidence auf dem EK-Preis)
+    # 5. Netto/Brutto unklar (niedrige Confidence auf dem EK-Preis)
     conf = product.field_confidence or {}
     if product.purchase_price_net is not None and conf.get("purchase_price_net", 1.0) <= 0.6:
         questions.append(_question(
