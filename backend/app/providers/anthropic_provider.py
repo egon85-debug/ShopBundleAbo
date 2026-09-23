@@ -1,17 +1,31 @@
-"""Vision-, Extraktions- und Shoptext-Provider auf Basis der Anthropic Messages API.
-API-Key ausschließlich aus Server-Env; strukturierte JSON-Ausgaben werden gegen die
-Pydantic-Schemas validiert, bevor sie weiterverwendet werden."""
+"""Vision-, Extraktions- und Shoptext-Provider auf Basis der Anthropic Messages API
+(offizielles Python-SDK). API-Key ausschließlich aus Server-Env; strukturierte
+JSON-Ausgaben werden gegen die Pydantic-Schemas validiert, bevor sie
+weiterverwendet werden."""
 import base64
+import io
 import json
 
-import httpx
+import anthropic
+from PIL import Image, ImageOps
 
 from app.config import get_settings
-from app.providers.base import LlmExtractor, ProviderNotConfigured, VisionProvider
+from app.providers.base import (
+    LlmExtractor,
+    ProviderNotConfigured,
+    ProviderRejected,
+    VisionProvider,
+)
 from app.schemas.ai import ShopTextGeneration, VisionAnalysis, VoiceExtraction
 
-API_URL = "https://api.anthropic.com/v1/messages"
-API_VERSION = "2023-06-01"
+# Laengste Bildkante, die die aktuellen Modelle ungekuerzt auswerten. Groesser
+# bringt nichts, kleiner kostet Lesbarkeit bei kleiner Etikettenschrift.
+MAX_BILDKANTE = 2576
+
+# Ablehnungen des Modells auf ein anderes Modell umleiten, serverseitig in
+# derselben Anfrage. Nur fuer die Modelle, die das anbieten.
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+MODELLE_MIT_FALLBACK = {"claude-opus-5", "claude-opus-5-5", "claude-fable-5-1"}
 
 VISION_PROMPT = """Du analysierst ein Foto eines Lagerartikels für ein Warenwirtschaftssystem.
 Extrahiere ausschließlich, was du zuverlässig auf dem Bild erkennen kannst (inkl. OCR von
@@ -60,27 +74,57 @@ class AnthropicClient:
         s = get_settings()
         if not s.anthropic_api_key:
             raise ProviderNotConfigured("ANTHROPIC_API_KEY ist nicht gesetzt")
-        self.api_key = s.anthropic_api_key
         self.model = s.anthropic_model
+        # Voruebergehende Fehler (429, 5xx, Verbindung) wiederholt das SDK selbst;
+        # was dann noch scheitert, wiederholt die Job-Queue.
+        self._client = anthropic.Anthropic(api_key=s.anthropic_api_key,
+                                           timeout=180.0, max_retries=2)
 
-    def complete(self, content: list[dict], max_tokens: int = 2048) -> str:
-        response = httpx.post(
-            API_URL,
-            headers={
-                "x-api-key": self.api_key,
-                "anthropic-version": API_VERSION,
-                "content-type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": content}],
-            },
-            timeout=120,
-        )
-        response.raise_for_status()
-        data = response.json()
-        return "".join(block.get("text", "") for block in data.get("content", []))
+    def complete(self, content: list[dict], max_tokens: int = 16000) -> str:
+        # max_tokens grosszuegig: die Modelle denken vor der Antwort, und das
+        # zaehlt mit. Zu knapp bemessen, bricht das JSON mittendrin ab.
+        request = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": content}],
+        }
+        try:
+            if self.model in MODELLE_MIT_FALLBACK:
+                response = self._client.beta.messages.create(
+                    betas=[FALLBACK_BETA], fallbacks="default", **request)
+            else:
+                response = self._client.messages.create(**request)
+        except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
+            raise ProviderRejected(
+                "ANTHROPIC_API_KEY ist ungueltig oder hat keine Berechtigung") from exc
+        except anthropic.NotFoundError as exc:
+            raise ProviderRejected(
+                f"Modell {self.model!r} ist unbekannt (ANTHROPIC_MODEL pruefen)") from exc
+        except anthropic.BadRequestError as exc:
+            raise ProviderRejected(f"Anfrage abgelehnt: {exc.message}") from exc
+
+        if response.stop_reason == "refusal":
+            raise ProviderRejected("Das Modell hat die Anfrage abgelehnt")
+        if response.stop_reason == "max_tokens":
+            raise ProviderRejected("Antwort abgeschnitten (max_tokens erreicht)")
+        return "".join(block.text for block in response.content if block.type == "text")
+
+
+def bild_fuer_erkennung(image_bytes: bytes) -> tuple[bytes, str]:
+    """Handyfoto fuer die Erkennung aufbereiten.
+
+    Kameras speichern in voller Aufloesung, oft 5–10 MB — die API nimmt
+    hoechstens 5 MB pro Bild an. Ausserdem liegt die Drehung bei Handyfotos
+    meist nur als EXIF-Angabe vor; ungedreht liest sich ein Etikett schlecht.
+    Das Original bleibt davon unberuehrt, verkleinert wird nur die Kopie, die
+    zur Erkennung geht.
+    """
+    with Image.open(io.BytesIO(image_bytes)) as original:
+        bild = ImageOps.exif_transpose(original).convert("RGB")
+    bild.thumbnail((MAX_BILDKANTE, MAX_BILDKANTE), Image.LANCZOS)
+    puffer = io.BytesIO()
+    bild.save(puffer, format="JPEG", quality=85, optimize=True)
+    return puffer.getvalue(), "image/jpeg"
 
 
 def _parse_json_block(text: str) -> dict:
@@ -101,13 +145,14 @@ class AnthropicVisionProvider(VisionProvider):
 
     def analyze_product_image(self, image_bytes: bytes, content_type: str) -> VisionAnalysis:
         client = AnthropicClient()
+        daten, media_type = bild_fuer_erkennung(image_bytes)
         content = [
             {
                 "type": "image",
                 "source": {
                     "type": "base64",
-                    "media_type": content_type,
-                    "data": base64.b64encode(image_bytes).decode(),
+                    "media_type": media_type,
+                    "data": base64.standard_b64encode(daten).decode(),
                 },
             },
             {"type": "text", "text": VISION_PROMPT},
@@ -133,6 +178,5 @@ class AnthropicLlmExtractor(LlmExtractor):
         )
         raw = client.complete(
             [{"type": "text", "text": SHOPTEXT_PROMPT + "\n\nProduktdaten:\n" + payload}],
-            max_tokens=3000,
         )
         return ShopTextGeneration.model_validate(_parse_json_block(raw))

@@ -3,6 +3,7 @@
     python -m app.cli create-admin   --email admin@example.com
     python -m app.cli list-users
     python -m app.cli reset-password --email admin@example.com
+    python -m app.cli check-ai
 
 Im Container jeweils mit "docker compose exec api" davor.
 """
@@ -81,6 +82,49 @@ def reset_password(email: str) -> None:
         db.close()
 
 
+def check_ai() -> None:
+    """Prueft Schluessel, Modell und Bilderkennung mit einem erzeugten Testbild.
+
+    Laeuft denselben Weg wie ein echtes Foto — Aufbereitung, Anfrage,
+    Auswertung der Antwort — und sagt am Ende in einem Satz, ob es geht.
+    """
+    import io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    from app.providers.anthropic_provider import AnthropicVisionProvider
+    from app.providers.base import ProviderUnavailable
+
+    ean = "4006381333931"
+    bild = Image.new("RGB", (900, 260), "white")
+    zeichnen = ImageDraw.Draw(bild)
+    schrift = ImageFont.load_default(size=56)
+    zeichnen.text((40, 40), "Testartikel", fill="black", font=schrift)
+    zeichnen.text((40, 140), f"EAN {ean}", fill="black", font=schrift)
+    puffer = io.BytesIO()
+    bild.save(puffer, format="JPEG")
+
+    print("Sende Testbild an die Bilderkennung …")
+    try:
+        ergebnis = AnthropicVisionProvider().analyze_product_image(
+            puffer.getvalue(), "image/jpeg")
+    except ProviderUnavailable as exc:
+        print(f"Fehler: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:  # Netz, Zeitueberschreitung, unerwartete Antwort
+        print(f"Fehler: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    from app.config import get_settings
+    modell = get_settings().anthropic_model
+    if ergebnis.ean == ean:
+        print(f"Bilderkennung funktioniert. Modell: {modell}. EAN richtig gelesen: {ean}")
+    else:
+        print(f"Verbindung steht (Modell: {modell}), aber die EAN wurde nicht richtig "
+              f"gelesen: {ergebnis.ean!r} statt {ean!r}.")
+        sys.exit(2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="winterfeld")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -96,6 +140,8 @@ def main() -> None:
     reset_parser = sub.add_parser("reset-password", help="Passwort eines Kontos neu setzen")
     reset_parser.add_argument("--email", required=True)
 
+    sub.add_parser("check-ai", help="KI-Schluessel und Bilderkennung pruefen")
+
     args = parser.parse_args()
     if args.command == "create-admin":
         create_admin(args.email, args.name, args.password)
@@ -103,6 +149,8 @@ def main() -> None:
         list_users()
     elif args.command == "reset-password":
         reset_password(args.email)
+    elif args.command == "check-ai":
+        check_ai()
 
 
 if __name__ == "__main__":

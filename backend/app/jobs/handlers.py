@@ -21,7 +21,7 @@ from app.models import (
     VoiceRecording,
 )
 from app.models.base import utcnow
-from app.providers.base import ProviderNotConfigured
+from app.providers.base import ProviderUnavailable
 from app.providers.registry import (
     get_image_optimizer,
     get_llm,
@@ -47,6 +47,20 @@ def _record_ai_run(db: Session, *, product_id: str | None, kind: str, provider: 
     ))
 
 
+def _aufgeben(job: Job, exc: Exception, schritt: str) -> bool:
+    """True, wenn der KI-Schritt ausgelassen und die Kette fortgesetzt wird.
+
+    Dauerhafte Fehler sofort, voruebergehende erst beim letzten Versuch —
+    sonst bliebe der Artikel fuer immer in "Erkennung laeuft" o. ae. stehen.
+    Der Grund bleibt am Auftrag sichtbar (Adminbereich, Jobs & Fehler).
+    """
+    if not isinstance(exc, ProviderUnavailable) and job.attempts < job.max_attempts:
+        return False
+    log.warning("%s fuer Job %s ausgelassen: %s", schritt, job.id, exc)
+    job.last_error = f"{schritt} ausgelassen: {type(exc).__name__}: {exc}"[:4000]
+    return True
+
+
 def _refresh_questions(db: Session, product: Product, conflicts: list[str]) -> None:
     from app.services import questions_service
     product.open_questions = questions_service.build_questions(product, conflicts)
@@ -67,10 +81,11 @@ def handle_recognize_product(db: Session, job: Job) -> None:
     try:
         vision = get_vision()
         analysis = vision.analyze_product_image(data, image.content_type)
-    except ProviderNotConfigured as exc:
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Erkennung"):
+            raise
         # Ohne Erkennung ist der Artikel nicht verloren: die Angaben kommen im
         # Kontrollbildschirm von Hand, und die Bilder brauchen keine KI.
-        log.warning("Erkennung fuer %s uebersprungen: %s", product.id, exc)
         _refresh_questions(db, product, [])
         queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
                       payload={"product_id": product.id}, product_id=product.id)
@@ -108,9 +123,10 @@ def handle_research_product(db: Session, job: Job) -> None:
             query=" ".join(filter(None, [product.manufacturer, product.product_name,
                                          product.model])) or None,
         )
-    except ProviderNotConfigured as exc:
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Produktrecherche"):
+            raise
         # Recherche ist eine Ergaenzung — ohne sie bleibt es bei Foto und Eingabe.
-        log.warning("Produktrecherche fuer %s uebersprungen: %s", product.id, exc)
         return
     _record_ai_run(db, product_id=product.id, kind="product_research", provider=research.name,
                    input_ref=product.ean or product.mpn,
@@ -146,8 +162,9 @@ def handle_research_prices(db: Session, job: Job) -> None:
             offers = research.find_offers(ean=product.ean, query=query,
                                           condition=product.condition)
             pricing_service.evaluate_offers(db, product=product, offers=offers)
-        except ProviderNotConfigured as exc:
-            log.warning("Preisrecherche fuer %s uebersprungen: %s", product.id, exc)
+        except Exception as exc:
+            if not _aufgeben(job, exc, "Preisrecherche"):
+                raise
     # Auch ohne Recherche weiter zur Pruefung — sonst haengt der Artikel.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
     _refresh_questions(db, product, [])
@@ -171,10 +188,11 @@ def handle_transcribe_voice(db: Session, job: Job) -> None:
         stt = get_stt()
         started = time.monotonic()
         transcript = stt.transcribe(audio, job.payload.get("content_type", "audio/mp4"))
-    except ProviderNotConfigured as exc:
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Transkription"):
+            raise
         # Die Aufnahme bleibt erhalten; sobald ein Dienst eingerichtet ist,
         # laesst sich der Auftrag im Adminbereich erneut anstossen.
-        log.warning("Transkription fuer %s uebersprungen: %s", recording.id, exc)
         recording.status = "stt_unavailable"
         db.commit()
         return
@@ -214,8 +232,9 @@ def handle_extract_voice_data(db: Session, job: Job) -> None:
         llm = get_llm()
         started = time.monotonic()
         extraction = llm.extract_voice_data(recording.transcript)
-    except ProviderNotConfigured as exc:
-        log.warning("Sprachauswertung fuer %s uebersprungen: %s", product.id, exc)
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Sprachauswertung"):
+            raise
         recording.status = "transcribed"
         db.commit()
         return
@@ -301,10 +320,11 @@ def handle_generate_shoptext(db: Session, job: Job) -> None:
         _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
                        input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
                        confidence={}, started=started)
-    except ProviderNotConfigured as exc:
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Shoptext"):
+            raise
         # Texte lassen sich spaeter schreiben oder neu erzeugen — der Artikel
         # darf deswegen nicht in "Shoptext wird erstellt" haengen bleiben.
-        log.warning("Shoptext fuer %s uebersprungen: %s", product.id, exc)
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
     _refresh_questions(db, product, [])
     db.commit()

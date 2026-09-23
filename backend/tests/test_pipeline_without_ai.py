@@ -133,3 +133,81 @@ class TestWorker:
         assert job.attempts == job.max_attempts
         assert "Nicht eingerichtet" in job.last_error
         assert "S3_ACCESS_KEY" in job.last_error
+
+
+class _WackligeVision(VisionProvider):
+    """Scheitert bei jedem Aufruf mit einem voruebergehenden Fehler."""
+    name = "wacklig"
+    def analyze_product_image(self, image_bytes, content_type):
+        raise ConnectionError("Verbindung zum Anbieter abgebrochen")
+
+
+class _AblehnendeVision(VisionProvider):
+    name = "ablehnend"
+    def analyze_product_image(self, image_bytes, content_type):
+        from app.providers.base import ProviderRejected
+        raise ProviderRejected("ANTHROPIC_API_KEY ist ungueltig oder hat keine Berechtigung")
+
+
+class TestKiFehler:
+    """Mit Schluessel kann die Erkennung trotzdem scheitern — der Artikel darf
+    deswegen nicht in "Erkennung laeuft" stehen bleiben."""
+
+    def test_falscher_schluessel_haengt_nicht(self, client, db, employee):
+        registry.set_override(VisionProvider, _AblehnendeVision())
+        state = _erfassen(client, auth_headers(client), mit_sprache=False)
+
+        assert state["processing_status"] == "review_required"
+        assert any(i["kind"] == "optimized" for i in state["images"])
+        # Der Grund bleibt am Auftrag sichtbar (Adminbereich, Jobs & Fehler).
+        job = db.query(Job).filter(Job.job_type == "recognize_product").one()
+        assert "ANTHROPIC_API_KEY" in job.last_error
+
+    def test_voruebergehender_fehler_wird_erst_wiederholt(self, client, db, employee):
+        registry.set_override(VisionProvider, _WackligeVision())
+        _erfassen(client, auth_headers(client), mit_sprache=False)
+        job = db.query(Job).filter(Job.job_type == "recognize_product").one()
+        assert job.status == JobStatus.FAILED.value  # wartet auf den naechsten Versuch
+        assert job.attempts == 1
+
+    def test_beim_letzten_versuch_geht_es_ohne_erkennung_weiter(self, client, db, employee):
+        registry.set_override(VisionProvider, _WackligeVision())
+        headers = auth_headers(client)
+        capture = client.post("/api/v1/captures", headers=headers,
+                              json={"client_capture_id": "cap-wacklig"}).json()
+        client.post(f"/api/v1/captures/{capture['id']}/images", headers=headers,
+                    files={"file": ("front.jpg", jpeg_bytes(), "image/jpeg")},
+                    data={"role": "front", "client_image_id": "cap-wacklig-img"})
+
+        # Den Auftrag bis zum letzten Versuch vorspulen, statt Minuten zu warten.
+        job = db.query(Job).filter(Job.job_type == "recognize_product").one()
+        job.attempts = job.max_attempts - 1
+        db.commit()
+        run_all_jobs()
+
+        db.expire_all()
+        job = db.query(Job).filter(Job.job_type == "recognize_product").one()
+        assert job.status == JobStatus.DONE.value
+        assert "Erkennung ausgelassen" in job.last_error
+        state = client.get(f"/api/v1/captures/{capture['id']}", headers=headers).json()
+        assert state["processing_status"] == "review_required"
+        assert any(i["kind"] == "optimized" for i in state["images"])
+
+
+class TestWorkerAbgelehnt:
+    def test_ablehnung_wird_nicht_wiederholt(self, db, monkeypatch):
+        from app.providers.base import ProviderRejected
+
+        def handler(session, job):
+            raise ProviderRejected("Modell 'claude-gibtsnicht' ist unbekannt")
+
+        monkeypatch.setitem(handlers_modul.HANDLERS, "test_abgelehnt", handler)
+        monkeypatch.setattr("app.jobs.worker.HANDLERS", handlers_modul.HANDLERS)
+        queue.enqueue(db, job_type="test_abgelehnt", payload={})
+        db.commit()
+
+        Worker("w-test").process_one()
+        db.expire_all()
+        job = db.query(Job).filter(Job.job_type == "test_abgelehnt").one()
+        assert job.status == JobStatus.DEAD.value
+        assert job.last_error.startswith("Abgelehnt:")

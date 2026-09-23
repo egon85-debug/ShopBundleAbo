@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # KI-Provider
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    anthropic_model: str = "claude-opus-5"
     stt_api_base: str = "https://api.openai.com/v1"
     stt_api_key: str = ""
     stt_model: str = "whisper-1"

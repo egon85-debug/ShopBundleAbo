@@ -12,9 +12,21 @@ from app.schemas.ai import (
 )
 
 
-class ProviderNotConfigured(Exception):
-    """Provider ist nicht konfiguriert (fehlender API-Key o. ä.).
-    Jobs schlagen damit kontrolliert fehl und werden erneut versucht."""
+class ProviderUnavailable(Exception):
+    """Der Anbieter ist dauerhaft nicht nutzbar — erneutes Versuchen hilft nicht.
+
+    Die Verarbeitungskette laeuft dann ohne diesen Schritt weiter; die
+    Angaben kommen im Kontrollbildschirm von Hand.
+    """
+
+
+class ProviderNotConfigured(ProviderUnavailable):
+    """Provider ist nicht konfiguriert (fehlender API-Key o. ae.)."""
+
+
+class ProviderRejected(ProviderUnavailable):
+    """Der Anbieter hat die Anfrage endgueltig abgelehnt: falscher Schluessel,
+    unbekanntes Modell, ungueltige Anfrage oder eine Ablehnung des Modells."""
 
 
 class VisionProvider(ABC):
