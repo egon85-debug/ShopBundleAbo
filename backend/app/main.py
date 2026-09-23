@@ -71,6 +71,24 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
+    @app.get("/app", include_in_schema=False)
+    def app_herunterladen():
+        """Android-App zum Installieren (auf dem Handy im Browser oeffnen).
+        FileResponse beherrscht Range-Anfragen: ein abgebrochener Download
+        laesst sich fortsetzen. Bereitgestellt per `python -m app.cli app-holen`."""
+        from fastapi.responses import FileResponse, PlainTextResponse
+
+        from app.services import app_download
+        info = app_download.bereitgestellt()
+        if info is None:
+            return PlainTextResponse(
+                "Auf dem Server liegt noch keine App. Einrichten mit:\n"
+                "docker compose exec api python -m app.cli app-holen\n", status_code=404)
+        return FileResponse(app_download.apk_pfad(),
+                            media_type="application/vnd.android.package-archive",
+                            filename=info["name"],
+                            headers={"Cache-Control": "no-cache"})
+
     # backend/admin im Quellbaum, /app/admin im Container — derselbe relative
     # Pfad, weil das Verzeichnis neben dem Paket "app" liegt. Der zweite
     # Kandidat faengt aeltere Arbeitskopien ab, in denen es noch im

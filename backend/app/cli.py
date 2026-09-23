@@ -125,6 +125,20 @@ def check_ai() -> None:
         sys.exit(2)
 
 
+def app_holen() -> None:
+    """Neueste Android-App von GitHub holen und unter /app bereitstellen."""
+    from app.services import app_download
+    print("Lade die neueste App von GitHub …")
+    try:
+        info = app_download.holen()
+    except Exception as exc:
+        print(f"Fehler: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    mb = info["size"] / 1_000_000
+    print(f"App {info['version']} bereitgestellt ({mb:.1f} MB, Pruefsumme ok).")
+    print("Auf dem Handy im Browser oeffnen: https://<Ihre Domain>/app")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="winterfeld")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -141,6 +155,7 @@ def main() -> None:
     reset_parser.add_argument("--email", required=True)
 
     sub.add_parser("check-ai", help="KI-Schluessel und Bilderkennung pruefen")
+    sub.add_parser("app-holen", help="Neueste Android-App von GitHub unter /app bereitstellen")
 
     args = parser.parse_args()
     if args.command == "create-admin":
@@ -151,6 +166,8 @@ def main() -> None:
         reset_password(args.email)
     elif args.command == "check-ai":
         check_ai()
+    elif args.command == "app-holen":
+        app_holen()
 
 
 if __name__ == "__main__":

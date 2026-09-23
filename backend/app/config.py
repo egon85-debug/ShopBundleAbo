@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Storage
     storage_backend: str = "local"  # local | s3
     storage_local_path: str = "./storage"
+    # Nur um die Android-App aus einem privaten Repository zu holen (app-holen).
+    github_token: str = ""
     s3_endpoint_url: str = ""
     s3_bucket: str = "winterfeld-media"
     s3_access_key: str = ""
