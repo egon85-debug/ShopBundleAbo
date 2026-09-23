@@ -59,3 +59,20 @@ class TestRoles:
             f"/api/v1/products/{capture['id']}/stock-movements", headers=headers,
             json={"movement_type": "manual_correction", "quantity_change": 5})
         assert response.status_code == 403
+
+
+def test_app_absturzbericht_landet_im_audit_log(client, db, employee, caplog):
+    from app.models import AuditLog
+    from tests.conftest import auth_headers
+    headers = auth_headers(client)
+    bericht = "java.lang.IllegalStateException: kaputt\n\tat de.winterfeld.logistik.X.y(X.kt:1)"
+    with caplog.at_level("ERROR", logger="winterfeld.app"):
+        res = client.post("/api/v1/client-errors", headers=headers, json={
+            "kind": "crash", "app_version": "1.0.46 (abc)", "device": "Pixel 8, Android 15",
+            "report": bericht})
+    assert res.status_code == 204, res.text
+    assert "IllegalStateException" in caplog.text
+    eintrag = db.query(AuditLog).filter(AuditLog.action == "client_crash").one()
+    assert "X.kt:1" in eintrag.reason
+    # ohne Anmeldung nicht
+    assert client.post("/api/v1/client-errors", json={"report": "x"}).status_code == 401

@@ -10,8 +10,7 @@ import de.winterfeld.logistik.data.repo.CaptureRepository
 import de.winterfeld.logistik.data.repo.ProductRepository
 
 /** Manueller DI-Container — bewusst ohne Framework, klein und explizit. */
-class AppContainer(context: Context) {
-    val tokenStore = TokenStore(context)
+class AppContainer(context: Context, val tokenStore: TokenStore = TokenStore(context)) {
     val apiClient = ApiClient(tokenStore)
     val database = AppDatabase.get(context)
     val authRepository = AuthRepository(apiClient, tokenStore)
@@ -19,12 +18,16 @@ class AppContainer(context: Context) {
     val productRepository = ProductRepository(apiClient)
 }
 
-class WinterfeldApp : Application() {
+open class WinterfeldApp : Application() {
     lateinit var container: AppContainer
         private set
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(this)
+        CrashReporter.install(this)
+        container = createContainer()
     }
+
+    /** Tests ersetzen hier Teile, etwa die Token-Ablage. */
+    protected open fun createContainer() = AppContainer(this)
 }

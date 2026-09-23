@@ -5,16 +5,19 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-/** Verschlüsselte Ablage von Tokens und Server-URL. Keine API-Keys im Client! */
-class TokenStore(context: Context) {
+/**
+ * Verschlüsselte Ablage von Tokens und Server-URL. Keine API-Keys im Client!
+ * Tests reichen einfache SharedPreferences hinein (ohne Android-Schlüsselspeicher).
+ */
+class TokenStore(private val prefs: SharedPreferences) {
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
+    constructor(context: Context) : this(EncryptedSharedPreferences.create(
         context,
         "winterfeld_secure",
         MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    ))
 
     var accessToken: String?
         get() = prefs.getString("access_token", null)

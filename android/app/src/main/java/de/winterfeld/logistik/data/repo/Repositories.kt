@@ -111,6 +111,9 @@ class ProductRepository(private val api: ApiClient) {
         api.service().sendAnswers(id, AnswersRequest(listOf(answer)))
     suspend fun sendAnswersDirect(serverId: String, answers: List<AnswerDto>): ProductDto =
         api.service().sendAnswers(serverId, AnswersRequest(answers))
+    /** Absturzbericht an den Server; true, wenn er angekommen ist. */
+    suspend fun reportError(body: de.winterfeld.logistik.data.remote.dto.ClientErrorDto): Boolean =
+        api.service().clientError(body).isSuccessful
     suspend fun suppliers() = api.service().suppliers()
     suspend fun storageLocations() = api.service().storageLocations()
 }

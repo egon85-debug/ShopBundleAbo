@@ -45,6 +45,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -92,7 +93,9 @@ fun ProductListScreen(products: ProductRepository, baseUrl: String, initialFilte
         loading = true
         try {
             val page = products.list(query.ifBlank { null }, filter, offset)
-            items = if (offset == 0) page.items else items + page.items
+            // Kommen zwischendurch neue Artikel dazu, verschieben sich die Seiten und
+            // ein Artikel käme doppelt — die Liste verträgt keine doppelten Schlüssel.
+            items = if (offset == 0) page.items else (items + page.items).distinctBy { it.id }
             total = page.total
             error = null
         } catch (_: Exception) {
@@ -368,7 +371,7 @@ private fun serverMeldung(e: HttpException): String {
 fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
                          onEdit: (Feld) -> Unit, onQuestion: (QuestionDto) -> Unit,
                          onUseRecommended: (String) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize(),
+    LazyColumn(Modifier.fillMaxSize().testTag("artikel-detail"),
                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
                verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val bilder = Labels.galerie(p.images)

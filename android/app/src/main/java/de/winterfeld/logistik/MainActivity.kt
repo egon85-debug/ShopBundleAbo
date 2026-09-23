@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +27,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import de.winterfeld.logistik.capture.CaptureFlowScreen
+import de.winterfeld.logistik.data.remote.dto.ClientErrorDto
 import de.winterfeld.logistik.data.sync.SyncWorker
 import de.winterfeld.logistik.ui.screens.DashboardScreen
 import de.winterfeld.logistik.ui.screens.LocationsScreen
@@ -90,6 +94,27 @@ private fun AppNavigation(container: AppContainer, ensurePermissions: () -> Unit
         return
     }
 
+    // Absturz oder Einfrieren beim letzten Mal? Bericht an den Server schicken.
+    val context = LocalContext.current
+    var absturzHinweis by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val berichte = withContext(Dispatchers.IO) { CrashReporter.offeneBerichte(context) }
+        if (berichte.isEmpty()) return@LaunchedEffect
+        val angekommen = berichte.all { bericht ->
+            runCatching {
+                container.productRepository.reportError(ClientErrorDto(
+                    kind = bericht.art, appVersion = BuildConfig.VERSION_NAME,
+                    device = CrashReporter.geraet(), report = bericht.text))
+            }.getOrDefault(false)
+        }
+        if (angekommen) CrashReporter.gemeldet(context, berichte)
+        absturzHinweis = if (angekommen)
+            "Die App ist beim letzten Mal abgestürzt oder hängen geblieben. " +
+                "Der Fehlerbericht wurde an den Server geschickt."
+            else "Die App ist beim letzten Mal abgestürzt. Der Fehlerbericht wird " +
+                "gesendet, sobald der Server erreichbar ist."
+    }
+
     val baseUrl = container.tokenStore.baseUrl.ifEmpty { BuildConfig.DEFAULT_SERVER_URL }
     val back: () -> Unit = { navController.popBackStack() }
     val openProduct: (String) -> Unit = { id -> navController.navigate("product/$id") }
@@ -106,6 +131,8 @@ private fun AppNavigation(container: AppContainer, ensurePermissions: () -> Unit
                     navController.navigate("capture")
                 },
                 onNavigate = { navController.navigate(it) },
+                hinweis = absturzHinweis,
+                onHinweisOk = { absturzHinweis = null },
             )
         }
         composable("capture") {
@@ -128,7 +155,6 @@ private fun AppNavigation(container: AppContainer, ensurePermissions: () -> Unit
         composable("suppliers") { SuppliersScreen(container.productRepository, onBack = back) }
         composable("locations") { LocationsScreen(container.productRepository, onBack = back) }
         composable("sync") {
-            val context = LocalContext.current
             SyncScreen(container.captureRepository, onBack = back) { SyncWorker.schedule(context) }
         }
         composable("settings") {

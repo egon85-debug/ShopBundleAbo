@@ -83,6 +83,10 @@ interface ApiService {
     @PATCH("products/{id}")
     suspend fun patchProduct(@Path("id") id: String, @Body fields: okhttp3.RequestBody): ProductDto
 
+    @POST("client-errors")
+    suspend fun clientError(@Body body: de.winterfeld.logistik.data.remote.dto.ClientErrorDto):
+        retrofit2.Response<Unit>
+
     @GET("dashboard")
     suspend fun dashboard(): DashboardDto
 

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +47,8 @@ fun DashboardScreen(
     onQuickModeChange: (Boolean) -> Unit,
     onStartCapture: () -> Unit,
     onNavigate: (String) -> Unit,
+    hinweis: String? = null,
+    onHinweisOk: () -> Unit = {},
 ) {
     var dashboard by remember { mutableStateOf<DashboardDto?>(null) }
     var offline by remember { mutableStateOf(false) }
@@ -53,7 +56,7 @@ fun DashboardScreen(
         try { dashboard = products.dashboard(); offline = false } catch (_: Exception) { offline = true }
     }
     DashboardContent(dashboard, offline, pendingCount, quickMode, onQuickModeChange,
-                     onStartCapture, onNavigate)
+                     onStartCapture, onNavigate, hinweis, onHinweisOk)
 }
 
 /** Startseite als Liste: eine Hauptaktion oben, darunter antippbare Zeilen. */
@@ -66,11 +69,23 @@ fun DashboardContent(
     onQuickModeChange: (Boolean) -> Unit,
     onStartCapture: () -> Unit,
     onNavigate: (String) -> Unit,
+    hinweis: String? = null,
+    onHinweisOk: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                .padding(horizontal = 16.dp, vertical = 20.dp),
            verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Winterfeld Logistik", style = MaterialTheme.typography.headlineMedium)
+
+        if (hinweis != null) {
+            ListCard {
+                ListRow(hinweis, icon = Icons.Default.Warning,
+                        iconTint = MaterialTheme.colorScheme.error, titleMaxLines = 4,
+                        onClick = onHinweisOk, showChevron = false) {
+                    TextButton(onClick = onHinweisOk) { Text("OK") }
+                }
+            }
+        }
 
         BigButton("Artikel erfassen", icon = Icons.Default.Add) { onStartCapture() }
 

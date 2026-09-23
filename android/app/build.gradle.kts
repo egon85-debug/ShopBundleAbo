@@ -81,6 +81,11 @@ android {
         compose = true
         buildConfig = true
     }
+    // Robolectric braucht die Android-Ressourcen, um die App auf der JVM zu starten.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { it.maxHeapSize = "2g" }
+    }
 }
 
 // Bildschirmfotos der Oberflaeche ohne Handy oder Emulator (Paparazzi rendert
@@ -128,6 +133,14 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     testImplementation("junit:junit:4.13.2")
+    // Ganze App ohne Geraet durchklicken: Robolectric + Compose-Test gegen
+    // einen nachgebauten Server (MockWebServer mit echten Server-Antworten)
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("androidx.work:work-testing:2.9.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation(composeBom)
