@@ -57,3 +57,14 @@ class HttpProductResearchProvider(ProductResearchProvider):
             except Exception:
                 continue
         return offers
+
+
+class AbgeschalteteRecherche(ProductResearchProvider):
+    """RESEARCH_PROVIDER=off: keine Recherche, die Kette laeuft ohne sie weiter."""
+    name = "off"
+
+    def identify_product(self, *, ean, mpn, query):
+        raise ProviderNotConfigured("Recherche ist abgeschaltet (RESEARCH_PROVIDER=off)")
+
+    def find_offers(self, *, ean, query, condition):
+        raise ProviderNotConfigured("Recherche ist abgeschaltet (RESEARCH_PROVIDER=off)")

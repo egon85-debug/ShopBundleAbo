@@ -25,6 +25,13 @@ def enqueue(db: Session, *, job_type: str, payload: dict | None = None,
     return job
 
 
+def wartet(db: Session, *, product_id: str, job_type: str) -> bool:
+    """Liegt fuer den Artikel schon ein Auftrag dieser Art, der noch nicht lief?"""
+    return db.scalar(select(Job.id).where(
+        Job.product_id == product_id, Job.job_type == job_type,
+        Job.status.in_([JobStatus.QUEUED.value, JobStatus.FAILED.value])).limit(1)) is not None
+
+
 def claim_next(db: Session, worker_id: str) -> Job | None:
     """Nächsten fälligen Job exklusiv übernehmen."""
     stmt = (

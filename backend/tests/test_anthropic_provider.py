@@ -167,3 +167,117 @@ class TestBildaufbereitung:
         assert bildblock["source"]["media_type"] == "image/jpeg"
         # Base64 eines Bildes unter 5 MB bleibt unter ~6,7 MB.
         assert len(bildblock["source"]["data"]) < 7 * 1024 * 1024
+
+
+# ── Mehrere Fotos und Recherche mit Websuche ─────────────────────────────────
+
+def _block(typ, **felder):
+    return SimpleNamespace(type=typ, **felder)
+
+
+def _jpeg():
+    puffer = io.BytesIO()
+    Image.new("RGB", (40, 30), (200, 10, 10)).save(puffer, format="JPEG")
+    return puffer.getvalue()
+
+
+@pytest.fixture()
+def recherche(monkeypatch):
+    """Einstellungen + Attrappe fuer Anbieter, die ihren Client selbst bauen."""
+    einstellungen = SimpleNamespace(anthropic_api_key="sk-test", anthropic_model="claude-sonnet-5",
+                                    research_max_searches=3)
+    monkeypatch.setattr(ap, "get_settings", lambda: einstellungen)
+    attrappe = _Attrappe()
+    monkeypatch.setattr(ap.anthropic, "Anthropic", lambda **kw: attrappe)
+    attrappe.einstellungen = einstellungen
+    return attrappe
+
+
+class TestMehrereFotos:
+    def test_alle_fotos_mit_ansicht_in_einer_anfrage(self, recherche):
+        from app.providers.base import VisionImage
+        recherche.antwort = _antwort('{"product_name": "Makita DHP484Z", "ean": null}')
+        ergebnis = ap.AnthropicVisionProvider().analyze_product_images([
+            VisionImage(_jpeg(), "image/jpeg", "front"),
+            VisionImage(_jpeg(), "image/jpeg", "type_plate"),
+            VisionImage(_jpeg(), "image/jpeg", "barcode"),
+        ])
+        assert ergebnis.product_name == "Makita DHP484Z"
+        inhalt = recherche.aufrufe[0][1]["messages"][0]["content"]
+        assert [b["type"] for b in inhalt].count("image") == 3
+        texte = " ".join(b["text"] for b in inhalt if b["type"] == "text")
+        assert "Bild 2 – Typenschild" in texte and "DENSELBEN Artikel" in texte
+
+    def test_hoechstens_sechs_fotos(self, recherche):
+        from app.providers.base import VisionImage
+        recherche.antwort = _antwort('{}')
+        ap.AnthropicVisionProvider().analyze_product_images(
+            [VisionImage(_jpeg(), "image/jpeg", "front")] * 9)
+        inhalt = recherche.aufrufe[0][1]["messages"][0]["content"]
+        assert [b["type"] for b in inhalt].count("image") == ap.MAX_BILDER
+
+
+class TestWebRecherche:
+    def test_websuche_mit_deutschem_standort(self, recherche):
+        recherche.antwort = _antwort('{"candidates": []}')
+        ap.AnthropicWebResearchProvider().identify_product(ean="4006381333931", mpn=None,
+                                                           query=None)
+        werkzeuge = recherche.aufrufe[0][1]["tools"]
+        assert werkzeuge[0]["type"] == "web_search_20260209"
+        assert werkzeuge[0]["max_uses"] == 3
+        assert werkzeuge[0]["user_location"]["country"] == "DE"
+        assert werkzeuge[1]["type"] == "web_fetch_20260209"
+        assert "4006381333931" in recherche.aufrufe[0][1]["messages"][0]["content"][0]["text"]
+
+    def test_aeltere_modelle_bekommen_die_grundversion(self, recherche):
+        recherche.einstellungen.anthropic_model = "claude-haiku-4-5"
+        recherche.antwort = _antwort('{"candidates": []}')
+        ap.AnthropicWebResearchProvider().identify_product(ean="4006381333931", mpn=None,
+                                                           query=None)
+        assert recherche.aufrufe[0][1]["tools"][0]["type"] == "web_search_20250305"
+
+    def test_ergebnis_nach_suche_und_zitaten(self, recherche):
+        """Zwischentext und Suchergebnisse zaehlen nicht; Zitate teilen das JSON
+        in mehrere Textbloecke, die wieder zusammengesetzt werden."""
+        recherche.antwort = SimpleNamespace(stop_reason="end_turn", content=[
+            _block("text", text="Ich suche nach der EAN {…}"),
+            _block("server_tool_use", id="s1", name="web_search", input={}),
+            _block("web_search_tool_result", tool_use_id="s1", content=[]),
+            _block("text", text='{"candidates": [{"product_name": "Stabilo Boss", '),
+            _block("text", text='"ean": "4006381333931", "match_score": 0.97, '
+                                '"source_url": "https://stabilo.example/boss"}]}'),
+        ])
+        treffer = ap.AnthropicWebResearchProvider().identify_product(
+            ean="4006381333931", mpn=None, query=None)
+        assert len(treffer) == 1
+        assert treffer[0].product_name == "Stabilo Boss"
+        assert treffer[0].match_score == 0.97
+
+    def test_unterbrochene_suche_wird_fortgesetzt(self, recherche):
+        pausiert = SimpleNamespace(stop_reason="pause_turn", content=[
+            _block("server_tool_use", id="s1", name="web_search", input={})])
+        fertig = _antwort('{"offers": [{"price": "59.90", "condition": "new", '
+                          '"url": "https://shop.example", "is_same_variant": true}, '
+                          '{"price": "kostenlos"}]}')
+        antworten = iter([pausiert, fertig])
+        recherche.antwort = None
+        original = recherche.messages.create
+
+        def create(**anfrage):
+            recherche.aufrufe.append(("messages", anfrage))
+            return next(antworten)
+        recherche.messages.create = create
+
+        angebote = ap.AnthropicWebResearchProvider().find_offers(
+            ean=None, query="Makita DHP484Z", condition="new")
+        # Zweiter Aufruf schickt die pausierte Antwort zurueck, ohne neue Nutzernachricht
+        zweite = recherche.aufrufe[1][1]["messages"]
+        assert [m["role"] for m in zweite] == ["user", "assistant"]
+        # Unbrauchbare Eintraege (Preis "kostenlos") werden verworfen, nicht geraten
+        assert len(angebote) == 1 and str(angebote[0].price) == "59.90"
+        recherche.messages.create = original
+
+    def test_ohne_suchbegriff_keine_kosten(self, recherche):
+        assert ap.AnthropicWebResearchProvider().identify_product(
+            ean=None, mpn=None, query=None) == []
+        assert recherche.aufrufe == []

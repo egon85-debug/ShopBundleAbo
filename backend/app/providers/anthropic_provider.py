@@ -12,11 +12,19 @@ from PIL import Image, ImageOps
 from app.config import get_settings
 from app.providers.base import (
     LlmExtractor,
+    ProductResearchProvider,
     ProviderNotConfigured,
     ProviderRejected,
+    VisionImage,
     VisionProvider,
 )
-from app.schemas.ai import ShopTextGeneration, VisionAnalysis, VoiceExtraction
+from app.schemas.ai import (
+    PriceOffer,
+    ResearchCandidate,
+    ShopTextGeneration,
+    VisionAnalysis,
+    VoiceExtraction,
+)
 
 # Laengste Bildkante, die die aktuellen Modelle ungekuerzt auswerten. Groesser
 # bringt nichts, kleiner kostet Lesbarkeit bei kleiner Etikettenschrift.
@@ -26,6 +34,14 @@ MAX_BILDKANTE = 2576
 # derselben Anfrage. Nur fuer die Modelle, die das anbieten.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MODELLE_MIT_FALLBACK = {"claude-opus-5", "claude-opus-5-5", "claude-fable-5-1"}
+
+# Hoechstens so viele Fotos je Erkennung; wichtigste Ansichten zuerst.
+MAX_BILDER = 6
+ROLLEN = {
+    "front": "Vorderseite", "back": "Rückseite", "packaging": "Verpackung",
+    "barcode": "Barcode/EAN", "type_plate": "Typenschild", "serial_number": "Seriennummer",
+    "accessories": "Zubehör", "damage": "Beschädigung",
+}
 
 VISION_PROMPT = """Du analysierst ein Foto eines Lagerartikels für ein Warenwirtschaftssystem.
 Extrahiere ausschließlich, was du zuverlässig auf dem Bild erkennen kannst (inkl. OCR von
@@ -69,6 +85,72 @@ Antworte NUR mit einem JSON-Objekt:
 "tags": [str, max 10], "category": str|null}"""
 
 
+VISION_MEHRERE_PROMPT = """Die Fotos oben zeigen alle DENSELBEN Artikel aus verschiedenen
+Ansichten (die Beschriftung vor jedem Bild nennt die Ansicht). Führe die Angaben aus allen
+Bildern zusammen: Typenschild und Barcode sind für Modell, Herstellernummer und EAN
+maßgeblich, die Vorderseite für Produktname und Marke. Widersprechen sich zwei Bilder, nimm
+die besser lesbare Angabe und senke die confidence.
+"""
+
+# Websuche/Abruf in der Version mit dynamischer Filterung — fuer die aktuellen
+# Modelle. Aeltere Modelle (Haiku 4.5 u. a.) kennen nur die Grundversion.
+WEBSUCHE_NEU = ("web_search_20260209", "web_fetch_20260209")
+WEBSUCHE_ALT = ("web_search_20250305", "web_fetch_20250910")
+MODELLE_NUR_ALTE_WEBSUCHE = ("claude-haiku", "claude-sonnet-4-5", "claude-opus-4-5",
+                             "claude-opus-4-1", "claude-sonnet-4-")
+
+RECHERCHE_REGELN = """
+Regeln:
+- Nutze die Websuche. Suche zuerst nach der EAN (liefert exakte Treffer), sonst nach
+  Hersteller + Modell/Herstellernummer. Bevorzuge Herstellerseiten und große deutsche
+  Händler/Vergleichsportale.
+- Übernimm NUR Angaben, die auf einer gefundenen Seite stehen. Nichts erfinden, nichts
+  schätzen, keine Angaben aus dem Gedächtnis. Unbekanntes ist null.
+- Die Angaben vom Foto können Lesefehler enthalten; verlasse dich auf die Quellen.
+- Schreibe Beschreibungen in eigenen Worten (nicht wörtlich abschreiben), sachlich, Deutsch.
+- Antworte am Ende AUSSCHLIESSLICH mit dem JSON-Objekt, ohne Text davor oder danach.
+"""
+
+IDENTIFY_PROMPT = """Recherchiere im Internet die Produktdaten eines Lagerartikels.
+
+Bekannt (vom Foto erkannt oder eingegeben):
+{bekannt}
+""" + RECHERCHE_REGELN + """
+match_score (0.0-1.0) = wie sicher die Quelle GENAU diesen Artikel beschreibt:
+0.95+ nur wenn EAN oder Herstellernummer auf der Quelle exakt übereinstimmen,
+0.7-0.9 wenn Hersteller und Modell eindeutig übereinstimmen, darunter bei Zweifel.
+Kommen mehrere Varianten in Frage (Farbe, Größe, Set-Umfang), liefere bis zu 3 Kandidaten,
+den wahrscheinlichsten zuerst. technical_data: die bis zu 12 wichtigsten Angaben mit
+Einheit ("Spannung": "12 V"). description: 2-4 Sätze.
+
+JSON-Format:
+{{"candidates": [{{"product_name": str|null, "manufacturer": str|null, "brand": str|null,
+"ean": str|null, "mpn": str|null, "category": str|null, "description": str|null,
+"technical_data": {{str: str}}, "attributes": {{str: str}}, "source_url": str|null,
+"match_score": float}}]}}
+Nichts gefunden: {{"candidates": []}}"""
+
+OFFERS_PROMPT = """Recherchiere aktuelle Angebote für diesen Artikel in Deutschland,
+um einen Verkaufspreis festzulegen.
+
+Artikel:
+{bekannt}
+Zustand des eigenen Artikels: {zustand}
+""" + RECHERCHE_REGELN + """
+Suche bei Preisvergleichen (z. B. idealo, geizhals), großen Händlern, Marktplätzen und
+Fachhändlern. Liefere bis zu 10 Angebote, die du mit Preis tatsächlich gesehen hast.
+Preise in Euro, wie angezeigt (inkl. MwSt.), als String mit Punkt ("59.90").
+is_same_variant = false, wenn Modell, Variante oder Lieferumfang abweichen.
+pack_size = Stückzahl, wenn es ein Mehrfachpack ist, sonst null.
+condition: "new" | "used" | "refurbished" | "unknown".
+
+JSON-Format:
+{{"offers": [{{"title": str|null, "price": str, "shipping_cost": str|null,
+"condition": str, "url": str|null, "source_name": str|null,
+"is_same_variant": bool, "pack_size": int|null}}]}}
+Nichts gefunden: {{"offers": []}}"""
+
+
 class AnthropicClient:
     def __init__(self) -> None:
         s = get_settings()
@@ -80,20 +162,42 @@ class AnthropicClient:
         self._client = anthropic.Anthropic(api_key=s.anthropic_api_key,
                                            timeout=180.0, max_retries=2)
 
-    def complete(self, content: list[dict], max_tokens: int = 16000) -> str:
+    def complete(self, content: list[dict], max_tokens: int = 16000,
+                 tools: list[dict] | None = None, max_fortsetzungen: int = 4) -> str:
+        """Eine Anfrage; mit Server-Werkzeugen (Websuche) auch mehrere Runden.
+
+        Die Websuche laeuft bei Anthropic. Braucht sie mehr Runden als die
+        Serverschleife in einem Zug erlaubt, endet die Antwort mit
+        pause_turn — dann wird dieselbe Unterhaltung erneut geschickt und der
+        Server macht weiter.
+        """
         # max_tokens grosszuegig: die Modelle denken vor der Antwort, und das
         # zaehlt mit. Zu knapp bemessen, bricht das JSON mittendrin ab.
-        request = {
-            "model": self.model,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": content}],
-        }
+        messages: list[dict] = [{"role": "user", "content": content}]
+        for _ in range(max_fortsetzungen + 1):
+            response = self._senden(messages, max_tokens, tools)
+            if response.stop_reason != "pause_turn":
+                break
+            messages = [{"role": "user", "content": content},
+                        {"role": "assistant", "content": response.content}]
+        else:
+            raise ProviderRejected("Recherche nicht fertig geworden (zu viele Runden)")
+
+        if response.stop_reason == "refusal":
+            raise ProviderRejected("Das Modell hat die Anfrage abgelehnt")
+        if response.stop_reason == "max_tokens":
+            raise ProviderRejected("Antwort abgeschnitten (max_tokens erreicht)")
+        return schlusstext(response.content)
+
+    def _senden(self, messages: list[dict], max_tokens: int, tools: list[dict] | None):
+        request = {"model": self.model, "max_tokens": max_tokens, "messages": messages}
+        if tools:
+            request["tools"] = tools
         try:
             if self.model in MODELLE_MIT_FALLBACK:
-                response = self._client.beta.messages.create(
+                return self._client.beta.messages.create(
                     betas=[FALLBACK_BETA], fallbacks="default", **request)
-            else:
-                response = self._client.messages.create(**request)
+            return self._client.messages.create(**request)
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
             raise ProviderRejected(
                 "ANTHROPIC_API_KEY ist ungueltig oder hat keine Berechtigung") from exc
@@ -103,11 +207,33 @@ class AnthropicClient:
         except anthropic.BadRequestError as exc:
             raise ProviderRejected(f"Anfrage abgelehnt: {exc.message}") from exc
 
-        if response.stop_reason == "refusal":
-            raise ProviderRejected("Das Modell hat die Anfrage abgelehnt")
-        if response.stop_reason == "max_tokens":
-            raise ProviderRejected("Antwort abgeschnitten (max_tokens erreicht)")
-        return "".join(block.text for block in response.content if block.type == "text")
+    def websuche(self) -> list[dict]:
+        """Websuche + Seitenabruf, fuer das eingestellte Modell passend."""
+        alt = self.model.startswith(MODELLE_NUR_ALTE_WEBSUCHE)
+        suche, abruf = WEBSUCHE_ALT if alt else WEBSUCHE_NEU
+        anzahl = get_settings().research_max_searches
+        return [
+            {"type": suche, "name": "web_search", "max_uses": anzahl,
+             "user_location": {"type": "approximate", "country": "DE",
+                               "timezone": "Europe/Berlin"}},
+            {"type": abruf, "name": "web_fetch", "max_uses": anzahl},
+        ]
+
+
+def schlusstext(content) -> str:
+    """Der Text nach dem letzten Werkzeugaufruf — dort steht das Ergebnis.
+
+    Mit Websuche kommen Zwischentexte ("Ich suche nach …") und Quellenangaben
+    dazu; Zitate teilen den Text in mehrere Bloecke, die hier wieder
+    zusammengesetzt werden.
+    """
+    teile: list[str] = []
+    for block in content:
+        if block.type == "text":
+            teile.append(block.text)
+        elif block.type not in ("thinking", "redacted_thinking", "fallback"):
+            teile = []  # Werkzeugaufruf oder -ergebnis: was davor stand, war Zwischentext
+    return "".join(teile)
 
 
 def bild_fuer_erkennung(image_bytes: bytes) -> tuple[bytes, str]:
@@ -140,25 +266,75 @@ def _parse_json_block(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
+def _bildblock(image_bytes: bytes) -> dict:
+    daten, media_type = bild_fuer_erkennung(image_bytes)
+    return {"type": "image", "source": {
+        "type": "base64", "media_type": media_type,
+        "data": base64.standard_b64encode(daten).decode()}}
+
+
 class AnthropicVisionProvider(VisionProvider):
     name = "anthropic-vision"
 
     def analyze_product_image(self, image_bytes: bytes, content_type: str) -> VisionAnalysis:
+        return self.analyze_product_images([VisionImage(image_bytes, content_type)])
+
+    def analyze_product_images(self, images: list[VisionImage]) -> VisionAnalysis:
         client = AnthropicClient()
-        daten, media_type = bild_fuer_erkennung(image_bytes)
-        content = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64.standard_b64encode(daten).decode(),
-                },
-            },
-            {"type": "text", "text": VISION_PROMPT},
-        ]
+        content: list[dict] = []
+        bilder = images[:MAX_BILDER]
+        for nummer, bild in enumerate(bilder, start=1):
+            if len(bilder) > 1:
+                ansicht = ROLLEN.get(bild.role, bild.role)
+                content.append({"type": "text", "text": f"Bild {nummer} – {ansicht}:"})
+            content.append(_bildblock(bild.data))
+        prompt = (VISION_MEHRERE_PROMPT if len(bilder) > 1 else "") + VISION_PROMPT
+        content.append({"type": "text", "text": prompt})
         raw = client.complete(content)
         return VisionAnalysis.model_validate(_parse_json_block(raw))
+
+
+def _bekannt(**felder) -> str:
+    zeilen = [f"- {name}: {wert}" for name, wert in felder.items() if wert]
+    return "\n".join(zeilen) or "- (nichts)"
+
+
+def _gueltige(liste, schema) -> list:
+    """Nur Eintraege uebernehmen, die das Schema erfuellen — Rest verwerfen."""
+    ergebnis = []
+    for eintrag in liste or []:
+        try:
+            ergebnis.append(schema.model_validate(eintrag))
+        except Exception:
+            continue
+    return ergebnis
+
+
+class AnthropicWebResearchProvider(ProductResearchProvider):
+    """Produkt- und Preisrecherche: Claude sucht selbst im Netz (Websuche und
+    Seitenabruf laufen bei Anthropic). Braucht nur ANTHROPIC_API_KEY."""
+    name = "anthropic-websuche"
+
+    def identify_product(self, *, ean: str | None, mpn: str | None,
+                         query: str | None) -> list[ResearchCandidate]:
+        if not (ean or mpn or query):
+            return []
+        client = AnthropicClient()
+        prompt = IDENTIFY_PROMPT.format(
+            bekannt=_bekannt(EAN=ean, Herstellernummer=mpn, Bezeichnung=query))
+        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche())
+        daten = _parse_json_block(raw)
+        return _gueltige(daten.get("candidates"), ResearchCandidate)[:3]
+
+    def find_offers(self, *, ean: str | None, query: str, condition: str) -> list[PriceOffer]:
+        if not (ean or query):
+            return []
+        client = AnthropicClient()
+        prompt = OFFERS_PROMPT.format(bekannt=_bekannt(EAN=ean, Bezeichnung=query),
+                                      zustand=condition or "unbekannt")
+        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche())
+        daten = _parse_json_block(raw)
+        return _gueltige(daten.get("offers"), PriceOffer)[:10]
 
 
 class AnthropicLlmExtractor(LlmExtractor):

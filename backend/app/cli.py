@@ -125,6 +125,43 @@ def check_ai() -> None:
         sys.exit(2)
 
 
+def check_recherche(ean: str | None, suche: str | None) -> None:
+    """Recherche einmal echt ausprobieren (kostet ein paar Cent Websuche)."""
+    from app.providers.base import ProviderUnavailable
+    from app.providers.registry import get_research
+    recherche = get_research()
+    print(f"Recherche ueber: {recherche.name}")
+    try:
+        treffer = recherche.identify_product(ean=ean, mpn=None, query=suche)
+    except ProviderUnavailable as exc:
+        print(f"Fehler: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Fehler: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not treffer:
+        print("Nichts gefunden.")
+        sys.exit(2)
+    for t in treffer:
+        print(f"\n{t.product_name}  (Sicherheit {t.match_score:.0%})")
+        for feld in ("manufacturer", "ean", "mpn", "category"):
+            if getattr(t, feld):
+                print(f"  {feld}: {getattr(t, feld)}")
+        for name, wert in list(t.technical_data.items())[:6]:
+            print(f"  {name}: {wert}")
+        if t.source_url:
+            print(f"  Quelle: {t.source_url}")
+    bester = max(treffer, key=lambda t: t.match_score)
+    print("\nSuche Preise …")
+    angebote = recherche.find_offers(ean=bester.ean or ean,
+                                     query=bester.product_name or suche or "", condition="new")
+    preise = sorted(a.price for a in angebote if a.is_same_variant)
+    if preise:
+        print(f"{len(angebote)} Angebote, vergleichbar {preise[0]} – {preise[-1]} EUR")
+    else:
+        print("Keine vergleichbaren Angebote gefunden.")
+
+
 def app_holen() -> None:
     """Neueste Android-App von GitHub holen und unter /app bereitstellen."""
     from app.services import app_download
@@ -155,6 +192,11 @@ def main() -> None:
     reset_parser.add_argument("--email", required=True)
 
     sub.add_parser("check-ai", help="KI-Schluessel und Bilderkennung pruefen")
+    recherche_parser = sub.add_parser(
+        "check-recherche", help="Produkt- und Preisrecherche einmal echt ausprobieren")
+    recherche_parser.add_argument("--ean", default=None)
+    recherche_parser.add_argument("--suche", default=None,
+                                  help='z. B. "Makita DHP484Z"')
     sub.add_parser("app-holen", help="Neueste Android-App von GitHub unter /app bereitstellen")
 
     args = parser.parse_args()
@@ -166,6 +208,10 @@ def main() -> None:
         reset_password(args.email)
     elif args.command == "check-ai":
         check_ai()
+    elif args.command == "check-recherche":
+        if not (args.ean or args.suche):
+            parser.error("--ean oder --suche angeben")
+        check_recherche(args.ean, args.suche)
     elif args.command == "app-holen":
         app_holen()
 

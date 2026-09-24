@@ -29,12 +29,25 @@ class ProviderRejected(ProviderUnavailable):
     unbekanntes Modell, ungueltige Anfrage oder eine Ablehnung des Modells."""
 
 
+@dataclass
+class VisionImage:
+    data: bytes
+    content_type: str
+    role: str = "front"  # front | back | barcode | type_plate | packaging | …
+
+
 class VisionProvider(ABC):
     name: str = "vision"
 
     @abstractmethod
     def analyze_product_image(self, image_bytes: bytes, content_type: str) -> VisionAnalysis:
         """Bildanalyse inkl. OCR: Hersteller, Modell, EAN, Kategorie … mit Confidence."""
+
+    def analyze_product_images(self, images: list[VisionImage]) -> VisionAnalysis:
+        """Mehrere Fotos desselben Artikels gemeinsam auswerten (Vorderseite,
+        Typenschild, Barcode …). Anbieter ohne Mehrbild-Unterstuetzung werten
+        nur das erste aus."""
+        return self.analyze_product_image(images[0].data, images[0].content_type)
 
 
 class SpeechToTextProvider(ABC):

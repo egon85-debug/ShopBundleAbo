@@ -21,7 +21,7 @@ from app.models import (
     VoiceRecording,
 )
 from app.models.base import utcnow
-from app.providers.base import ProviderUnavailable
+from app.providers.base import ProviderUnavailable, VisionImage
 from app.providers.registry import (
     get_image_optimizer,
     get_llm,
@@ -68,19 +68,46 @@ def _refresh_questions(db: Session, product: Product, conflicts: list[str]) -> N
 
 # ── Erkennung ────────────────────────────────────────────────────────────────
 
+# Reihenfolge, in der Fotos in die Erkennung gehen: was Name, Modell und EAN
+# traegt, zuerst. Schadens- und Zubehoerfotos helfen beim Erkennen nicht.
+_ERKENNUNG_REIHENFOLGE = [
+    ImageRole.FRONT.value, ImageRole.TYPE_PLATE.value, ImageRole.BARCODE.value,
+    ImageRole.BACK.value, ImageRole.PACKAGING.value, ImageRole.SERIAL_NUMBER.value,
+]
+
+
+def _fotos_fuer_erkennung(db: Session, product: Product) -> list[ProductImage]:
+    originale = db.scalars(select(ProductImage).where(
+        ProductImage.product_id == product.id,
+        ProductImage.kind == ImageKind.ORIGINAL.value)).all()
+    passend = [i for i in originale if i.role in _ERKENNUNG_REIHENFOLGE] or list(originale)
+    return sorted(passend, key=lambda i: (
+        _ERKENNUNG_REIHENFOLGE.index(i.role) if i.role in _ERKENNUNG_REIHENFOLGE else 99,
+        i.sort_order))
+
+
+def _merkmale(product: Product) -> tuple:
+    return (product.ean, product.mpn, product.product_name, product.model)
+
+
 def handle_recognize_product(db: Session, job: Job) -> None:
     product = db.get(Product, job.payload["product_id"])
-    image = db.get(ProductImage, job.payload["image_id"])
-    if product is None or image is None:
+    if product is None:
+        return
+    fotos = _fotos_fuer_erkennung(db, product)
+    if not fotos:
         return
     product.processing_status = ProcessingStatus.RECOGNITION_RUNNING.value
     db.commit()
 
     started = time.monotonic()
-    data = get_storage().get(image.storage_key)
+    storage = get_storage()
+    bilder = [VisionImage(storage.get(f.storage_key), f.content_type, f.role)
+              for f in fotos]
+    vorher = _merkmale(product)
     try:
         vision = get_vision()
-        analysis = vision.analyze_product_image(data, image.content_type)
+        analysis = vision.analyze_product_images(bilder)
     except Exception as exc:
         if not _aufgeben(job, exc, "Erkennung"):
             raise
@@ -93,15 +120,22 @@ def handle_recognize_product(db: Session, job: Job) -> None:
         return
     conflicts = merge_service.merge_vision(product, analysis)
     _record_ai_run(db, product_id=product.id, kind="vision", provider=vision.name,
-                   input_ref=image.storage_key, raw=analysis.model_dump(mode="json"),
+                   # Bild-IDs statt Pfaden: sechs Pfade sprengen die 500 Zeichen
+                   input_ref=",".join(f.id for f in fotos)[:500],
+                   raw=analysis.model_dump(mode="json"),
                    validated=analysis.model_dump(mode="json"),
                    confidence=analysis.confidence, started=started)
 
     product.processing_status = ProcessingStatus.PRODUCT_IDENTIFIED.value
     _refresh_questions(db, product, conflicts)
 
-    # Folgejobs: Recherche (wenn Identifikationsmerkmal vorhanden) und Bildoptimierung.
-    if product.ean or product.mpn or product.product_name:
+    # Recherche nur, wenn es etwas zu suchen gibt — und bei einer erneuten
+    # Erkennung (weiteres Foto) nur, wenn sich Name/Modell/EAN geaendert haben.
+    # Jede Recherche kostet Websuchen.
+    schon_recherchiert = db.scalar(select(AiRun.id).where(
+        AiRun.product_id == product.id, AiRun.kind == "product_research").limit(1))
+    if (product.ean or product.mpn or product.product_name) and \
+            (not schon_recherchiert or _merkmale(product) != vorher):
         queue.enqueue(db, job_type=JobType.RESEARCH_PRODUCT.value,
                       payload={"product_id": product.id}, product_id=product.id)
     queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
@@ -135,17 +169,36 @@ def handle_research_product(db: Session, job: Job) -> None:
                    confidence={}, started=started)
 
     conflicts: list[str] = []
-    if len(candidates) == 1:
-        conflicts = merge_service.merge_research(product, candidates[0])
+    eindeutig = _eindeutiger_treffer(candidates)
+    if eindeutig is not None:
+        conflicts = merge_service.merge_research(product, eindeutig)
         product.research_candidates = []
-    elif len(candidates) > 1:
-        # Nie automatisch irgendeinen Treffer wählen → Benutzer entscheidet.
+    elif candidates:
+        # Kein klarer Treffer → nie raten, der Benutzer waehlt aus.
         product.research_candidates = [c.model_dump(mode="json") for c in candidates[:5]]
     _refresh_questions(db, product, conflicts)
 
     queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
                   payload={"product_id": product.id}, product_id=product.id)
     db.commit()
+
+
+# Ab dieser Sicherheit wird ein Recherche-Treffer ohne Rueckfrage uebernommen
+# (Quelle "research" — Benutzerangaben bleiben davon unberuehrt).
+TREFFER_SICHER = 0.7
+
+
+def _eindeutiger_treffer(candidates: list[ResearchCandidate]) -> ResearchCandidate | None:
+    """Der Treffer, der sicher genug und klar besser als die anderen ist."""
+    if not candidates:
+        return None
+    sortiert = sorted(candidates, key=lambda c: c.match_score, reverse=True)
+    bester = sortiert[0]
+    if bester.match_score < TREFFER_SICHER:
+        return None
+    if len(sortiert) > 1 and sortiert[1].match_score > bester.match_score - 0.2:
+        return None  # zwei aehnlich gute Treffer (z. B. Varianten) → nachfragen
+    return bester
 
 
 def handle_research_prices(db: Session, job: Job) -> None:

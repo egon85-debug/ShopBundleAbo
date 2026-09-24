@@ -11,6 +11,7 @@ os.environ.setdefault("CREDENTIALS_KEY", "2eYCVOFbYzMHZoVXMy5spPZEbGr2wUOOXG_1Cu
 os.environ.setdefault("STORAGE_LOCAL_PATH", tempfile.mkdtemp(prefix="wf-storage-"))
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("VOICE_RETENTION_HOURS", "0")
+os.environ.setdefault("RECOGNITION_DELAY_SECONDS", "0")
 # Rate Limits würden sonst über die Testsuite hinweg greifen (gleiche Client-IP).
 os.environ.setdefault("RATE_LIMIT_AUTH_PER_MINUTE", "100000")
 os.environ.setdefault("RATE_LIMIT_UPLOAD_PER_MINUTE", "100000")

@@ -39,7 +39,22 @@ class Settings(BaseSettings):
     stt_model: str = "whisper-1"
     price_research_api_base: str = ""
     price_research_api_key: str = ""
+    # Produkt- und Preisrecherche: auto = eigene Recherche-API, falls
+    # PRICE_RESEARCH_API_BASE gesetzt ist, sonst Claude mit Websuche
+    # (braucht nur ANTHROPIC_API_KEY). anthropic | http | off erzwingen.
+    research_provider: str = "auto"
+    # Websuchen je Recherche (Anthropic berechnet sie einzeln, ca. 1 Cent).
+    research_max_searches: int = 4
     background_removal_api_base: str = ""
+    # Hintergrund entfernen: auto = externer Dienst, falls
+    # BACKGROUND_REMOVAL_API_BASE gesetzt ist, sonst lokal auf dem Server
+    # (siehe background_removal_model). off = nur aufhellen und zentrieren.
+    background_removal: str = "auto"
+    # Segmentierungsmodell IS-Net; das Docker-Image bringt es mit.
+    background_removal_model: str = "/opt/modelle/isnet-general-use.onnx"
+    # Nach dem ersten Foto kurz warten, damit Rueckseite, Typenschild und
+    # Barcode in dieselbe Erkennung eingehen.
+    recognition_delay_seconds: int = 20
 
     # KI-Verhalten
     confidence_threshold: float = 0.85
