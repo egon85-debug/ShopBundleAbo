@@ -13,8 +13,9 @@ import { navigationCategories } from "@/services/navigation";
 
 function Wortmarke() {
   return (
-    <Link href="/" className="shrink-0 text-subheading text-tinte" aria-label="Winterfeld Logistik – Startseite">
-      <span className="font-medium">Winterfeld</span> <span className="font-light">Logistik</span>
+    <Link href="/" className="shrink-0" aria-label="Winterfeld Logistik – Startseite">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marke/winterfeld-logistik.svg" alt="" width={147} height={24} className="h-6 w-auto" />
     </Link>
   );
 }
@@ -95,9 +96,8 @@ export async function SiteFooter() {
     <footer className="mt-20 bg-leinen text-kohle">
       <div className="seite grid gap-10 py-16 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-subheading text-tinte">
-            <span className="font-medium">Winterfeld</span> <span className="font-light">Logistik</span>
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/marke/winterfeld-logistik.svg" alt="Winterfeld Logistik" width={147} height={24} className="h-6 w-auto" />
           <p className="mt-4 max-w-xs text-body-sm">
             Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
           </p>

@@ -32,6 +32,16 @@ leichte große Überschriften, flache Karten mit Haarlinie. Übernommen werden
 **nur** Farben, Schriftgrößen, Abstände, Radien und Regeln – **nichts** von
 der Marke selbst (kein Logo, keine Bilder, keine Texte, kein Markenname).
 
+## Logo
+
+Anhänger-Etikett in #ff6105 (Lochung und drei Zeilen ausgestanzt) plus
+Wortmarke „**Winterfeld** Logistik“ in Inter 500/300. Dateien in
+`shop/public/marke/`: `winterfeld-logistik.svg` (Standard),
+`winterfeld-logistik-weiss.svg` (auf Orange oder dunklem Grund),
+`zeichen.svg` (nur das Zeichen, auch Browsersymbol `src/app/icon.svg`).
+Die Schrift ist in Pfade umgewandelt; nicht neu setzen, nicht verzerren,
+nicht umfärben außer Weiß.
+
 ## Tokens (Tailwind, `shop/tailwind.config.ts`)
 
 **Farben**
@@ -102,19 +112,22 @@ sind flach.
 - eine zweite Akzentfarbe, Ampelfarben (grün/rot) für Status
 - Schriftgewicht über 500, Versalien in Überschriften
 - Schatten auf Karten, Verläufe, Glas-Effekte, 3D-Szenen, Scroll-Animationen
-  (einzige Bewegung: das Einstiegsvideo)
+  (einzige Bewegung: das Einstiegsvideo mit Abspann)
 - Bilder, Texte oder Namen der Vorlage
 
 ## Bewusste Abweichungen von der Vorlage (dem Auftraggeber gemeldet)
 
 - **Einstieg mit Video statt Foto:** rechts neben der Überschrift ein mit
   Higgsfield erzeugtes Video (Seedance 2.0, 5 s, 1:1): Zuschnitt faltet sich
-  zum Karton, oranges Klebeband verschließt ihn. Liegt in
-  `shop/public/einstieg/` als WebM + MP4 mit Anfangs- und Endbild;
-  Baustein `components/ui/EinstiegsVideo.tsx`. Es läuft **einmal**, startet
-  erst bei halber Sichtbarkeit und bleibt auf dem verklebten Karton stehen;
-  bei reduzierter Bewegung nur das Endbild. Keine Schleife – die Handlung
-  hat Anfang und Ende. Das dunkle Band trägt weiterhin nur Text.
+  zum Karton, oranges Klebeband verschließt ihn. Danach der **Abspann** als
+  SVG über dem Video: „Lagernd · Verpackt · Versendet · Verfolgbar“ fahren
+  von rechts ein, dann wird ein Versandetikett mit Logo auf die
+  Kartonvorderseite gelegt. Schrift und Logo nie von der KI erzeugen lassen –
+  sie verzerrt beides. Dateien in `shop/public/einstieg/`, Baustein
+  `components/ui/EinstiegsVideo.tsx`, Bewegung in `globals.css`
+  (`.abspann`). Einmal abspielen, Start bei halber Sichtbarkeit; bei
+  reduzierter Bewegung sofort das Endbild mit Wörtern und Etikett.
+  Das dunkle Band trägt weiterhin nur Text.
 - **Statusfarben:** Erfolg auf Leinen, Fehler auf Pfirsich statt Grün/Rot.
 - **Mehrzeilige Felder** mit Radius 24 statt 50 (50 wirkt bei Höhe > 1 Zeile
   wie eine Kapsel).
