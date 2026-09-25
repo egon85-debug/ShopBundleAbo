@@ -1,5 +1,8 @@
 """Admin/System: Dashboard, Benutzer, Jobs/Fehler, Audit-Log, Medien-Auslieferung."""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,7 @@ from app.services import audit_service, auth_service, product_service
 from app.utils.security import hash_password
 
 router = APIRouter(tags=["admin"])
+log = logging.getLogger("winterfeld.app")
 
 
 @router.get("/dashboard", response_model=DashboardOut)
@@ -109,6 +113,31 @@ def audit_log(entity_type: str | None = None, entity_id: str | None = None,
     if entity_id:
         stmt = stmt.where(AuditLog.entity_id == entity_id)
     return db.scalars(stmt).all()
+
+
+# ── Absturzberichte der App ─────────────────────────────────────────────────
+
+class ClientErrorIn(BaseModel):
+    kind: str = Field("crash", max_length=32)   # crash | anr
+    app_version: str | None = Field(None, max_length=64)
+    device: str | None = Field(None, max_length=200)
+    report: str = Field(..., max_length=100_000)
+
+
+@router.post("/client-errors", status_code=204)
+def client_error(body: ClientErrorIn, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    """Die App schickt nach einem Absturz oder Einfrieren beim naechsten Start
+    den Bericht (Stacktrace, Version, Geraet). Er landet im Server-Log und im
+    Audit-Log, damit sich Fehler auf dem Handy ohne Kabel nachvollziehen lassen.
+    Enthaelt keine Tokens oder Schluessel — nur den Programmablauf."""
+    log.error("App-Absturz (%s) von %s, Version %s, %s\n%s",
+              body.kind, user.email, body.app_version, body.device, body.report)
+    audit_service.log(db, user=user, entity_type="app", entity_id=None,
+                      action=f"client_{body.kind}", new_value=body.app_version,
+                      reason=f"{body.device}\n{body.report}")
+    db.commit()
+    return Response(status_code=204)
 
 
 # ── Medien-Auslieferung ─────────────────────────────────────────────────────

@@ -1,0 +1,41 @@
+# Reverse Proxy vor dem Backend.
+#
+# Caddy holt und erneuert das TLS-Zertifikat selbst (Let's Encrypt), sobald der
+# Name auf diesen Server zeigt. Es genuegt, DOMAIN in der .env zu setzen.
+#
+# Warum ueberhaupt ein Proxy: die API spricht HTTP und vertraut den
+# X-Forwarded-Kopfzeilen. Sie darf deshalb niemals direkt aus dem Internet
+# erreichbar sein — sonst koennte jeder diese Kopfzeilen selbst setzen und
+# damit vortaeuschen, von woanders zu kommen.
+
+{$DOMAIN} {
+	# Sicherheitskopfzeilen fuer alles, was hier durchgeht.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Verraet nicht, womit der Server laeuft.
+		-Server
+	}
+
+	# Die Adminoberflaeche und die API-Dokumentation gehoeren nicht ins offene
+	# Netz. In Produktion schaltet ENVIRONMENT=production /docs ohnehin ab —
+	# das hier ist die zweite Sperre, falls die Einstellung einmal verrutscht.
+	@gesperrt path /docs* /redoc* /openapi.json
+	respond @gesperrt 404
+
+	reverse_proxy api:8000 {
+		# Damit die API weiss, wer wirklich angefragt hat.
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Zugriffe im JSON-Format, damit sie sich auswerten lassen.
+	log {
+		output file /var/log/caddy/zugriff.log {
+			roll_size 20MiB
+			roll_keep 7
+		}
+		format json
+	}
+}

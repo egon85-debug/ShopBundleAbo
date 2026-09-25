@@ -72,6 +72,7 @@ interface ApiService {
     suspend fun products(
         @Query("q") query: String? = null,
         @Query("status") status: String? = null,
+        @Query("publication_status") publicationStatus: String? = null,
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
     ): PageDto<ProductDto>
@@ -80,7 +81,11 @@ interface ApiService {
     suspend fun product(@Path("id") id: String): ProductDto
 
     @PATCH("products/{id}")
-    suspend fun patchProduct(@Path("id") id: String, @Body fields: Map<String, @JvmSuppressWildcards Any?>): ProductDto
+    suspend fun patchProduct(@Path("id") id: String, @Body fields: okhttp3.RequestBody): ProductDto
+
+    @POST("client-errors")
+    suspend fun clientError(@Body body: de.winterfeld.logistik.data.remote.dto.ClientErrorDto):
+        retrofit2.Response<Unit>
 
     @GET("dashboard")
     suspend fun dashboard(): DashboardDto

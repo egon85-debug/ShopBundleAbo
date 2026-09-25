@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { Ueberschrift } from "@/components/ui/Gestaltung";
+
 /**
  * Auffangnetz für den Storefront-Bereich.
  *
@@ -23,30 +25,27 @@ export default function ShopError({
   }, [error]);
 
   return (
-    <div className="section py-20">
-      <div className="card mx-auto max-w-xl p-10 text-center">
-        <p className="eyebrow">Vorübergehend nicht verfügbar</p>
-        <h1 className="mt-3 font-display text-display-md font-extrabold">
+    <div className="seite py-20 lg:py-28">
+      <div className="mx-auto max-w-xl text-center">
+        <Ueberschrift als="h1" groesse="gross" mitte augenbraue="Vorübergehend nicht verfügbar">
           Dieser Bereich lädt gerade nicht
-        </h1>
-        <p className="mt-4 text-mist-700">
+        </Ueberschrift>
+        <p className="mt-6 text-kohle">
           Der Shop konnte die angeforderten Daten nicht abrufen. Das liegt an uns, nicht an Ihnen —
           bitte versuchen Sie es in einem Moment noch einmal.
         </p>
 
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <button type="button" onClick={reset} className="btn-primary">
+        <div className="mt-10 flex flex-wrap justify-center gap-3">
+          <button type="button" onClick={reset} className="knopf-aktion">
             Erneut versuchen
           </button>
-          <Link href="/" className="btn-ghost">
+          <Link href="/" className="knopf-zweit">
             Zur Startseite
           </Link>
         </div>
 
         {error.digest && (
-          <p className="mt-8 font-mono text-xs text-mist-500">
-            Referenz für den Support: {error.digest}
-          </p>
+          <p className="mt-10 text-caption text-schiefer">Referenz für den Support: {error.digest}</p>
         )}
       </div>
     </div>

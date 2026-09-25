@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 
 import { db } from "@/db";
@@ -143,10 +143,10 @@ export async function summarize(cartId: string): Promise<CartSummary> {
   const productIds = rows.map((row) => row.productId);
   const [images, stock] = await Promise.all([
     productIds.length
-      ? db.select().from(productImages).where(sql`${productImages.productId} = any(${productIds})`)
+      ? db.select().from(productImages).where(inArray(productImages.productId, productIds))
       : Promise.resolve([]),
     productIds.length
-      ? db.select().from(inventory).where(sql`${inventory.productId} = any(${productIds})`)
+      ? db.select().from(inventory).where(inArray(inventory.productId, productIds))
       : Promise.resolve([]),
   ]);
 

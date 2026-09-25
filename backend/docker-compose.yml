@@ -1,5 +1,11 @@
 # Betrieb des Backends als Container.
 #
+# Hinweis zu den Profilen: Compose loest alle ${...} in dieser Datei auf,
+# bevor es die Profile auswertet. Eine Pflichtangabe in einem ungenutzten
+# Profil wuerde deshalb auch Aufrufe abbrechen, die es gar nicht starten.
+# Profil-Variablen stehen darum ohne Pflichtmarkierung; welche noetig sind,
+# sagt der Kommentar beim jeweiligen Dienst.
+#
 # Mit einer verwalteten Datenbank (Supabase o. ae.) — der Normalfall:
 #   cp .env.example .env    # ausfuellen, vor allem DATABASE_URL, JWT_SECRET, CREDENTIALS_KEY
 #   docker compose up -d --build
@@ -7,6 +13,17 @@
 # Mit eigener PostgreSQL im Container (zum Ausprobieren ohne Konto):
 #   docker compose --profile lokale-db up -d --build
 #   DATABASE_URL zeigt dann auf den Dienst "db" (siehe .env.example).
+#
+# Auf einem Server im Internet zusaetzlich den Reverse Proxy starten:
+#   DOMAIN=lager.ihre-domain.de in die .env, dann
+#   docker compose --profile proxy up -d --build
+#   Caddy holt das TLS-Zertifikat selbst, sobald der Name hierher zeigt.
+#
+# Auf einem Rechner zu Hause oder im Betrieb (hinter dem Router, keine feste
+# oeffentliche IP) stattdessen den Tunnel starten:
+#   TUNNEL_TOKEN=... in die .env (Cloudflare Zero Trust -> Networks -> Tunnels),
+#   docker compose --profile tunnel up -d --build
+#   Kein offener Port am Router noetig; TLS macht Cloudflare.
 services:
   api:
     build: .
@@ -16,7 +33,12 @@ services:
       RUN_MIGRATIONS: "true"
       RUN_WORKER_IN_PROCESS: "true"
     ports:
-      - "8000:8000"
+      # Ausdruecklich nur auf die lokale Schnittstelle: die API spricht HTTP
+      # und vertraut den X-Forwarded-Kopfzeilen. Waere sie direkt aus dem
+      # Internet erreichbar, koennte jeder diese Kopfzeilen selbst setzen.
+      # Von aussen fuehrt der Weg ausschliesslich ueber den Reverse Proxy.
+      # Zum Ausprobieren auf dem eigenen Rechner reicht das genauso.
+      - "127.0.0.1:8000:8000"
     volumes:
       # Fotos und Sprachaufnahmen bei STORAGE_BACKEND=local.
       - medien:/app/storage
@@ -30,10 +52,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: winterfeld
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in der .env gesetzt sein}
+      # Pflicht fuer dieses Profil. Fehlt sie, verweigert PostgreSQL den Start
+      # mit einer eindeutigen Meldung im Protokoll.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: winterfeld
     ports:
-      - "5432:5432"
+      # Ebenfalls nur lokal. Eine Datenbank gehoert nie offen ins Netz.
+      - "127.0.0.1:5432:5432"
     volumes:
       - datenbank:/var/lib/postgresql/data
     healthcheck:
@@ -42,6 +67,43 @@ services:
       timeout: 5s
       retries: 12
 
+  # Nur mit --profile proxy. Nimmt HTTPS entgegen und reicht an die API
+  # weiter; das Zertifikat besorgt und erneuert Caddy selbst.
+  proxy:
+    profiles: ["proxy"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      # Pflicht fuer dieses Profil, z. B. lager.ihre-domain.de. Ohne sie findet
+      # Caddy keinen Namen, fuer den es ein Zertifikat holen koennte.
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_daten:/data
+      - caddy_konfig:/config
+      - caddy_logs:/var/log/caddy
+
+  # Nur mit --profile tunnel. Baut eine ausgehende Verbindung zu Cloudflare
+  # auf, ueber die Anfragen an https://<Ihr Name> hereinkommen. Der Router
+  # bleibt zu, eine oeffentliche IP ist nicht noetig. Der Tunnel erreicht die
+  # API ueber das Compose-Netz direkt — im Cloudflare-Dashboard als
+  # "Public Hostname" den Dienst http://api:8000 eintragen.
+  tunnel:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Pflicht fuer dieses Profil (Cloudflare Zero Trust -> Networks -> Tunnels).
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
 volumes:
   datenbank:
   medien:
+  caddy_daten:
+  caddy_konfig:
+  caddy_logs:

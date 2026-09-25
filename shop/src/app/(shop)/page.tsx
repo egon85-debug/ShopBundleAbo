@@ -1,16 +1,13 @@
 import Link from "next/link";
 
-import { KategorieHintergrund } from "@/components/three/KategorieHintergrund";
-import { LazyCartonReveal, LazyHeroScene, LazyPackageJourney } from "@/components/three/LazyScenes";
-import { HeroTitel } from "@/components/ui/HeroTitel";
-import { LogistikDashboard } from "@/components/ui/LogistikDashboard";
-import { ProductCard } from "@/components/ui/ProductCard";
+import { EinstiegsVideo } from "@/components/ui/EinstiegsVideo";
+import { Ueberschrift } from "@/components/ui/Gestaltung";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
+import { ProductCard } from "@/components/ui/ProductCard";
+import { formatCents } from "@/lib/money";
+import { shippingOptions } from "@/lib/shipping/registry";
 import { listProducts } from "@/services/catalog";
 import { navigationCategories } from "@/services/navigation";
-import { shippingOptions } from "@/lib/shipping/registry";
-import { formatCents } from "@/lib/money";
-
 
 export const revalidate = 60;
 
@@ -30,6 +27,13 @@ async function safely<T>(load: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+const SCHRITTE = [
+  { titel: "Bestellen", text: "Artikel auswählen und bestellen – auch ohne Kundenkonto." },
+  { titel: "Sicher bezahlen", text: "Stripe verarbeitet die Zahlung. Kartendaten berühren unsere Server nie." },
+  { titel: "Versand mit DHL", text: "Etikett und Sendungsnummer entstehen automatisch nach der Zahlung." },
+  { titel: "Sendung verfolgen", text: "Jeder Statuswechsel steht auf Ihrer Bestellseite." },
+];
+
 export default async function HomePage() {
   const [categories, bestsellers, newest, offers] = await Promise.all([
     navigationCategories(),
@@ -45,172 +49,175 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="relative isolate overflow-hidden bg-carbon-950 text-white">
-        <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-50" />
-        <div className="absolute inset-0">
-          <LazyHeroScene />
+      {/* ── Einstieg ───────────────────────────────────────────────────── */}
+      {/* Text links, rechts das Karton-Video (einmal abspielen, dann stehen lassen). */}
+      <section className="seite grid items-center gap-12 pt-16 lg:grid-cols-2 lg:gap-16 lg:pt-24">
+        <div>
+          <Ueberschrift als="h1" groesse="display" augenbraue="Direkt aus unserem Lager">
+            Logistik. Einfach. Digital.
+          </Ueberschrift>
+          <p className="mt-8 max-w-md text-subheading text-kohle">
+            Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <Link href="/shop" className="knopf-aktion">
+              Zum Shop <span aria-hidden>→</span>
+            </Link>
+            <Link href="#kategorien" className="knopf-zweit">
+              Kategorien ansehen
+            </Link>
+          </div>
         </div>
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-carbon-950 via-carbon-950/85 to-transparent"
-          aria-hidden
-        />
 
-        <HeroTitel />
+        <div className="aspect-square overflow-hidden rounded-bild bg-leinen">
+          <EinstiegsVideo
+            video="/einstieg/karton"
+            anfangsbild="/einstieg/karton-anfang.webp"
+            endbild="/einstieg/karton-ende.webp"
+          />
+        </div>
       </section>
 
-      {/* ── Der Karton öffnet sich ─────────────────────────────────────
-          Führt vom Einstieg in den Shop: derselbe Karton, jetzt geöffnet,
-          und das Sortiment schwebt heraus – direkt in die Kategorien. */}
-      <LazyCartonReveal />
-
       {/* ── Kategorien ─────────────────────────────────────────────────── */}
-      <section id="kategorien" className="section scroll-mt-24 py-20">
-        <div className="flex items-end justify-between gap-6">
-          <div>
-            <p className="eyebrow">Sortiment</p>
-            <h2 className="mt-3 font-display text-display-md font-extrabold">Kategorien</h2>
-          </div>
-          <Link href="/shop" className="hidden shrink-0 text-[15px] font-semibold text-signal-600 hover:underline sm:block">
-            Alle Produkte →
-          </Link>
-        </div>
+      <section id="kategorien" className="seite scroll-mt-32 pt-20">
+        <AbschnittKopf titel="Kategorien" link={{ href: "/shop", text: "Alle Produkte →" }} />
 
         {categories.length === 0 ? (
-          <p className="mt-8 rounded-2xl border border-dashed border-mist-300 p-10 text-center text-mist-700">
+          <p className="karte mt-10 p-10 text-center text-kohle">
             Noch keine Kategorien angelegt. Im Adminbereich unter{" "}
-            <Link href="/admin/kategorien" className="font-semibold text-signal-600 underline">
-              Kategorien
-            </Link>{" "}
+            <Link href="/admin/kategorien" className="textlink">Kategorien</Link>{" "}
             lassen sie sich ohne Programmierung erstellen.
           </p>
         ) : (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category, index) => (
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((category) => (
               <Link
                 key={category.id}
                 href={`/shop/${category.slug}`}
-                data-kategorie-kachel
-                className="gruppe group relative flex min-h-[190px] flex-col justify-end overflow-hidden rounded-2xl border border-mist-200 bg-carbon-900 p-6 text-white transition-all duration-300 ease-precise hover:-translate-y-1 hover:shadow-lift"
+                className="karte group flex min-h-[160px] flex-col justify-between p-6 transition-colors duration-200 hover:bg-leinen"
               >
-                {/* Raeumliche Ebene – liegt hinter allem, faengt keine Klicks ab. */}
-                <KategorieHintergrund name={category.name} />
-                {category.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={category.imageUrl}
-                    alt=""
-                    loading="lazy"
-                    className="absolute inset-0 h-full w-full object-cover opacity-45 transition-transform duration-500 ease-precise group-hover:scale-105"
-                  />
-                )}
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-carbon-950 via-carbon-950/45 to-transparent" />
-                <span className="relative font-mono text-xs text-signal-300">
-                  {String(index + 1).padStart(2, "0")}
+                <div>
+                  <h3 className="text-heading-sm font-medium">{category.name}</h3>
+                  {category.children.length > 0 && (
+                    <p className="mt-2 text-body-sm text-kohle">
+                      {category.children.map((child) => child.name).join(" · ")}
+                    </p>
+                  )}
+                </div>
+                <span className="mt-6 text-body-sm font-medium text-tinte">
+                  Ansehen <span aria-hidden className="inline-block transition-transform group-hover:translate-x-1">→</span>
                 </span>
-                <h3 className="relative mt-1 font-display text-xl font-bold">{category.name}</h3>
-                {category.children.length > 0 && (
-                  <p className="relative mt-1 text-sm text-mist-300">
-                    {category.children.map((child) => child.name).join(" · ")}
-                  </p>
-                )}
               </Link>
             ))}
           </div>
         )}
       </section>
 
-      {/* ── Bestseller ─────────────────────────────────────────────────── */}
       {bestsellers.items.length > 0 && (
-        <ProductRow title="Bestseller" eyebrow="Beliebt" items={bestsellers.items} href="/shop?sort=newest" />
+        <ProductRow title="Bestseller" items={bestsellers.items} href="/shop?sort=newest" />
       )}
-
-      {/* ── Package Journey (3D) ───────────────────────────────────────── */}
-      <LazyPackageJourney />
-
-      {/* ── Neu & Angebote ─────────────────────────────────────────────── */}
       {newest.items.length > 0 && (
-        <ProductRow title="Neu im Shop" eyebrow="Frisch eingetroffen" items={newest.items} href="/shop?sort=newest" />
+        <ProductRow title="Neu im Shop" items={newest.items} href="/shop?sort=newest" />
       )}
       {discounted.length > 0 && (
-        <ProductRow title="Angebote" eyebrow="Reduziert" items={discounted.slice(0, 4)} href="/shop" />
+        <ProductRow title="Angebote" items={discounted.slice(0, 4)} href="/shop" />
       )}
 
-      {/* ── Vorteile ───────────────────────────────────────────────────── */}
-      <section className="section py-20">
-        <p className="eyebrow">Warum Winterfeld Logistik</p>
-        <h2 className="mt-3 font-display text-display-md font-extrabold">Verlässlich in jedem Schritt</h2>
+      {/* ── So läuft eine Bestellung ───────────────────────────────────── */}
+      <section className="seite grid gap-12 pt-20 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <Ueberschrift groesse="gross">So läuft eine Bestellung</Ueberschrift>
+          <ol className="mt-10 space-y-8">
+            {SCHRITTE.map((schritt, index) => (
+              <li key={schritt.titel}>
+                <span className={index === 0 ? "plakette-aktiv" : "plakette px-0 text-asche"}>
+                  Schritt {index + 1}
+                </span>
+                <p
+                  className={`mt-2 border-b pb-3 text-subheading ${
+                    index === 0 ? "border-b-2 border-haarlinie font-medium text-tinte" : "border-haarlinie text-kohle"
+                  }`}
+                >
+                  {schritt.titel}
+                </p>
+                <p className="mt-3 text-body-sm text-kohle">{schritt.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
 
-        <LogistikDashboard
-          punkte={[
-            {
-              titel: "Bestellung",
-              text: "Kuratiertes Sortiment, klare Daten, ehrliche Verfügbarkeit — Checkout auch ohne Konto.",
-            },
-            {
-              titel: "Sichere Zahlung",
-              text: "Stripe verarbeitet alle Zahlungen. Kartendaten berühren unsere Server nie.",
-            },
-            {
-              titel: shipping.map((option) => option.label).join(" & "),
-              text: shipping
-                .map((option) => `${option.label}: ${option.deliveryEstimate} · ${formatCents(option.priceCents)}`)
-                .join(" — "),
-            },
-            {
-              titel: "Tracking",
-              text: "Etikett und Sendungsnummer entstehen automatisch. Jede Statusänderung ist protokolliert.",
-            },
-          ]}
-        />
+        <div className="karte-hervor self-start p-8">
+          <p className="augenbraue text-kohle">Versandarten</p>
+          <ul className="mt-5 divide-y divide-nebel">
+            {shipping.map((option) => (
+              <li key={option.code} className="flex items-baseline justify-between gap-4 py-4">
+                <span>
+                  <span className="block text-subheading font-medium">{option.label}</span>
+                  <span className="text-body-sm text-kohle">Lieferzeit {option.deliveryEstimate}</span>
+                </span>
+                <span className="text-heading-sm tabular">{formatCents(option.priceCents)}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/versand" className="textlink mt-6 inline-block text-body-sm">
+            Alles zum Versand →
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Dunkles Band ───────────────────────────────────────────────── */}
+      <section className="mt-20 bg-anthrazit py-20">
+        <div className="seite">
+          <Ueberschrift groesse="gross" mitte hell>
+            Direkt aus unserem Lager – verpackt, versendet, nachverfolgbar.
+          </Ueberschrift>
+          <p className="mx-auto mt-6 max-w-xl text-center text-body text-asche">
+            Jeder Artikel liegt bei uns im Regal. Was als verfügbar angezeigt wird, ist wirklich da.
+          </p>
+        </div>
       </section>
 
       {/* ── Newsletter ─────────────────────────────────────────────────── */}
-      <section className="section pb-24">
-        <div className="relative overflow-hidden rounded-3xl bg-carbon-950 px-6 py-14 text-white sm:px-12">
-          <div className="pointer-events-none absolute inset-0 bg-grid-fine bg-grid-fine opacity-40" />
-          <div className="relative grid gap-8 lg:grid-cols-2 lg:items-center">
-            <div>
-              <p className="eyebrow text-signal-300">Newsletter</p>
-              <h2 className="mt-3 font-display text-display-md font-extrabold">
-                Neue Produkte zuerst erfahren
-              </h2>
-              <p className="mt-3 max-w-md text-mist-300">
-                Gelegentliche Nachrichten zu neuen Artikeln und Angeboten. Abmeldung jederzeit über den
-                Link in jeder E-Mail.
-              </p>
-            </div>
-            <NewsletterForm />
+      <section className="seite py-20">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
+          <div>
+            <Ueberschrift groesse="mittel">Neue Produkte zuerst erfahren</Ueberschrift>
+            <p className="mt-6 max-w-md text-body text-kohle">
+              Gelegentliche Nachrichten zu neuen Artikeln und Angeboten. Abmeldung jederzeit über den
+              Link in jeder E-Mail.
+            </p>
           </div>
+          <NewsletterForm />
         </div>
       </section>
     </>
   );
 }
 
+function AbschnittKopf({ titel, link }: { titel: string; link: { href: string; text: string } }) {
+  return (
+    <div className="flex items-end justify-between gap-6">
+      <Ueberschrift groesse="gross">{titel}</Ueberschrift>
+      <Link href={link.href} className="textlink hidden shrink-0 text-body-sm sm:block">
+        {link.text}
+      </Link>
+    </div>
+  );
+}
+
 function ProductRow({
   title,
-  eyebrow,
   items,
   href,
 }: {
   title: string;
-  eyebrow: string;
   items: Awaited<ReturnType<typeof listProducts>>["items"];
   href: string;
 }) {
   return (
-    <section className="section py-14">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2 className="mt-3 font-display text-display-md font-extrabold">{title}</h2>
-        </div>
-        <Link href={href} className="hidden shrink-0 text-[15px] font-semibold text-signal-600 hover:underline sm:block">
-          Mehr ansehen →
-        </Link>
-      </div>
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="seite pt-20">
+      <AbschnittKopf titel={title} link={{ href, text: "Mehr ansehen →" }} />
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}

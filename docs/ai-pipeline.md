@@ -15,16 +15,24 @@
 ## Pipeline nach dem ersten Foto
 
 ```
-Foto-Upload ──▶ Job recognize_product
+Foto-Upload ──▶ Job recognize_product (RECOGNITION_DELAY_SECONDS nach dem ersten Foto,
+                 │  damit die übrigen Fotos der Aufnahme mitkommen; ein späteres Foto
+                 │  löst eine neue Erkennung mit allen Fotos aus)
                  ├─ Barcode-Dekodierung (lokal auf dem Tablet via ML Kit; serverseitig
                  │  zusätzlich aus dem Bild, Ergebnis mit Prüfziffern-Validierung)
-                 ├─ VisionProvider.analyze(image) → Hersteller, Marke, Produktname, Modell,
-                 │  MPN, EAN, Kategorie, Farbe, Zustand, OCR-Texte … je Feld mit Confidence
+                 ├─ VisionProvider.analyze_product_images(bis zu 6 Fotos, Vorderseite,
+                 │  Typenschild, Barcode, Rückseite, Verpackung — Schadensfotos nicht)
+                 │  → Hersteller, Marke, Produktname, Modell, MPN, EAN, Kategorie, Farbe,
+                 │  Zustand, OCR-Texte … je Feld mit Confidence
                  └─ Merge in Produkt-Entwurf (source=ai)
-        ──▶ Job research_product   (wenn EAN/MPN/eindeutige Bezeichnung vorhanden)
-                 ├─ PriceResearchProvider.identify(ean|mpn|name)
-                 ├─ 1 Treffer → Merge (source=research)
-                 └─ n Treffer → candidates am Capture, Rückfrage „Mehrere mögliche Artikel“
+        ──▶ Job research_product   (wenn EAN/MPN/eindeutige Bezeichnung vorhanden; bei
+                 │  erneuter Erkennung nur, wenn sich Name/Modell/EAN geändert haben)
+                 ├─ ProductResearchProvider.identify(ean|mpn|name) — ohne eigene Recherche-
+                 │  API sucht Claude selbst im Netz (Websuche + Seitenabruf bei Anthropic);
+                 │  übernommen wird nur, was auf gefundenen Seiten steht, mit Quelle
+                 ├─ klarer Treffer (match_score ≥ 0,7 und ≥ 0,2 vor dem nächsten) → Merge
+                 │  (source=research; Benutzerangaben bleiben unberührt)
+                 └─ sonst → candidates am Capture, Rückfrage „Mehrere mögliche Artikel“
         ──▶ Job research_prices
                  ├─ Nur vergleichbare Angebote (gleiche Variante/Gebinde/Zustand) → is_comparable
                  ├─ Ausreißer-Erkennung (IQR-Regel) → is_outlier
@@ -85,10 +93,15 @@ Fragen werden gebündelt im Kontrollbildschirm gestellt, nicht einzeln modal.
 
 - Original → `product_images(kind=original)`, unveränderlich.
 - Optimierung erzeugt neuen Datensatz `kind=optimized, source_image_id=…`.
-- Pipeline: EXIF-Rotation → optionale Freistellung (externer Provider) → Weißabgleich →
-  Belichtung → Zuschnitt/Zentrierung → einheitliches Seitenverhältnis (1:1, weißer Rand) →
-  Zielauflösung. Keine generative Veränderung des Produkts; Bilder mit `role=damage`
-  werden bewusst **nicht** „verschönert“ (nur Belichtung/Zuschnitt).
+- Pipeline: EXIF-Rotation → Freistellung → Zuschnitt auf das Produkt → mittig auf
+  reinweißem Quadrat (7 % Rand) → 1600 × 1600 px.
+- Freistellung lokal mit dem Segmentierungsmodell IS-Net (ONNX, CPU, ≈2–5 s je Bild; im
+  Docker-Image enthalten) oder über einen externen Dienst. Das Modell trennt nur Vorder-
+  und Hintergrund; jedes Pixel des Produkts stammt aus dem Foto — keine generative
+  Veränderung. Ist die Maske unplausibel (unter 2 % oder über 97 % Vordergrund) oder
+  scheitert das Freistellen, bleibt der Fotohintergrund (Weißabgleich, Belichtung,
+  Zentrierung wie bisher).
+- Bilder mit `role=damage` werden bewusst **nicht** freigestellt oder „verschönert“.
 
 ## Shoptexte (Anforderung 15)
 

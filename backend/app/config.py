@@ -22,22 +22,48 @@ class Settings(BaseSettings):
     # Storage
     storage_backend: str = "local"  # local | s3
     storage_local_path: str = "./storage"
+    # Nur um die Android-App aus einem privaten Repository zu holen (app-holen).
+    github_token: str = ""
     s3_endpoint_url: str = ""
     s3_bucket: str = "winterfeld-media"
     s3_access_key: str = ""
     s3_secret_key: str = ""
     s3_region: str = "eu-central-1"
     media_public_base_url: str = ""
+    # Oeffentlicher Name des Servers (derselbe Wert wie fuer den Reverse Proxy).
+    # Ohne MEDIA_PUBLIC_BASE_URL werden Bildadressen daraus gebildet — der
+    # Shop braucht sie absolut, sonst kommen keine Bilder an.
+    domain: str = ""
+
+    def oeffentliche_basis(self) -> str:
+        """https://<domain> oder leer."""
+        name = self.domain.strip().removeprefix("https://").removeprefix("http://").rstrip("/")
+        return f"https://{name}" if name else ""
 
     # KI-Provider
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    anthropic_model: str = "claude-opus-5"
     stt_api_base: str = "https://api.openai.com/v1"
     stt_api_key: str = ""
     stt_model: str = "whisper-1"
     price_research_api_base: str = ""
     price_research_api_key: str = ""
+    # Produkt- und Preisrecherche: auto = eigene Recherche-API, falls
+    # PRICE_RESEARCH_API_BASE gesetzt ist, sonst Claude mit Websuche
+    # (braucht nur ANTHROPIC_API_KEY). anthropic | http | off erzwingen.
+    research_provider: str = "auto"
+    # Websuchen je Recherche (Anthropic berechnet sie einzeln, ca. 1 Cent).
+    research_max_searches: int = 4
     background_removal_api_base: str = ""
+    # Hintergrund entfernen: auto = externer Dienst, falls
+    # BACKGROUND_REMOVAL_API_BASE gesetzt ist, sonst lokal auf dem Server
+    # (siehe background_removal_model). off = nur aufhellen und zentrieren.
+    background_removal: str = "auto"
+    # Segmentierungsmodell IS-Net; das Docker-Image bringt es mit.
+    background_removal_model: str = "/opt/modelle/isnet-general-use.onnx"
+    # Nach dem ersten Foto kurz warten, damit Rueckseite, Typenschild und
+    # Barcode in dieselbe Erkennung eingehen.
+    recognition_delay_seconds: int = 20
 
     # KI-Verhalten
     confidence_threshold: float = 0.85

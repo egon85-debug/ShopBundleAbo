@@ -5,10 +5,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
   },
-  // Three.js & Co. nur dort bundeln, wo sie gebraucht werden.
-  experimental: {
-    optimizePackageImports: ["three", "@react-three/fiber", "@react-three/drei"],
-  },
 };
 
 export default nextConfig;

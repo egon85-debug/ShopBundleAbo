@@ -7,18 +7,16 @@
     color-scheme: light;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
-
   body {
-    @apply bg-mist-50 text-carbon-900 antialiased;
-    font-feature-settings: "cv02", "cv03";
+    @apply bg-white antialiased;
   }
 
   /* Sichtbarer Fokus für Tastaturbedienung – nie entfernen. */
   :focus-visible {
     @apply outline-none ring-2 ring-signal-500 ring-offset-2 ring-offset-white;
+  }
+  .shop :focus-visible {
+    @apply ring-akzent/60;
   }
 
   /* Zahlenkolonnen (Preise, Mengen) laufen sauber untereinander. */
@@ -27,12 +25,127 @@
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Shop – hell, eine Schrift, ein Farbakzent.
+   Regeln (siehe .claude/skills/winterfeld-design/SKILL.md):
+   · Orange nur für die Hauptaktion, den aktiven Schritt und die Akzentlinie.
+   · Schatten trägt nur die Hauptaktion.
+   · Radien: Karte 5, Bild/kleine Knöpfe 8, Zweitknopf 24, Nav 40,
+     Hauptaktion und Eingabefelder 50.
+   · Schriftstärken 300/400/500 – nie fetter.
+   ══════════════════════════════════════════════════════════════════════════ */
 @layer components {
-  /* Dezenter Glassmorphism – nur auf dunklem Grund, sonst wirkt es billig. */
-  .glass {
-    @apply border border-white/10 bg-white/[0.06] backdrop-blur-xl;
+  .seite {
+    @apply mx-auto w-full max-w-seite px-5 sm:px-8;
   }
 
+  /* Hauptaktion: die eine orange Pille je Ansicht, mit dem einzigen Schatten. */
+  .knopf-aktion {
+    @apply inline-flex items-center justify-center gap-2 rounded-pille bg-akzent px-8 py-4
+           text-body font-medium text-white shadow-aktion transition-[filter,opacity]
+           duration-200 hover:brightness-[.95]
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none;
+  }
+
+  /* Warenkorb oben rechts: gleiche Farbe, Navigationsmaß, kein Schatten. */
+  .knopf-nav {
+    @apply inline-flex items-center gap-2 rounded-nav bg-akzent px-4 py-2.5 text-body-sm sm:px-5
+           font-medium text-white transition-[filter] duration-200 hover:brightness-[.95];
+  }
+
+  /* Zweitaktion neben einer Hauptaktion. */
+  .knopf-zweit {
+    @apply inline-flex items-center justify-center gap-2 rounded-sekundaer border border-haarlinie
+           bg-white px-6 py-3.5 text-body text-kohle transition-colors duration-200
+           hover:bg-leinen disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Geisterknopf: ruhige Fläche statt Rahmen (z. B. „Filtern“). */
+  .knopf-geist {
+    @apply inline-flex items-center justify-center gap-2 rounded-sekundaer bg-knochen px-6 py-3.5
+           text-body text-kohle transition-colors duration-200 hover:bg-nebel
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Kleine Bedienelemente: Menge, Seitenzahlen, Umschalter. */
+  .knopf-klein {
+    @apply inline-flex items-center justify-center rounded-klein border border-haarlinie bg-white
+           px-3 py-2 text-body-sm text-kohle transition-colors duration-200 hover:bg-leinen;
+  }
+
+  .textlink {
+    @apply font-medium text-tinte underline-offset-4 hover:underline;
+  }
+
+  .feld {
+    @apply w-full rounded-pille border border-haarlinie bg-white px-4 py-3 text-body text-tinte
+           placeholder:text-asche focus:outline-none focus:ring-2 focus:ring-akzent/40;
+  }
+
+  /* Mehrzeilig: eine Pille mit 50 px Radius schneidet Text an – nächste Stufe (24). */
+  .feld-mehrzeilig {
+    @apply w-full rounded-sekundaer border border-haarlinie bg-white px-5 py-3 text-body text-tinte
+           placeholder:text-asche focus:outline-none focus:ring-2 focus:ring-akzent/40;
+  }
+
+  .feldname {
+    @apply mb-2 block text-body-sm font-medium text-kohle;
+  }
+
+  .auswahl {
+    @apply h-5 w-5 shrink-0 cursor-pointer accent-akzent;
+  }
+
+  .karte {
+    @apply rounded-karte border border-haarlinie bg-white;
+  }
+
+  /* Hervorgehoben – höchstens eine je Abschnitt. */
+  .karte-hervor {
+    @apply rounded-karte bg-pfirsich;
+  }
+
+  .augenbraue {
+    @apply text-caption font-medium uppercase tracking-[.08em] text-schiefer;
+  }
+
+  /* Artikel-, Bestell- und Sendungsnummern. */
+  /* Artikel- und Bestellnummern: ohne Tabellenziffern, sonst sperren die Bindestriche. */
+  .nummer {
+    @apply text-caption text-schiefer;
+  }
+
+  .plakette {
+    @apply inline-flex items-center gap-1.5 rounded-klein px-3 py-1 text-caption font-medium;
+  }
+  .plakette-aktiv {
+    @apply plakette bg-akzent text-white;
+  }
+  .plakette-leise {
+    @apply plakette bg-leinen text-kohle;
+  }
+  .plakette-hervor {
+    @apply plakette bg-pfirsich text-tinte;
+  }
+
+  /* Die Akzentlinie unter großen Überschriften: gut ein Drittel der Breite. */
+  .akzentlinie {
+    @apply block h-[2px] w-[120px] bg-akzent;
+  }
+
+  /* Rückmeldungen. Eine zweite Farbe (Grün/Rot) gibt es bewusst nicht. */
+  .hinweis-ok {
+    @apply rounded-karte bg-leinen px-4 py-3 text-body-sm text-tinte;
+  }
+  .hinweis-fehler {
+    @apply rounded-karte bg-pfirsich px-4 py-3 text-body-sm text-tinte;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Adminbereich – unverändert.
+   ══════════════════════════════════════════════════════════════════════════ */
+@layer components {
   .card {
     @apply rounded-2xl border border-mist-200 bg-white shadow-card;
   }
@@ -65,7 +178,6 @@
     @apply mb-1.5 block font-display text-xs font-bold uppercase tracking-[.1em] text-mist-700;
   }
 
-  /* Kennzeichnung im Etiketten-Stil: Sendungs-, Bestell- und Artikelnummern. */
   .code-chip {
     @apply inline-flex items-center rounded-md bg-carbon-900/5 px-2 py-0.5 font-mono text-[13px]
            tracking-tight text-carbon-800;
@@ -82,9 +194,6 @@
 
 /* Bewegung respektieren: alle Animationen abschalten, wenn gewünscht. */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
   *,
   *::before,
   *::after {
@@ -93,139 +202,3 @@
     transition-duration: 0.001ms !important;
   }
 }
-
-/* ── Perspektivische Produktkarten ─────────────────────────────────────────
-   Die Neigung kommt als CSS-Variable aus <Tilt>; hier steht nur, wie sie
-   aussieht. Ohne Zeigergeraet oder bei reduzierter Bewegung bleiben die
-   Variablen auf 0 und die Karte liegt flach. */
-.neigekarte {
-  --neigung-x: 0deg;
-  --neigung-y: 0deg;
-  --schein-x: 50%;
-  --schein-y: 0%;
-  --schein-staerke: 0;
-  perspective: 1000px;
-}
-.neigekarte > * {
-  transform: rotateX(var(--neigung-x)) rotateY(var(--neigung-y));
-  transform-style: preserve-3d;
-  transition: transform .45s cubic-bezier(.22, 1, .36, 1);
-  will-change: transform;
-}
-.neigekarte:hover > * {
-  /* Waehrend der Zeiger draufliegt, folgt die Karte schneller. */
-  transition-duration: .12s;
-}
-/* Wandernder Lichtschein – liegt ueber der Karte, faengt keine Klicks ab. */
-.neigekarte .schein {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: var(--schein-staerke);
-  transition: opacity .35s ease;
-  background: radial-gradient(
-    380px circle at var(--schein-x) var(--schein-y),
-    rgba(255, 255, 255, .38),
-    transparent 55%
-  );
-  mix-blend-mode: soft-light;
-}
-@media (prefers-reduced-motion: reduce) {
-  .neigekarte > * { transform: none; transition: none; }
-  .neigekarte .schein { display: none; }
-}
-
-/* ── Scroll-Reveals ────────────────────────────────────────────────────────
-   Der Beobachter in <Reveal> setzt nur die Klasse "ist-sichtbar"; wie die
-   Bewegung aussieht, steht hier. Eine gemeinsame Kurve fuer die ganze Seite. */
-.reveal {
-  --reveal-dauer: .72s;
-  transition:
-    opacity var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
-    transform var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
-    filter var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1),
-    clip-path var(--reveal-dauer) cubic-bezier(.22, 1, .36, 1);
-  opacity: 0;
-}
-.reveal--aufsteigen { transform: translateY(26px); }
-.reveal--maske { clip-path: inset(0 0 100% 0); transform: translateY(12px); }
-.reveal--schaerfen { filter: blur(14px); transform: scale(1.015); }
-.reveal--naeher { transform: scale(.94); }
-.reveal--seitlich { transform: translateX(-34px); }
-
-.reveal.ist-sichtbar {
-  opacity: 1;
-  transform: none;
-  filter: none;
-  clip-path: inset(0 0 0% 0);
-}
-
-/* Wortweise erscheinende Ueberschriften. */
-.wortmaske { display: inline-block; overflow: hidden; vertical-align: bottom; }
-.wortmaske > .wort {
-  display: inline-block;
-  transform: translateY(108%);
-  opacity: 0;
-  transition:
-    transform .68s cubic-bezier(.22, 1, .36, 1),
-    opacity .68s cubic-bezier(.22, 1, .36, 1);
-}
-.wortmaske > .wort.ist-sichtbar { transform: none; opacity: 1; }
-
-/* Gestaffelter Einstieg der Startseite (siehe HeroTitel). */
-.hero-stufe {
-  opacity: 0;
-  transform: translateY(24px);
-  filter: blur(8px);
-  transition:
-    opacity .8s cubic-bezier(.22, 1, .36, 1),
-    transform .8s cubic-bezier(.22, 1, .36, 1),
-    filter .8s cubic-bezier(.22, 1, .36, 1);
-}
-.hero-stufe.ist-sichtbar { opacity: 1; transform: none; filter: none; }
-
-/* Zaehler im Warenkorb: erscheint mit kurzem Aufziehen. */
-.zaehler-eintritt { animation: zaehler-auf .32s cubic-bezier(.22, 1, .36, 1) both; }
-@keyframes zaehler-auf {
-  from { transform: scale(.6); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .zaehler-eintritt { animation: none; }
-  .reveal,
-  .wortmaske > .wort,
-  .hero-stufe {
-    opacity: 1 !important;
-    transform: none !important;
-    filter: none !important;
-    clip-path: none !important;
-    transition: none !important;
-  }
-}
-
-/* ── Glasflaechen ─────────────────────────────────────────────────────────
-   Fuer die Filterleiste im Shop: milchig, damit die Produkte dahinter
-   durchschimmern, aber mit genug Deckkraft, dass die Beschriftungen lesbar
-   bleiben. Ohne backdrop-filter (aeltere Browser) faellt sie auf eine
-   deckende Flaeche zurueck – lesbar bleibt sie in jedem Fall. */
-.glas {
-  background: rgb(255 255 255 / .96);
-  border: 1px solid theme('colors.mist.200');
-  border-radius: theme('borderRadius.2xl');
-  box-shadow: theme('boxShadow.card');
-}
-@supports (backdrop-filter: blur(1px)) {
-  .glas {
-    background: rgb(255 255 255 / .74);
-    backdrop-filter: blur(18px) saturate(140%);
-  }
-}
-
-/* Produkte erscheinen im Shop gestaffelt – deutlich ruhiger als auf der
-   Startseite: kurzer Weg, kurze Dauer, kein Weichzeichner. */
-.raster-eintritt {
-  --reveal-dauer: .5s;
-}
-.raster-eintritt.reveal--aufsteigen { transform: translateY(14px); }

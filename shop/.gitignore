@@ -6,3 +6,6 @@ public/uploads/
 .env.local
 next-env.d.ts
 *.tsbuildinfo
+
+# Bildschirmaufnahmen aus shot.mjs
+/aufnahmen/

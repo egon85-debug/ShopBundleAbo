@@ -39,7 +39,11 @@ class LocalObjectStorage(ObjectStorage):
         return self._path(key).exists()
 
     def public_url(self, key: str) -> str | None:
-        base = get_settings().media_public_base_url
+        s = get_settings()
+        base = s.media_public_base_url
+        if not base and s.oeffentliche_basis():
+            # Das Backend liefert unter /api/v1/media/{key} selbst aus.
+            base = s.oeffentliche_basis() + "/api/v1/media"
         if base:
             return base.rstrip("/") + "/" + key
-        return None  # Backend liefert über /api/v1/media/{key} aus
+        return None  # ohne öffentlichen Namen nur relativ (/api/v1/media/{key})

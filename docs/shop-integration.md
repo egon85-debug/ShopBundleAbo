@@ -107,19 +107,28 @@ in den normalen Retry mit wachsendem Abstand, der Artikel bleibt „Shopbereit�
 
 ### Einrichtung
 
-1. Im Shop (Vercel) `INGEST_API_KEY` setzen und neu deployen.
-2. Im Lager-Backend eine Shop-Verbindung anlegen:
-   ```
-   POST /shop/connections
-   { "name": "Winterfeld Shop",
-     "connector_type": "winterfeld",
-     "base_url": "https://…vercel.app",
-     "credentials": { "api_key": "…" },
-     "webhook_secret": "…" }
-   ```
-3. `POST /shop/connections/{id}/test` — prüft Erreichbarkeit, Datenbankzustand
-   (über `/api/health`) **und** den Schlüssel.
-4. In der Tablet-App „JETZT VERÖFFENTLICHEN“ mit dieser Verbindung wählen.
+Auf dem Lager-Server (im Ordner `backend`):
+
+```
+docker compose exec api python -m app.cli shop-verbinden --url https://<shop>.vercel.app
+```
+
+Der Befehl legt die Verbindung an (oder erneuert ihre Schlüssel), erzeugt
+`INGEST_API_KEY` und das Webhook-Geheimnis und gibt die drei Werte aus, die im
+Shop (Vercel → Settings → Environment Variables, Production) einzutragen sind:
+`INGEST_API_KEY`, `LAGER_WEBHOOK_URL`, `LAGER_WEBHOOK_SECRET`. Danach den Shop
+neu deployen und prüfen:
+
+```
+docker compose exec api python -m app.cli shop-testen
+```
+
+Der Test prüft Erreichbarkeit, Datenbankzustand (über `/api/health`) **und**
+den Schlüssel. Veröffentlicht wird im Adminbereich unter „Freigabe“.
+
+Bildadressen: Der Shop lädt die Shopbilder direkt vom Lager-Server. Die
+öffentliche Adresse ergibt sich aus `DOMAIN` (`https://<DOMAIN>/api/v1/media/…`)
+oder ausdrücklich aus `MEDIA_PUBLIC_BASE_URL`.
 
 ### Rückrichtung: Verkauf bucht Bestand ab
 
@@ -131,7 +140,7 @@ Sobald eine Bestellung bezahlt ist (`markOrderPaid`), meldet der Shop sie an
 Dafür braucht der Shop zwei weitere Umgebungsvariablen:
 
 ```
-LAGER_WEBHOOK_URL=https://lager.example.de/shop/webhooks/<connection_id>/order
+LAGER_WEBHOOK_URL=https://lager.example.de/api/v1/shop/webhooks/<connection_id>/order
 LAGER_WEBHOOK_SECRET=<gleicher Wert wie webhook_secret der Verbindung>
 ```
 

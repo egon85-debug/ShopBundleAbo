@@ -16,9 +16,20 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Modell zum Freistellen der Shopbilder (IS-Net, ≈180 MB) gleich ins Image,
+# damit der Server es nicht im Betrieb herunterladen muss. Pruefsumme wie bei
+# rembg, das dieselbe Datei verteilt.
+RUN mkdir -p /opt/modelle \
+ && curl -fsSL -o /opt/modelle/isnet-general-use.onnx \
+      https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx \
+ && echo "fc16ebd8b0c10d971d3513d564d01e29  /opt/modelle/isnet-general-use.onnx" | md5sum -c - \
+ && chmod -R a+rX /opt/modelle
+
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+# Der Verwaltungsbereich wird vom Backend unter /admin ausgeliefert.
+COPY admin ./admin
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 

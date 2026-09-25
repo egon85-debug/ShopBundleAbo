@@ -1,17 +1,13 @@
 import Link from "next/link";
 
-import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
-import { Tilt } from "@/components/motion/Tilt";
+import { ProduktBild, Verfuegbarkeit } from "@/components/ui/Gestaltung";
 import { formatCents } from "@/lib/money";
 import type { ProductListItem } from "@/services/catalog";
 
 /**
- * Produktkachel: ruhig, informationsdicht, mit klarem Verfuegbarkeitssignal.
- *
- * Die Karte bleibt serverseitig gerendert – nur die Neigung und die
- * hochzaehlenden Zahlen sind Client-Bausteine. Damit kostet die Aufwertung
- * kaum zusaetzliches JavaScript, und ohne JavaScript steht die Karte
- * vollstaendig da.
+ * Produktkachel: flach, Haarlinie, 5 px Radius, kein Schatten.
+ * Die ganze Karte ist ein Link; Kaufen passiert auf der Produktseite – so
+ * bleibt das Raster frei von orangen Knöpfen (Orange ist Satzzeichen).
  */
 export function ProductCard({ product }: { product: ProductListItem }) {
   const hasDiscount =
@@ -19,78 +15,35 @@ export function ProductCard({ product }: { product: ProductListItem }) {
   const savings = hasDiscount
     ? Math.round(((product.compareAtPriceCents! - product.priceCents) / product.compareAtPriceCents!) * 100)
     : 0;
-  const inStock = product.available > 0 || product.allowBackorder;
 
   return (
-    <Tilt>
-      <article className="group card relative overflow-hidden transition-shadow duration-300 ease-precise hover:shadow-lift">
-        <Link href={`/produkt/${product.slug}`} className="block">
-          <div className="relative aspect-[4/3] overflow-hidden bg-mist-100">
-            {product.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-[600ms] ease-precise group-hover:scale-[1.045]"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-gradient-to-br from-mist-100 to-mist-200">
-                <span className="font-mono text-xs tracking-widest text-mist-500">KEIN BILD</span>
-              </div>
-            )}
+    <article data-produktkarte className="karte group h-full p-4 transition-colors duration-200 hover:border-nebel">
+      <Link href={`/produkt/${product.slug}`} className="flex h-full flex-col">
+        <div className="relative">
+          <ProduktBild url={product.imageUrl} alt={product.name} className="aspect-[4/3]" />
+          {hasDiscount && <span className="plakette-hervor absolute left-3 top-3">−{savings} %</span>}
+        </div>
 
+        <p className="nummer mt-4">{product.sku}</p>
+        <h3 className="mt-1 text-subheading font-medium text-tinte group-hover:underline group-hover:underline-offset-4">
+          {product.name}
+        </h3>
+        {product.shortDescription && (
+          <p className="mt-1 line-clamp-2 text-body-sm text-kohle">{product.shortDescription}</p>
+        )}
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+          <div>
+            <p className="text-heading-sm tabular text-tinte">{formatCents(product.priceCents)}</p>
             {hasDiscount && (
-              <span className="absolute left-3 top-3 rounded-md bg-beacon-500 px-2.5 py-1 font-display text-xs font-bold text-carbon-950">
-                −{savings} %
-              </span>
-            )}
-            {!inStock && (
-              <span className="absolute right-3 top-3 rounded-md bg-carbon-900/85 px-2.5 py-1 font-display text-xs font-bold text-white">
-                Ausverkauft
-              </span>
+              <p className="text-body-sm tabular text-schiefer line-through">
+                {formatCents(product.compareAtPriceCents!)}
+              </p>
             )}
           </div>
-
-          {/* Der Textblock liegt eine Spur vor dem Bild – das gibt der
-              geneigten Karte spuerbare Tiefe statt nur einer Drehung. */}
-          <div className="p-5" style={{ transform: "translateZ(26px)" }}>
-            <p className="code-chip">{product.sku}</p>
-            <h3 className="mt-2.5 font-display text-[17px] font-bold leading-snug text-carbon-900">
-              {product.name}
-            </h3>
-            {product.shortDescription && (
-              <p className="mt-1.5 line-clamp-2 text-sm text-mist-700">{product.shortDescription}</p>
-            )}
-
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <p className="font-display text-xl font-extrabold tabular text-carbon-900">
-                  <AnimatedNumber wert={product.priceCents} format="preis" />
-                </p>
-                {hasDiscount && (
-                  <p className="text-sm text-mist-500 line-through tabular">
-                    {formatCents(product.compareAtPriceCents!)}
-                  </p>
-                )}
-              </div>
-              <span className={`font-mono text-xs ${inStock ? "text-emerald-600" : "text-mist-500"}`}>
-                {product.available > 0 ? (
-                  <>
-                    <AnimatedNumber wert={product.available} format="anzahl" dauer={750} />{" "}
-                    auf Lager
-                  </>
-                ) : product.allowBackorder ? (
-                  "Nachbestellbar"
-                ) : (
-                  "Nicht verfügbar"
-                )}
-              </span>
-            </div>
-          </div>
-        </Link>
-        <span className="schein" aria-hidden />
-      </article>
-    </Tilt>
+          <Verfuegbarkeit verfuegbar={product.available} nachbestellbar={product.allowBackorder} />
+        </div>
+      </Link>
+    </article>
   );
 }

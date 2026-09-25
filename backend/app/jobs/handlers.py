@@ -21,6 +21,7 @@ from app.models import (
     VoiceRecording,
 )
 from app.models.base import utcnow
+from app.providers.base import ProviderUnavailable, VisionImage
 from app.providers.registry import (
     get_image_optimizer,
     get_llm,
@@ -46,6 +47,20 @@ def _record_ai_run(db: Session, *, product_id: str | None, kind: str, provider: 
     ))
 
 
+def _aufgeben(job: Job, exc: Exception, schritt: str) -> bool:
+    """True, wenn der KI-Schritt ausgelassen und die Kette fortgesetzt wird.
+
+    Dauerhafte Fehler sofort, voruebergehende erst beim letzten Versuch —
+    sonst bliebe der Artikel fuer immer in "Erkennung laeuft" o. ae. stehen.
+    Der Grund bleibt am Auftrag sichtbar (Adminbereich, Jobs & Fehler).
+    """
+    if not isinstance(exc, ProviderUnavailable) and job.attempts < job.max_attempts:
+        return False
+    log.warning("%s fuer Job %s ausgelassen: %s", schritt, job.id, exc)
+    job.last_error = f"{schritt} ausgelassen: {type(exc).__name__}: {exc}"[:4000]
+    return True
+
+
 def _refresh_questions(db: Session, product: Product, conflicts: list[str]) -> None:
     from app.services import questions_service
     product.open_questions = questions_service.build_questions(product, conflicts)
@@ -53,29 +68,74 @@ def _refresh_questions(db: Session, product: Product, conflicts: list[str]) -> N
 
 # ── Erkennung ────────────────────────────────────────────────────────────────
 
+# Reihenfolge, in der Fotos in die Erkennung gehen: was Name, Modell und EAN
+# traegt, zuerst. Schadens- und Zubehoerfotos helfen beim Erkennen nicht.
+_ERKENNUNG_REIHENFOLGE = [
+    ImageRole.FRONT.value, ImageRole.TYPE_PLATE.value, ImageRole.BARCODE.value,
+    ImageRole.BACK.value, ImageRole.PACKAGING.value, ImageRole.SERIAL_NUMBER.value,
+]
+
+
+def _fotos_fuer_erkennung(db: Session, product: Product) -> list[ProductImage]:
+    originale = db.scalars(select(ProductImage).where(
+        ProductImage.product_id == product.id,
+        ProductImage.kind == ImageKind.ORIGINAL.value)).all()
+    passend = [i for i in originale if i.role in _ERKENNUNG_REIHENFOLGE] or list(originale)
+    return sorted(passend, key=lambda i: (
+        _ERKENNUNG_REIHENFOLGE.index(i.role) if i.role in _ERKENNUNG_REIHENFOLGE else 99,
+        i.sort_order))
+
+
+def _merkmale(product: Product) -> tuple:
+    return (product.ean, product.mpn, product.product_name, product.model)
+
+
 def handle_recognize_product(db: Session, job: Job) -> None:
     product = db.get(Product, job.payload["product_id"])
-    image = db.get(ProductImage, job.payload["image_id"])
-    if product is None or image is None:
+    if product is None:
+        return
+    fotos = _fotos_fuer_erkennung(db, product)
+    if not fotos:
         return
     product.processing_status = ProcessingStatus.RECOGNITION_RUNNING.value
     db.commit()
 
     started = time.monotonic()
-    data = get_storage().get(image.storage_key)
-    vision = get_vision()
-    analysis = vision.analyze_product_image(data, image.content_type)
+    storage = get_storage()
+    bilder = [VisionImage(storage.get(f.storage_key), f.content_type, f.role)
+              for f in fotos]
+    vorher = _merkmale(product)
+    try:
+        vision = get_vision()
+        analysis = vision.analyze_product_images(bilder)
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Erkennung"):
+            raise
+        # Ohne Erkennung ist der Artikel nicht verloren: die Angaben kommen im
+        # Kontrollbildschirm von Hand, und die Bilder brauchen keine KI.
+        _refresh_questions(db, product, [])
+        queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
+                      payload={"product_id": product.id}, product_id=product.id)
+        db.commit()
+        return
     conflicts = merge_service.merge_vision(product, analysis)
     _record_ai_run(db, product_id=product.id, kind="vision", provider=vision.name,
-                   input_ref=image.storage_key, raw=analysis.model_dump(mode="json"),
+                   # Bild-IDs statt Pfaden: sechs Pfade sprengen die 500 Zeichen
+                   input_ref=",".join(f.id for f in fotos)[:500],
+                   raw=analysis.model_dump(mode="json"),
                    validated=analysis.model_dump(mode="json"),
                    confidence=analysis.confidence, started=started)
 
     product.processing_status = ProcessingStatus.PRODUCT_IDENTIFIED.value
     _refresh_questions(db, product, conflicts)
 
-    # Folgejobs: Recherche (wenn Identifikationsmerkmal vorhanden) und Bildoptimierung.
-    if product.ean or product.mpn or product.product_name:
+    # Recherche nur, wenn es etwas zu suchen gibt — und bei einer erneuten
+    # Erkennung (weiteres Foto) nur, wenn sich Name/Modell/EAN geaendert haben.
+    # Jede Recherche kostet Websuchen.
+    schon_recherchiert = db.scalar(select(AiRun.id).where(
+        AiRun.product_id == product.id, AiRun.kind == "product_research").limit(1))
+    if (product.ean or product.mpn or product.product_name) and \
+            (not schon_recherchiert or _merkmale(product) != vorher):
         queue.enqueue(db, job_type=JobType.RESEARCH_PRODUCT.value,
                       payload={"product_id": product.id}, product_id=product.id)
     queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
@@ -90,11 +150,18 @@ def handle_research_product(db: Session, job: Job) -> None:
     if product is None:
         return
     started = time.monotonic()
-    research = get_research()
-    candidates = research.identify_product(
-        ean=product.ean, mpn=product.mpn,
-        query=" ".join(filter(None, [product.manufacturer, product.product_name, product.model])) or None,
-    )
+    try:
+        research = get_research()
+        candidates = research.identify_product(
+            ean=product.ean, mpn=product.mpn,
+            query=" ".join(filter(None, [product.manufacturer, product.product_name,
+                                         product.model])) or None,
+        )
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Produktrecherche"):
+            raise
+        # Recherche ist eine Ergaenzung — ohne sie bleibt es bei Foto und Eingabe.
+        return
     _record_ai_run(db, product_id=product.id, kind="product_research", provider=research.name,
                    input_ref=product.ean or product.mpn,
                    raw={"count": len(candidates)},
@@ -102,17 +169,36 @@ def handle_research_product(db: Session, job: Job) -> None:
                    confidence={}, started=started)
 
     conflicts: list[str] = []
-    if len(candidates) == 1:
-        conflicts = merge_service.merge_research(product, candidates[0])
+    eindeutig = _eindeutiger_treffer(candidates)
+    if eindeutig is not None:
+        conflicts = merge_service.merge_research(product, eindeutig)
         product.research_candidates = []
-    elif len(candidates) > 1:
-        # Nie automatisch irgendeinen Treffer wählen → Benutzer entscheidet.
+    elif candidates:
+        # Kein klarer Treffer → nie raten, der Benutzer waehlt aus.
         product.research_candidates = [c.model_dump(mode="json") for c in candidates[:5]]
     _refresh_questions(db, product, conflicts)
 
     queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
                   payload={"product_id": product.id}, product_id=product.id)
     db.commit()
+
+
+# Ab dieser Sicherheit wird ein Recherche-Treffer ohne Rueckfrage uebernommen
+# (Quelle "research" — Benutzerangaben bleiben davon unberuehrt).
+TREFFER_SICHER = 0.7
+
+
+def _eindeutiger_treffer(candidates: list[ResearchCandidate]) -> ResearchCandidate | None:
+    """Der Treffer, der sicher genug und klar besser als die anderen ist."""
+    if not candidates:
+        return None
+    sortiert = sorted(candidates, key=lambda c: c.match_score, reverse=True)
+    bester = sortiert[0]
+    if bester.match_score < TREFFER_SICHER:
+        return None
+    if len(sortiert) > 1 and sortiert[1].match_score > bester.match_score - 0.2:
+        return None  # zwei aehnlich gute Treffer (z. B. Varianten) → nachfragen
+    return bester
 
 
 def handle_research_prices(db: Session, job: Job) -> None:
@@ -123,11 +209,16 @@ def handle_research_prices(db: Session, job: Job) -> None:
     db.commit()
 
     query = " ".join(filter(None, [product.manufacturer, product.product_name, product.model]))
-    if not (product.ean or query):
-        return
-    research = get_research()
-    offers = research.find_offers(ean=product.ean, query=query, condition=product.condition)
-    pricing_service.evaluate_offers(db, product=product, offers=offers)
+    if product.ean or query:
+        try:
+            research = get_research()
+            offers = research.find_offers(ean=product.ean, query=query,
+                                          condition=product.condition)
+            pricing_service.evaluate_offers(db, product=product, offers=offers)
+        except Exception as exc:
+            if not _aufgeben(job, exc, "Preisrecherche"):
+                raise
+    # Auch ohne Recherche weiter zur Pruefung — sonst haengt der Artikel.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
     _refresh_questions(db, product, [])
     db.commit()
@@ -146,9 +237,18 @@ def handle_transcribe_voice(db: Session, job: Job) -> None:
             db.commit()
         return
     audio = get_storage().get(recording.storage_key)
-    stt = get_stt()
-    started = time.monotonic()
-    transcript = stt.transcribe(audio, job.payload.get("content_type", "audio/mp4"))
+    try:
+        stt = get_stt()
+        started = time.monotonic()
+        transcript = stt.transcribe(audio, job.payload.get("content_type", "audio/mp4"))
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Transkription"):
+            raise
+        # Die Aufnahme bleibt erhalten; sobald ein Dienst eingerichtet ist,
+        # laesst sich der Auftrag im Adminbereich erneut anstossen.
+        recording.status = "stt_unavailable"
+        db.commit()
+        return
     recording.transcript = transcript
     recording.status = "transcribed"
     _record_ai_run(db, product_id=recording.product_id, kind="stt", provider=stt.name,
@@ -173,19 +273,29 @@ def handle_extract_voice_data(db: Session, job: Job) -> None:
     product = db.get(Product, recording.product_id)
     if product is None:
         return
-    llm = get_llm()
-    started = time.monotonic()
-    extraction = llm.extract_voice_data(recording.transcript)
+    # Das Gesagte zuerst am Artikel sichern: es ist die Benutzerangabe und
+    # bleibt auch dann lesbar, wenn die Auswertung nicht moeglich ist.
+    transcript_note = recording.transcript.strip()
+    if transcript_note not in (product.voice_transcript or ""):
+        product.voice_transcript = (
+            (product.voice_transcript + "\n" + transcript_note)
+            if product.voice_transcript else transcript_note
+        )
+    try:
+        llm = get_llm()
+        started = time.monotonic()
+        extraction = llm.extract_voice_data(recording.transcript)
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Sprachauswertung"):
+            raise
+        recording.status = "transcribed"
+        db.commit()
+        return
     conflicts = merge_service.merge_voice(db, product, extraction)
     _record_ai_run(db, product_id=product.id, kind="extraction", provider=llm.name,
                    input_ref=recording.id, raw=extraction.model_dump(mode="json"),
                    validated=extraction.model_dump(mode="json"),
                    confidence=extraction.confidence, started=started)
-    transcript_note = recording.transcript.strip()
-    product.voice_transcript = (
-        (product.voice_transcript + "\n" + transcript_note)
-        if product.voice_transcript else transcript_note
-    )
     recording.status = "extracted"
     _refresh_questions(db, product, conflicts)
     db.commit()
@@ -258,11 +368,18 @@ def handle_generate_shoptext(db: Session, job: Job) -> None:
     product.processing_status = ProcessingStatus.SHOPTEXT_GENERATING.value
     db.commit()
     started = time.monotonic()
-    listing = listing_service.generate(db, product)
-    _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
-                   input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
-                   confidence={}, started=started)
+    try:
+        listing = listing_service.generate(db, product)
+        _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
+                       input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
+                       confidence={}, started=started)
+    except Exception as exc:
+        if not _aufgeben(job, exc, "Shoptext"):
+            raise
+        # Texte lassen sich spaeter schreiben oder neu erzeugen — der Artikel
+        # darf deswegen nicht in "Shoptext wird erstellt" haengen bleiben.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
+    _refresh_questions(db, product, [])
     db.commit()
 
 

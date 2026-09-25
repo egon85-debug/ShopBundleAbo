@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 
+import { ProduktBild } from "@/components/ui/Gestaltung";
+
 type GalleryImage = { url: string; alt: string };
 
-/** Bildergalerie mit optionalem Video und 3D-Ansicht (lazy geladen). */
+/** Bildergalerie mit optionalem Video und eingebetteter 3D-Ansicht des Herstellers. */
 export function ProductGallery({
   images,
   videoUrl,
@@ -20,77 +22,73 @@ export function ProductGallery({
   const [mode, setMode] = useState<"image" | "video" | "3d">("image");
 
   const active = images[activeIndex];
+  const hatAuswahl = images.length > 1 || videoUrl || model3dUrl;
 
   return (
     <div>
-      <div className="relative aspect-square overflow-hidden rounded-2xl border border-mist-200 bg-mist-100">
-        {mode === "image" && active && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={active.url} alt={active.alt} className="h-full w-full object-cover" />
-        )}
-        {mode === "image" && !active && (
-          <div className="flex h-full items-center justify-center">
-            <span className="font-mono text-xs tracking-widest text-mist-500">KEIN BILD HINTERLEGT</span>
-          </div>
-        )}
-        {mode === "video" && videoUrl && (
-          <video src={videoUrl} controls playsInline className="h-full w-full object-cover" aria-label={`Video zu ${productName}`} />
-        )}
-        {mode === "3d" && model3dUrl && (
-          <iframe
-            src={model3dUrl}
-            title={`3D-Ansicht von ${productName}`}
-            loading="lazy"
-            className="h-full w-full border-0"
-          />
-        )}
-      </div>
+      {mode === "image" && (
+        <ProduktBild url={active?.url} alt={active?.alt ?? productName} className="aspect-square" />
+      )}
+      {mode === "video" && videoUrl && (
+        <video
+          src={videoUrl}
+          controls
+          playsInline
+          className="aspect-square w-full rounded-bild bg-leinen object-contain"
+          aria-label={`Video zu ${productName}`}
+        />
+      )}
+      {mode === "3d" && model3dUrl && (
+        <iframe
+          src={model3dUrl}
+          title={`3D-Ansicht von ${productName}`}
+          loading="lazy"
+          className="aspect-square w-full rounded-bild border-0 bg-leinen"
+        />
+      )}
 
-      <div className="mt-4 flex flex-wrap gap-2.5">
-        {images.map((image, index) => (
-          <button
-            key={image.url}
-            type="button"
-            onClick={() => {
-              setActiveIndex(index);
-              setMode("image");
-            }}
-            aria-label={`Bild ${index + 1} anzeigen`}
-            aria-pressed={mode === "image" && activeIndex === index}
-            className={`h-20 w-20 overflow-hidden rounded-xl border-2 transition-colors ${
-              mode === "image" && activeIndex === index ? "border-signal-500" : "border-mist-200 hover:border-mist-300"
-            }`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={image.url} alt="" loading="lazy" className="h-full w-full object-cover" />
-          </button>
-        ))}
-
-        {videoUrl && (
-          <button
-            type="button"
-            onClick={() => setMode("video")}
-            aria-pressed={mode === "video"}
-            className={`h-20 w-20 rounded-xl border-2 font-display text-xs font-bold transition-colors ${
-              mode === "video" ? "border-signal-500 text-signal-600" : "border-mist-200 hover:border-mist-300"
-            }`}
-          >
-            VIDEO
-          </button>
-        )}
-        {model3dUrl && (
-          <button
-            type="button"
-            onClick={() => setMode("3d")}
-            aria-pressed={mode === "3d"}
-            className={`h-20 w-20 rounded-xl border-2 font-display text-xs font-bold transition-colors ${
-              mode === "3d" ? "border-signal-500 text-signal-600" : "border-mist-200 hover:border-mist-300"
-            }`}
-          >
-            3D
-          </button>
-        )}
-      </div>
+      {hatAuswahl && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {images.map((image, index) => {
+            const gewaehlt = mode === "image" && activeIndex === index;
+            return (
+              <button
+                key={image.url}
+                type="button"
+                onClick={() => {
+                  setActiveIndex(index);
+                  setMode("image");
+                }}
+                aria-label={`Bild ${index + 1} anzeigen`}
+                aria-pressed={gewaehlt}
+                className={`rounded-bild border-2 p-0.5 transition-colors ${gewaehlt ? "border-tinte" : "border-transparent hover:border-haarlinie"}`}
+              >
+                <ProduktBild url={image.url} alt="" klein className="h-16 w-16" />
+              </button>
+            );
+          })}
+          {videoUrl && (
+            <button
+              type="button"
+              onClick={() => setMode("video")}
+              aria-pressed={mode === "video"}
+              className={`knopf-klein h-[68px] w-[68px] ${mode === "video" ? "border-tinte text-tinte" : ""}`}
+            >
+              Video
+            </button>
+          )}
+          {model3dUrl && (
+            <button
+              type="button"
+              onClick={() => setMode("3d")}
+              aria-pressed={mode === "3d"}
+              className={`knopf-klein h-[68px] w-[68px] ${mode === "3d" ? "border-tinte text-tinte" : ""}`}
+            >
+              3D
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

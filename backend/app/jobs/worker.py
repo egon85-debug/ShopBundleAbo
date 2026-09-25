@@ -10,6 +10,7 @@ import time
 from app.db import get_sessionmaker
 from app.jobs import queue
 from app.jobs.handlers import HANDLERS
+from app.providers.base import ProviderNotConfigured, ProviderUnavailable
 
 log = logging.getLogger("winterfeld.worker")
 
@@ -39,6 +40,16 @@ class Worker:
             try:
                 handler(session, job)
                 queue.mark_done(session, job)
+            except ProviderUnavailable as exc:
+                # Eine fehlende Einrichtung oder eine endgueltige Ablehnung
+                # behebt sich nicht durch Warten — sofort sichtbar machen statt
+                # fuenfmal zu wiederholen.
+                session.rollback()
+                log.warning("Job %s: Anbieter nicht nutzbar: %s", job.id, exc)
+                grund = ("Nicht eingerichtet" if isinstance(exc, ProviderNotConfigured)
+                         else "Abgelehnt")
+                job.attempts = job.max_attempts
+                queue.mark_failed(session, job, f"{grund}: {exc}")
             except Exception as exc:  # Fehler → Retry mit Backoff, nie Datenverlust
                 session.rollback()
                 log.exception("Job %s fehlgeschlagen", job.id)

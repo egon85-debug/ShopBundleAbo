@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import de.winterfeld.logistik.data.remote.dto.AnswerDto
 import de.winterfeld.logistik.data.remote.dto.ConfirmResultDto
@@ -31,6 +32,7 @@ import de.winterfeld.logistik.data.remote.dto.ProductDto
 import de.winterfeld.logistik.data.remote.dto.QuestionDto
 import de.winterfeld.logistik.ui.components.BigButton
 import de.winterfeld.logistik.ui.components.ConfidenceChip
+import de.winterfeld.logistik.ui.components.Labels
 
 /**
  * Kontrollbildschirm (Anforderung 11): kompakte Übersicht, unsichere Felder markiert,
@@ -89,7 +91,8 @@ fun ReviewScreen(
                              "sale_price", onEditField)
                     FieldRow("Lieferant", product.supplierName, product, null, onEditField)
                     FieldRow("Lagerplatz", product.storageLocationCode, product, null, onEditField)
-                    FieldRow("Zustand", product.condition, product, "condition", onEditField)
+                    // Zustand hat feste Werte — ändern in der Artikelansicht (Auswahlliste).
+                    FieldRow("Zustand", Labels.zustand(product.condition), product, null, onEditField)
                     if (product.lowestMarketPrice != null) {
                         HorizontalDivider()
                         Text("Marktpreis: ${product.lowestMarketPrice}–" +
@@ -108,7 +111,7 @@ fun ReviewScreen(
             }
         }
 
-        BigButton("SPEICHERN") { onSave() }
+        BigButton("Speichern") { onSave() }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = onMorePhotos, modifier = Modifier.weight(1f)) {
@@ -140,13 +143,14 @@ private fun FieldRow(label: String, value: String?, product: ProductDto,
                 }
             } else {
                 Text(value ?: "–", style = MaterialTheme.typography.bodyLarge)
+                editableField?.let { field ->
+                    ConfidenceChip(product.fieldConfidence?.get(field),
+                                   product.fieldSources?.get(field))
+                }
             }
         }
-        editableField?.let { field ->
-            ConfidenceChip(product.fieldConfidence?.get(field),
-                           product.fieldSources?.get(field))
-            if (!editing) TextButton(onClick = { editing = true; text = value ?: "" }) {
-                Text("Ändern") }
+        if (editableField != null && !editing) {
+            TextButton(onClick = { editing = true; text = value ?: "" }) { Text("Ändern") }
         }
     }
 }
@@ -156,14 +160,14 @@ private fun QuestionCard(question: QuestionDto, onAnswer: (AnswerDto) -> Unit) {
     var text by remember { mutableStateOf("") }
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("❓ ${question.text}", style = MaterialTheme.typography.titleLarge)
+            Text("❓ ${question.text}", style = MaterialTheme.typography.bodyLarge,
+                 fontWeight = FontWeight.SemiBold)
             when (question.kind) {
-                "choice" -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    question.options.orEmpty().forEach { option ->
-                        Button(onClick = { onAnswer(AnswerDto(
-                            questionId = question.id, field = question.field,
-                            value = option.toString())) }) { Text(option.toString()) }
-                    }
+                "choice" -> question.options.orEmpty().forEach { option ->
+                    Button(onClick = { onAnswer(AnswerDto(
+                        questionId = question.id, field = question.field,
+                        value = option.toString())) },
+                        modifier = Modifier.fillMaxWidth()) { Text(option.toString()) }
                 }
                 "candidate_select" -> question.options.orEmpty().forEachIndexed { index, option ->
                     @Suppress("UNCHECKED_CAST")

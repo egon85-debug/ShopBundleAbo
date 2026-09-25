@@ -7,19 +7,31 @@ from app.api.serializers import product_out
 from app.db import get_db
 from app.jobs import queue
 from app.models import (
+    ImageKind,
     JobType,
     PriceResearchRun,
     Product,
+    ProductImage,
     Role,
     StockMovement,
     User,
 )
+from app.providers.registry import get_storage
 from app.schemas.common import Page
-from app.schemas.misc import StockMovementIn, StockMovementOut
+from app.schemas.misc import ImageUpdate, StockMovementIn, StockMovementOut
 from app.schemas.product import PriceHistoryEntry, ProductOut, ProductUpdate, QualityCheckOut
-from app.services import product_service, quality_service, stock_service, supplier_service
+from app.services import (
+    audit_service,
+    product_service,
+    quality_service,
+    stock_service,
+    supplier_service,
+)
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+# Wer Bilder freigeben darf: dieselben Rollen, die veröffentlichen dürfen.
+_BILDFREIGABE = (Role.SHOP_MANAGER.value, Role.WAREHOUSE_MANAGER.value, Role.ADMIN.value)
 
 
 def _get_product(db: Session, product_id: str) -> Product:
@@ -27,6 +39,13 @@ def _get_product(db: Session, product_id: str) -> Product:
     if product is None:
         raise HTTPException(404, "Artikel nicht gefunden")
     return product
+
+
+def _get_image(db: Session, product: Product, image_id: str) -> ProductImage:
+    image = db.get(ProductImage, image_id)
+    if image is None or image.product_id != product.id:
+        raise HTTPException(404, "Bild nicht gefunden")
+    return image
 
 
 @router.get("", response_model=Page[ProductOut])
@@ -81,6 +100,12 @@ def update_product(product_id: str, body: ProductUpdate,
     if supplier_name:
         changes["supplier_id"] = supplier_service.match_or_create(db, supplier_name).id
     product_service.apply_user_update(db, product=product, changes=changes, user=user)
+    # Eine Rückfrage zu einem Feld ist beantwortet, sobald jemand das Feld selbst
+    # ausfüllt (z. B. den Namen in der App-Detailansicht).
+    filled = {field for field, value in changes.items() if value not in (None, "")}
+    if product.open_questions and filled:
+        product.open_questions = [q for q in product.open_questions
+                                  if q.get("field") not in filled]
     db.commit()
     db.refresh(product)
     return product_out(product)
@@ -148,3 +173,84 @@ def reprice(product_id: str, db: Session = Depends(get_db),
                   payload={"product_id": product.id}, product_id=product.id)
     db.commit()
     return {"detail": "Preisrecherche gestartet"}
+
+
+# ── Bildfreigabe ────────────────────────────────────────────────────────────
+# Der Mitarbeiter sieht vor der Veröffentlichung Original und optimierte
+# Fassung nebeneinander, wählt das Hauptbild und lehnt misslungene
+# Optimierungen ab. Originale sind davon ausgenommen: sie werden nie
+# verändert und nie gelöscht.
+
+
+@router.patch("/{product_id}/images/{image_id}", response_model=ProductOut)
+def update_image(product_id: str, image_id: str, body: ImageUpdate,
+                 db: Session = Depends(get_db),
+                 user: User = Depends(require_role(*_BILDFREIGABE))):
+    product = _get_product(db, product_id)
+    image = _get_image(db, product, image_id)
+
+    if body.is_primary is True:
+        # Veröffentlicht werden nur optimierte Bilder — also kann auch nur
+        # eines davon das Hauptbild sein.
+        if image.kind != ImageKind.OPTIMIZED.value:
+            raise HTTPException(422, "Nur ein optimiertes Bild kann Hauptbild sein")
+        for other in product.images:
+            if other.is_primary and other.id != image.id:
+                other.is_primary = False
+        image.is_primary = True
+        audit_service.log(db, user=user, entity_type="product_image", entity_id=image.id,
+                          action="set_primary", new_value=image.role)
+    elif body.is_primary is False and image.is_primary:
+        image.is_primary = False
+        audit_service.log(db, user=user, entity_type="product_image", entity_id=image.id,
+                          action="unset_primary", old_value=image.role)
+
+    if body.sort_order is not None and body.sort_order != image.sort_order:
+        audit_service.log(db, user=user, entity_type="product_image", entity_id=image.id,
+                          action="reorder", field="sort_order",
+                          old_value=image.sort_order, new_value=body.sort_order)
+        image.sort_order = body.sort_order
+
+    db.commit()
+    db.refresh(product)
+    return product_out(product)
+
+
+@router.delete("/{product_id}/images/{image_id}", response_model=ProductOut)
+def reject_image(product_id: str, image_id: str, db: Session = Depends(get_db),
+                 user: User = Depends(require_role(*_BILDFREIGABE))):
+    """Optimiertes Bild ablehnen: es wird entfernt und kommt nicht in den Shop.
+
+    Das Original bleibt bestehen — es ist die Quelle, aus der jederzeit neu
+    optimiert werden kann, und es darf nach den Regeln dieses Systems nie
+    verloren gehen.
+    """
+    product = _get_product(db, product_id)
+    image = _get_image(db, product, image_id)
+    if image.kind != ImageKind.OPTIMIZED.value:
+        raise HTTPException(409, "Originalbilder werden nie gelöscht – nur optimierte Fassungen "
+                                 "lassen sich ablehnen")
+
+    war_hauptbild = image.is_primary
+    try:
+        get_storage().delete(image.storage_key)
+    except Exception:  # Datei fehlt bereits – der Datensatz geht trotzdem
+        pass
+    audit_service.log(db, user=user, entity_type="product_image", entity_id=image.id,
+                      action="reject", old_value=image.storage_key,
+                      reason="Optimierung abgelehnt")
+    db.delete(image)
+    db.flush()
+
+    if war_hauptbild:
+        # Nächstes optimiertes Bild rückt nach, Vorderseite zuerst.
+        rest = sorted(
+            (i for i in product.images if i.kind == ImageKind.OPTIMIZED.value and i.id != image.id),
+            key=lambda i: (i.role != "front", i.sort_order),
+        )
+        if rest:
+            rest[0].is_primary = True
+
+    db.commit()
+    db.refresh(product)
+    return product_out(product)

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, upload_rate_limit
 from app.api.serializers import product_out
+from app.config import get_settings
 from app.db import get_db
 from app.jobs import queue
 from app.models import (
@@ -107,11 +108,16 @@ def upload_image(
     db.add(image)
     db.flush()
     if is_first:
-        # Erstes Foto startet automatisch die KI-Verarbeitung (Anforderung 3/4).
         product.processing_status = ProcessingStatus.PHOTO_UPLOADED.value
+    # Das erste Foto startet die Erkennung (Anforderung 3/4) — mit kurzer
+    # Verzoegerung, damit die uebrigen Fotos der Aufnahme mit hineinkommen.
+    # Kommt ein Foto erst nach der Erkennung, wird mit allen Fotos neu erkannt.
+    if (is_first or role != ImageRole.DAMAGE.value) and not queue.wartet(
+            db, product_id=product.id, job_type=JobType.RECOGNIZE_PRODUCT.value):
         queue.enqueue(db, job_type=JobType.RECOGNIZE_PRODUCT.value,
                       payload={"product_id": product.id, "image_id": image.id},
-                      product_id=product.id)
+                      product_id=product.id,
+                      delay_seconds=get_settings().recognition_delay_seconds)
     db.commit()
     db.refresh(product)
     return product_out(product)

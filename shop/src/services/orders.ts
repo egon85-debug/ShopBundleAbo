@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -159,14 +159,14 @@ async function withDetails(order: Order) {
     ? await db
         .select()
         .from(shipmentLabels)
-        .where(sql`${shipmentLabels.shipmentId} = any(${orderShipments.map((s) => s.id)})`)
+        .where(inArray(shipmentLabels.shipmentId, orderShipments.map((s) => s.id)))
     : [];
 
   const events = orderShipments.length
     ? await db
         .select()
         .from(trackingEvents)
-        .where(sql`${trackingEvents.shipmentId} = any(${orderShipments.map((s) => s.id)})`)
+        .where(inArray(trackingEvents.shipmentId, orderShipments.map((s) => s.id)))
         .orderBy(desc(trackingEvents.occurredAt))
     : [];
 

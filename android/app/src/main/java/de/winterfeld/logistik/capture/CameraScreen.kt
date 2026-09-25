@@ -9,6 +9,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -109,12 +112,18 @@ fun CameraScreen(
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                    .background(Color(0xAA000000)).padding(12.dp),
                horizontalAlignment = Alignment.CenterHorizontally) {
+            // Alle Ansichten in einer wischbaren Zeile — auf dem Handy passt
+            // keine feste Reihe von Chips nebeneinander.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()) {
-                ROLES.take(5).forEach { (value, label) ->
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                ROLES.forEach { (value, label) ->
                     FilterChip(selected = selectedRole == value,
                                onClick = { selectedRole = value },
-                               label = { Text(label) })
+                               label = { Text(label) },
+                               colors = FilterChipDefaults.filterChipColors(
+                                   labelColor = Color.White,
+                                   selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                   selectedLabelColor = Color.White))
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically,

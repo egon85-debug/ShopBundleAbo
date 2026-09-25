@@ -11,6 +11,7 @@ import okhttp3.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import de.winterfeld.logistik.BuildConfig
 
 /**
  * OkHttp/Retrofit-Aufbau: hängt das Access-Token an und erneuert es bei 401
@@ -21,7 +22,7 @@ class ApiClient(private val tokenStore: TokenStore) {
     @Volatile private var cached: Pair<String, ApiService>? = null
 
     fun service(): ApiService {
-        val baseUrl = tokenStore.baseUrl.ifEmpty { "http://10.0.2.2:8000" }
+        val baseUrl = tokenStore.baseUrl.ifEmpty { BuildConfig.DEFAULT_SERVER_URL }
         cached?.let { (url, service) -> if (url == baseUrl) return service }
         val client = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor())
@@ -63,7 +64,7 @@ class ApiClient(private val tokenStore: TokenStore) {
 
         private fun refreshBlocking(): Boolean {
             val refresh = tokenStore.refreshToken ?: return false
-            val baseUrl = tokenStore.baseUrl.ifEmpty { "http://10.0.2.2:8000" }
+            val baseUrl = tokenStore.baseUrl.ifEmpty { BuildConfig.DEFAULT_SERVER_URL }
             val body = gson.toJson(RefreshRequest(refresh))
                 .toRequestBody("application/json".toMediaType())
             val request = Request.Builder().url("$baseUrl/api/v1/auth/refresh").post(body).build()

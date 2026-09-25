@@ -21,41 +21,40 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0A1018",
-          color: "#E4EBF2",
-          fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+          background: "#ffffff",
+          color: "#0a0a0a",
+          fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
           padding: "24px",
         }}
       >
         <div style={{ maxWidth: "34rem", textAlign: "center" }}>
-          <p style={{ fontSize: "13px", letterSpacing: ".14em", color: "#7FA8FF", margin: 0 }}>
-            WINTERFELD LOGISTIK
-          </p>
-          <h1 style={{ fontSize: "28px", lineHeight: 1.2, margin: "14px 0 0" }}>
+          <p style={{ fontSize: "14px", color: "#7a7b7b", margin: 0 }}>Winterfeld Logistik</p>
+          <h1 style={{ fontSize: "32px", lineHeight: 1.22, fontWeight: 300, letterSpacing: "-0.02em", margin: "16px 0 0" }}>
             Die Seite ist gerade nicht erreichbar
           </h1>
-          <p style={{ color: "#93A3B3", lineHeight: 1.6, marginTop: "12px" }}>
+          <p style={{ color: "#292b2a", lineHeight: 1.56, marginTop: "16px" }}>
             Wir haben ein technisches Problem. Bitte versuchen Sie es in Kürze erneut.
           </p>
           <button
             type="button"
             onClick={reset}
             style={{
-              marginTop: "26px",
-              padding: "13px 26px",
-              fontSize: "15px",
-              fontWeight: 700,
-              color: "#FFFFFF",
-              background: "#2D6FFF",
+              marginTop: "32px",
+              padding: "16px 32px",
+              fontSize: "16px",
+              fontWeight: 500,
+              color: "#ffffff",
+              background: "#ff6105",
               border: "none",
-              borderRadius: "10px",
+              borderRadius: "50px",
+              boxShadow: "rgba(255, 97, 5, 0.6) 1px 6px 14px 0px, rgba(0, 0, 0, 0.06) 0px 1px 4px 0px",
               cursor: "pointer",
             }}
           >
             Erneut versuchen
           </button>
           {error.digest && (
-            <p style={{ marginTop: "28px", fontSize: "12px", color: "#5B6B7B", fontFamily: "monospace" }}>
+            <p style={{ marginTop: "32px", fontSize: "12px", color: "#7a7b7b" }}>
               Referenz: {error.digest}
             </p>
           )}

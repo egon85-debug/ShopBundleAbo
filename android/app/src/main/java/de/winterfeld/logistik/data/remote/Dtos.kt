@@ -110,3 +110,10 @@ data class DashboardDto(
 data class SupplierDto(val id: String, val name: String)
 data class LocationDto(val id: String, val code: String, val kind: String, val name: String)
 data class PatchProductRequest(val fields: Map<String, Any?>)
+
+data class ClientErrorDto(
+    val kind: String,
+    @SerializedName("app_version") val appVersion: String,
+    val device: String,
+    val report: String,
+)

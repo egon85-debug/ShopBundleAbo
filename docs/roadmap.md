@@ -5,7 +5,7 @@
 | Phase | Inhalt | Stand in diesem Repo |
 |---|---|---|
 | 1 Architektur | Systemarchitektur, DB-Modell, API, KI-Pipeline, Sync, Shop, Sicherheit | ✅ `docs/` |
-| 2 UX/UI | Screens & Userflows | ✅ Compose-Screens in `android/`, Admin in `admin/` |
+| 2 UX/UI | Screens & Userflows | ✅ Compose-Screens in `android/`, Admin in `backend/admin/` |
 | 3 Datenbank | Relationales Modell, Migrationen, Constraints, Indizes | ✅ `backend/app/models/`, `backend/migrations/` |
 | 4 Backend | API, Auth, Uploads, KI-Orchestrierung, Jobs, Shop-Connector, Logging | ✅ `backend/app/` |
 | 5 Android | Tablet-App mit Kamera, Barcode, Mikrofon, Offline-Queue, Sync | ✅ `android/` (Build erfordert Android SDK) |
@@ -21,7 +21,9 @@
 - Bestandsführung ausschließlich über Movements, Audit-Log, Preis-Historie.
 - Offline-Puffer + Upload-Queue + Idempotenz auf dem Tablet.
 - Rollen (Mitarbeiter, Lagerleiter, Shop-Manager, Admin), Adminbereich (Benutzer,
-  Lieferanten, Lagerplätze, Shop-Verbindungen, Jobs/Fehler, Audit-Log, Systemstatus).
+  Lieferanten, Lagerplätze, Shop-Verbindungen, Jobs/Fehler, Audit-Log, Systemstatus,
+  Freigabe: Original und optimiertes Bild nebeneinander, Hauptbild wählen, Optimierung
+  ablehnen, Veröffentlichung nach Qualitätsprüfung).
 - Provider-Abstraktion mit realen HTTP-Implementierungen (Anthropic Vision/LLM,
   Whisper-kompatible STT, konfigurierbare Preisrecherche-API, Pillow-Bildpipeline,
   Local-/S3-Storage).

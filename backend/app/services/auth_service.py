@@ -32,6 +32,24 @@ def create_user(db: Session, *, email: str, password: str, display_name: str,
     return user
 
 
+
+def set_password(db: Session, *, user: User, password: str,
+                 acting_user: User | None = None) -> None:
+    """Kennwort ersetzen und alle offenen Sitzungen des Kontos beenden.
+
+    Wer sein Kennwort zuruecksetzt, tut das oft, weil er nicht weiss, wer es
+    sonst noch kennt — deshalb verlieren auch bereits angemeldete Geraete
+    ihren Zugang.
+    """
+    if len(password) < 10:
+        raise AuthError("Passwort muss mindestens 10 Zeichen haben")
+    user.password_hash = security.hash_password(password)
+    for token in db.scalars(select(RefreshToken).where(
+            RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))):
+        token.revoked_at = utcnow()
+    audit_service.log(db, user=acting_user, entity_type="user", entity_id=user.id,
+                      action="password_reset")
+
 def login(db: Session, *, email: str, password: str) -> tuple[User, str, str]:
     user = db.scalar(select(User).where(User.email == email.lower()))
     if not user or not user.is_active or not security.verify_password(password, user.password_hash):

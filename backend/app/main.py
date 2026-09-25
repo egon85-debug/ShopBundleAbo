@@ -71,9 +71,36 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
-    admin_dir = Path(__file__).resolve().parents[2] / "admin"
-    if admin_dir.is_dir():
-        app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True), name="admin")
+    # HEAD gehoert dazu: Download-Manager auf dem Handy fragen damit zuerst
+    # Groesse und Wiederaufnahme ab und brechen sonst ab (405).
+    @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
+    def app_herunterladen():
+        """Android-App zum Installieren (auf dem Handy im Browser oeffnen).
+        FileResponse beherrscht Range-Anfragen: ein abgebrochener Download
+        laesst sich fortsetzen. Bereitgestellt per `python -m app.cli app-holen`."""
+        from fastapi.responses import FileResponse, PlainTextResponse
+
+        from app.services import app_download
+        info = app_download.bereitgestellt()
+        if info is None:
+            return PlainTextResponse(
+                "Auf dem Server liegt noch keine App. Einrichten mit:\n"
+                "docker compose exec api python -m app.cli app-holen\n", status_code=404)
+        return FileResponse(app_download.apk_pfad(),
+                            media_type="application/vnd.android.package-archive",
+                            filename=info["name"],
+                            headers={"Cache-Control": "no-cache"})
+
+    # backend/admin im Quellbaum, /app/admin im Container — derselbe relative
+    # Pfad, weil das Verzeichnis neben dem Paket "app" liegt. Der zweite
+    # Kandidat faengt aeltere Arbeitskopien ab, in denen es noch im
+    # Projektstamm lag.
+    for admin_dir in (Path(__file__).resolve().parents[1] / "admin",
+                      Path(__file__).resolve().parents[2] / "admin"):
+        if admin_dir.is_dir():
+            app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True),
+                      name="admin")
+            break
 
     return app
 

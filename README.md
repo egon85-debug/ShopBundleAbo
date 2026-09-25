@@ -40,7 +40,7 @@ Der zentrale Arbeitsablauf:
 |-------------|--------|
 | `backend/`  | FastAPI-Backend, PostgreSQL-Modelle, Alembic-Migrationen, Job-Worker, Provider, Shop-Connector, Tests |
 | `android/`  | Native Android-Tablet-App (Kotlin, Jetpack Compose, Room, CameraX, WorkManager) |
-| `admin/`    | Responsiver Web-Adminbereich (wird vom Backend unter `/admin` ausgeliefert) |
+| `backend/admin/` | Responsiver Web-Adminbereich (wird vom Backend unter `/admin` ausgeliefert) |
 | `docs/`     | Architektur, Datenbankschema, API-Konzept, KI-Workflows, Sync-, Shop-, Sicherheitskonzept, MVP-Abgrenzung |
 
 ## Schnellstart Backend (lokal)

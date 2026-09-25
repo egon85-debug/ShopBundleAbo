@@ -1,0 +1,4 @@
+[
+ {"id": "loc-1", "code": "H2-B-04", "kind": "shelf", "name": "Halle 2, Regal B, Fach 4", "parent_id": null},
+ {"id": "loc-2", "code": "H1-A-01", "kind": "shelf", "name": "Halle 1, Regal A, Fach 1", "parent_id": null}
+]

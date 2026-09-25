@@ -48,6 +48,17 @@ def get_stt() -> SpeechToTextProvider:
 def get_research() -> ProductResearchProvider:
     if ProductResearchProvider in _overrides:
         return _overrides[ProductResearchProvider]
+    s = get_settings()
+    wahl = s.research_provider.lower()
+    if wahl == "auto":
+        wahl = ("http" if s.price_research_api_base
+                else "anthropic" if s.anthropic_api_key else "http")
+    if wahl == "anthropic":
+        from app.providers.anthropic_provider import AnthropicWebResearchProvider
+        return AnthropicWebResearchProvider()
+    if wahl == "off":
+        from app.providers.research_http import AbgeschalteteRecherche
+        return AbgeschalteteRecherche()
     from app.providers.research_http import HttpProductResearchProvider
     return HttpProductResearchProvider()
 

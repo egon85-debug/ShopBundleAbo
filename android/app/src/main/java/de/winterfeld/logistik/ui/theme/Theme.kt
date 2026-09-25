@@ -18,6 +18,13 @@ private val WinterfeldColors = lightColorScheme(
     surface = Color.White,
     onBackground = Color(0xFF1C2733),
     onSurface = Color(0xFF1C2733),
+    // Neutrale Grautöne statt der violetten Material-Vorgaben
+    surfaceVariant = Color(0xFFE8ECF1),
+    onSurfaceVariant = Color(0xFF475467),
+    secondaryContainer = Color(0xFFDCE7FF),
+    onSecondaryContainer = Color(0xFF0B3FAA),
+    outline = Color(0xFF667085),
+    outlineVariant = Color(0xFFE4E7EC),
 )
 
 /** Große Schrift für Lagerbedienung mit Handschuhen/Distanz. */
