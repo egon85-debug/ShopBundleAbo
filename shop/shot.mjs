@@ -17,6 +17,7 @@
  *   node shot.mjs                          → nach ./aufnahmen
  *   node shot.mjs /ziel/pfad               → dorthin
  *   BASIS=http://127.0.0.1:3000 node shot.mjs
+ *   PRODUKT=/produkt/<slug> node shot.mjs  → anderes Produkt
  */
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -46,60 +47,60 @@ function chromiumPfad() {
 
 const ZIEL = process.argv[2] ?? "./aufnahmen";
 const BASIS = process.env.BASIS ?? "http://127.0.0.1:3000";
-const BREITE = Number(process.env.BREITE ?? 1440);
-const HOEHE = Number(process.env.HOEHE ?? 900);
+const PRODUKT = process.env.PRODUKT ?? "/produkt/faltkarton-300x200x150-20er";
 
-/**
- * [Name, Pfad, Scrollposition in Pixeln, Wartezeit in ms, Zeiger-Ziel?]
- *
- * Das letzte Feld ist ein CSS-Wähler. Ist er gesetzt, fährt der Zeiger auf
- * dieses Element, bevor aufgenommen wird — anders lassen sich Zustände wie die
- * räumliche Ebene hinter den Kategoriekacheln gar nicht beurteilen, weil sie
- * erst beim Darüberfahren erwachen.
- */
-const AUFNAHMEN = [
-  ["01-hero", "/", 0, 4000],
-  ["02-karton-oeffnet", "/", 1400, 2500],
-  ["03-karton-offen", "/", 2600, 2500],
-  ["04-reise", "/", 4200, 2000],
-  ["05-warum-winterfeld", "/", 6200, 1500],
-  ["06-kategorie-hover", "/", 7600, 3000, "[data-kategorie-kachel]"],
-  ["07-shop", "/shop", 0, 2500],
-  ["08-produkt", "/produkt/faltkarton-300-200-150-mm-20-stueck", 0, 3500],
+/** Jede Seite einmal am Desktop und einmal in Handybreite, jeweils ganz. */
+const GERAETE = [
+  ["desktop", 1440, 900],
+  ["handy", 390, 844],
 ];
 
 await mkdir(ZIEL, { recursive: true });
+const browser = await chromium.launch({ executablePath: chromiumPfad() });
 
-const browser = await chromium.launch({
-  // In Containern ohne Grafikkarte rechnet SwiftShader WebGL auf der CPU –
-  // sonst bliebe jede 3D-Szene auf den Aufnahmen schwarz.
-  args: ["--no-sandbox", "--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
-  executablePath: chromiumPfad(),
-});
-const seite = await browser.newPage({ viewport: { width: BREITE, height: HOEHE } });
+for (const [geraet, breite, hoehe] of GERAETE) {
+  const kontext = await browser.newContext({ viewport: { width: breite, height: hoehe } });
+  const seite = await kontext.newPage();
 
-for (const [name, pfad, scroll, warten, zeigerZiel] of AUFNAHMEN) {
-  try {
-    await seite.goto(BASIS + pfad, { waitUntil: "load", timeout: 30000 });
-    await seite.waitForTimeout(1200);
-    if (scroll) await seite.evaluate((y) => window.scrollTo(0, y), scroll);
-    await seite.waitForTimeout(800);
-    if (zeigerZiel) {
-      const element = seite.locator(zeigerZiel).first();
-      if (await element.count()) {
-        await element.hover({ timeout: 5000 });
-      } else {
-        console.warn("kein Element für", zeigerZiel, "– Aufnahme ohne Zeiger");
-      }
+  async function aufnehmen(name, pfad) {
+    try {
+      if (pfad) await seite.goto(BASIS + pfad, { waitUntil: "networkidle", timeout: 30000 });
+      // Einmal durchscrollen, damit nachgeladene Produktbilder auf dem Bild sind.
+      await seite.evaluate(async () => {
+        for (let y = 0; y < document.body.scrollHeight; y += 600) {
+          window.scrollTo(0, y);
+          await new Promise((fertig) => setTimeout(fertig, 60));
+        }
+        window.scrollTo(0, 0);
+      });
+      await seite.waitForTimeout(500);
+      await seite.screenshot({ path: `${ZIEL}/${geraet}-${name}.png`, fullPage: true });
+      console.log("aufgenommen:", `${geraet}-${name}`);
+    } catch (fehler) {
+      // Eine unerreichbare Seite darf die übrigen Aufnahmen nicht verhindern.
+      console.error("fehlgeschlagen:", name, "—", fehler instanceof Error ? fehler.message : fehler);
     }
-    // Warten, bis Aufbau- und Scroll-Animationen ihren Endzustand erreicht haben.
-    await seite.waitForTimeout(warten);
-    await seite.screenshot({ path: `${ZIEL}/${name}.png` });
-    console.log("aufgenommen:", name);
-  } catch (fehler) {
-    // Eine unerreichbare Seite darf die übrigen Aufnahmen nicht verhindern.
-    console.error("fehlgeschlagen:", name, "—", (fehler instanceof Error ? fehler.message : fehler));
   }
+
+  await aufnehmen("01-start", "/");
+  await aufnehmen("02-shop", "/shop");
+  await aufnehmen("03-produkt", PRODUKT);
+
+  // Warenkorb und Kasse sind nur mit Inhalt aussagekräftig.
+  try {
+    await seite.getByRole("button", { name: "In den Warenkorb" }).click({ timeout: 5000 });
+    await seite.waitForTimeout(1500);
+  } catch {
+    console.warn("Produkt ließ sich nicht in den Warenkorb legen – Warenkorb bleibt leer");
+  }
+  await aufnehmen("04-warenkorb", "/warenkorb");
+  await aufnehmen("05-kasse", "/kasse");
+  await aufnehmen("06-konto", "/konto");
+  await aufnehmen("07-versand", "/versand");
+  await aufnehmen("08-impressum", "/impressum");
+  await aufnehmen("09-nicht-gefunden", "/diese-seite-gibt-es-nicht");
+
+  await kontext.close();
 }
 
 await browser.close();

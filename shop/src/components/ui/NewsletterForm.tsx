@@ -7,8 +7,9 @@ import { subscribeNewsletterAction, type ActionState } from "@/app/actions/shop"
 
 function SubmitButton() {
   const { pending } = useFormStatus();
+  // Zweitknopf: die orange Hauptaktion der Startseite ist "Zum Shop".
   return (
-    <button type="submit" className="btn-primary shrink-0" disabled={pending}>
+    <button type="submit" className="knopf-zweit shrink-0" disabled={pending}>
       {pending ? "Wird gesendet …" : "Anmelden"}
     </button>
   );
@@ -29,12 +30,12 @@ export function NewsletterForm() {
           name="email"
           required
           placeholder="ihre@email.de"
-          className="field border-white/15 bg-white/10 text-white placeholder:text-mist-500"
+          className="feld"
         />
         <SubmitButton />
       </div>
       {state.message && (
-        <p className={`mt-3 text-sm ${state.ok ? "text-emerald-400" : "text-beacon-400"}`} role="status">
+        <p className={`mt-3 ${state.ok ? "hinweis-ok" : "hinweis-fehler"}`} role="status">
           {state.message}
         </p>
       )}

@@ -1,6 +1,6 @@
 ---
 name: winterfeld-design
-description: Gestaltungsrichtung für den Winterfeld-Logistik-Shop — Materialien, Licht, 3D-Szenen, Bewegung, Beschriftung. Vor jeder Änderung an Oberfläche, 3D-Szenen oder Animationen lesen. Enthält die Referenzrichtung des Auftraggebers und die Prüfschritte, ohne die keine gestalterische Arbeit als fertig gilt.
+description: Gestaltungsrichtung für den Winterfeld-Logistik-Shop — Farben, Schrift, Abstände, Radien, Regeln und bewusste Abweichungen. Vor jeder Änderung an der Storefront-Oberfläche lesen. Enthält die Prüfschritte, ohne die keine gestalterische Arbeit als fertig gilt.
 ---
 
 # Gestaltung: Winterfeld Logistik
@@ -10,96 +10,125 @@ description: Gestaltungsrichtung für den Winterfeld-Logistik-Shop — Materiali
 **Gestalterische Arbeit ist erst fertig, wenn sie angesehen wurde.**
 
 Ein grüner Build, saubere Typen und kleine Bundles sagen nichts über das
-Aussehen. Diese Oberfläche ist über Wochen blind entstanden und war
-entsprechend schlecht. Vor jedem Push:
+Aussehen. Vor jedem Push:
 
 ```bash
+cd shop
 npm install --no-save playwright     # einmalig je Umgebung
 npm start &
-node shot.mjs                        # Aufnahmen nach ./aufnahmen
+node shot.mjs                        # Aufnahmen nach ./aufnahmen (Desktop + Handy)
 ```
 
-Die Bilder dann **tatsächlich lesen** und dem Auftraggeber vorlegen, bevor
-gepusht wird.
+Die Bilder dann **tatsächlich lesen** – Desktop und Handy – und dem
+Auftraggeber vorlegen, bevor gepusht wird. Ohne Daten in der Datenbank zeigt
+die Startseite keine Produkte; dann ist die Aufnahme wertlos (siehe README,
+„gegen echte Daten bauen“).
 
-## Referenzrichtung
+## Richtung
 
-Der Auftraggeber hat als Vorbild eine Arbeit von `marina_uiux` genannt: eine
-fiktive Wohnkapsel-Seite („B2 Block"). Was daran gilt:
+Der Auftraggeber hat aus der Sammlung Refero Styles einen hellen,
+zurückhaltenden Stil gewählt: viel Weiß, eine einzige Akzentfarbe (Orange),
+leichte große Überschriften, flache Karten mit Haarlinie. Übernommen werden
+**nur** Farben, Schriftgrößen, Abstände, Radien und Regeln – **nichts** von
+der Marke selbst (kein Logo, keine Bilder, keine Texte, kein Markenname).
 
-**1. Material vor Form.** Gesteppte Polsterung, gebürstetes Metall mit Nieten,
-Glas, Landschaft mit Tiefenunschärfe. Ein Körper ohne Oberfläche ist kein
-Gegenstand, sondern ein Platzhalter. Für Winterfeld heißt das:
+## Tokens (Tailwind, `shop/tailwind.config.ts`)
 
-| Produkt | Material |
-|---|---|
-| Faltkarton | Wellpappe: Faserstruktur, matte Streuung, dunklere Schnittkanten, leicht gebrochene Ecken |
-| Transportbox | Kunststoff: leicht glänzend, weiche Glanzlichter an den Kanten |
-| Packband | halbtransparente Wicklung über Pappkern |
-| Luftpolsterfolie | durchscheinend, unregelmäßige Wölbungen |
-| Regal, Lager | Stahl: kühl, leicht metallisch, gerichtete Reflexe |
+**Farben**
 
-**2. Warm gegen kalt.** In der Referenz Rostorange gegen Cyan. Für Winterfeld
-liegt dasselbe Prinzip bereits im Designsystem: die warme Wellpappe und
-`beacon` (#FFB020) gegen `carbon` (#070B11) und `signal` (#2D6FFF). Warm ist
-die Ware, kalt ist der Raum.
+| Token | Hex | Einsatz |
+|---|---|---|
+| `akzent` | #ff6105 | nur: Hauptaktion, aktiver Schritt, Akzentlinie unter Überschriften, Fokusring |
+| `glut` | #ffa069 | Hover-Nuancen des Akzents |
+| `pfirsich` | #ffdfcd | hervorgehobene Karten (`karte-hervor`), Hinweise, Rabattplakette |
+| `tinte` | #0a0a0a | Text, Überschriften |
+| `kohle` | #292b2a | Fließtext |
+| `schiefer` | #7a7b7b | Nebeninfos, Artikelnummern |
+| `asche` | #a2a3a2 | inaktive Schritte, Platzhalter |
+| `haarlinie` | #e5e5e5 | Kartenrand, Trennlinien |
+| `nebel` / `knochen` | #dfe0df / #e5e7eb | Hover-Rand, feine Teiler |
+| `leinen` | #f3f4f3 | Hinweisleiste, Fußzeile, Bildgrund |
+| `anthrazit` | #202120 | das eine dunkle Band auf der Startseite |
+| `rauch` | #3c3e3d | Text auf dunklem Grund |
 
-**3. Ein wiederkehrendes Signature-Element.** In der Referenz die Plakette mit
-leuchtender Umrandung in ihrem Metallgehäuse — in jedem Bild dieselbe. Für
-Winterfeld ist das naheliegende Gegenstück das **Versandetikett**: eine Platte
-mit Signalblau-Rand, Sendungsnummer in Monospace, kleiner Statuspunkt. Das
-Etikett ist bei einem Logistiker ohnehin das zentrale Objekt.
+**Schrift:** nur **Inter** (Google Fonts, frei nutzbar) in 300/400/500 – der
+Ersatz für die lizenzierte Originalschrift. Kein Gewicht über 500.
 
-**4. Beschriftung wie an einem Messgerät.** Kleine Monospace-Anmerkungen in den
-Ecken, nie mittig, nie groß:
+| Token | Größe | Einsatz |
+|---|---|---|
+| `caption` | 12 | Augenbraue, Artikelnummer |
+| `body-sm` | 14 | Navigation, Nebentext |
+| `body` | 16 | Fließtext |
+| `subheading` | 18 | Kartentitel, Einleitungen |
+| `heading-sm` | 24 | Preise, Kartenüberschriften |
+| `heading` | 32 | Abschnittsüberschriften (mobil) |
+| `heading-lg` | 48 | Abschnittsüberschriften, Produktname |
+| `display` | 72 | nur die eine Startseiten-Überschrift |
 
-```
-// 300 × 200 × 150 mm
-// zweiwellig · FEFCO 0201
-// 120 auf Lager
-```
+Große Überschriften: `font-light`, negative Laufweite (−0,01 bis −0,036 em),
+darunter die orange Akzentlinie (2 × 120 px). Nie Versalien oder positive
+Laufweite bei Überschriften (Augenbrauen in 12 px sind die Ausnahme).
 
-Dazu winzige Statuspunkte (grün = lieferbar, bernstein = knapp). JetBrains Mono
-ist dafür schon im System — es trägt bereits SKU und Sendungsnummern.
+**Radien:** `karte` 5 · `bild`/`klein` 8 · `sekundaer` 24 · `gross` 32 ·
+`nav` 40 · `pille` 50 (Hauptknopf, Eingabefelder).
 
-**5. Die Schrift ist ruhig, das Bild ist laut.** Die Wirkung kommt aus der
-Szene, nicht aus riesigen Überschriften.
+**Abstände:** Seitenbreite max. 1200 px (`.seite`), 80 px zwischen Abschnitten
+(`pt-20` je Abschnitt, letzter mit `pb-20`), Karteninnenabstand 16–32 px.
 
-## Was bewusst NICHT übernommen wird
+**Schatten:** genau einer – das orange Leuchten unter `knopf-aktion`. Karten
+sind flach.
 
-- **Die Science-Fiction-Erzählung.** Winterfeld verkauft Kartons und Packband.
-  Aus dem Vorbild kommt die Machart, nicht die Welt.
-- **Rot als Leitfarbe.** Es würde gegen das Markenblau arbeiten. Warm bleibt
-  Wellpappe und Bernstein.
-- **Bildschirmfüllende fotorealistische Landschaften.** Zu schwer für einen
-  Shop und thematisch daneben.
+## Bausteine (`shop/src/app/globals.css`, `components/ui/Gestaltung.tsx`)
 
-## 3D: was eine Szene tragbar macht
+- Knöpfe: `knopf-aktion` (orange, einmal je Sichtbereich), `knopf-nav`
+  (Warenkorb oben), `knopf-zweit` (weiß mit Haarlinie), `knopf-geist`,
+  `knopf-klein`, `textlink`
+- Felder: `feld`, `feld-mehrzeilig`, `feldname`, `auswahl`
+- Flächen: `karte`, `karte-hervor`, `plakette`, `plakette-aktiv`,
+  `plakette-leise`, `plakette-hervor`, `hinweis-ok`, `hinweis-fehler`
+- `Ueberschrift`, `ProduktBild`, `Verfuegbarkeit`
 
-**Immer:**
-- **Kontaktschatten.** Ohne ihn schwebt jeder Gegenstand. Ein weicher Schatten
-  unter dem Objekt kostet fast nichts und ändert alles.
-- **Drei Lichter statt einem.** Führungslicht schräg oben, kühles Gegenlicht
-  hinten für die Kantenzeichnung, schwaches Aufhelllicht.
-- **Umgebungsreflexion.** Ohne Environment Map wirken Kunststoff und Metall wie
-  Pappe. Eine kleine, prozedural erzeugte reicht.
-- **Gebrochene Kanten.** Reale Gegenstände haben keine mathematisch scharfen
-  Kanten; ein schmaler Fasenrand fängt Licht und macht den Unterschied.
+## Regeln
 
-**Nie:**
-- Objekte dort platzieren, wo Text steht. Die Schriftzone bleibt frei — oder
-  die Fläche dahinter wird abgedunkelt.
-- Alles gleichzeitig und gleich schnell bewegen. Gestaffelt, unterschiedlich
-  schnell, mit klarer Ruhelage.
-- Mehr als ein Blickfang je Bildschirmhöhe.
+**Immer**
+- Orange ist ein Satzzeichen: höchstens eine orange Hauptaktion je Sichtbereich.
+- Produktbilder auf Leinen-Grund, `object-contain`, nie beschnitten.
+- Zahlen in Preis- und Mengenspalten mit `tabular`; Artikel- und
+  Bestellnummern **ohne** (sonst sperren die Bindestriche).
+- Am Handy: Schrittanzeigen nur mit dem aktuellen Schritt („Schritt 2 von 5“),
+  Kopfzeile darf nicht über den Rand ragen.
+
+**Nie**
+- eine zweite Akzentfarbe, Ampelfarben (grün/rot) für Status
+- Schriftgewicht über 500, Versalien in Überschriften
+- Schatten auf Karten, Verläufe, Glas-Effekte, 3D-Szenen, Scroll-Animationen
+- Bilder, Texte oder Namen der Vorlage
+
+## Bewusste Abweichungen von der Vorlage (dem Auftraggeber gemeldet)
+
+- **Keine Fotos im Einstieg und im dunklen Band** – es gibt keine eigenen
+  Fotos. Der Einstieg ist typografisch mit einem echten Katalogprodukt in
+  einer Pfirsich-Karte; das Band trägt nur Text.
+- **Statusfarben:** Erfolg auf Leinen, Fehler auf Pfirsich statt Grün/Rot.
+- **Mehrzeilige Felder** mit Radius 24 statt 50 (50 wirkt bei Höhe > 1 Zeile
+  wie eine Kapsel).
+- **Produktnamen in Karten** 18 statt 24 px (lange Artikelnamen).
+- **Keine Monospace-Schrift** für Artikelnummern – eine Schrift im ganzen Shop.
+- **Kontrast:** Weiß auf #ff6105 erreicht nur 3,0 : 1 (WCAG AA verlangt
+  4,5 : 1 für normalen Text). Die Vorlage gibt 7 : 1 an; das stimmt nicht.
+  Offen: auf Wunsch des Auftraggebers dunkleres Orange für Knopftexte.
+- **Rabattplakette** in Pfirsich statt Orange, **Kaufen** nur auf der
+  Produktseite, **Cookie-Knöpfe** gleichgewichtet (kein Orange – keine
+  Lenkung zur Zustimmung).
+- Der **Adminbereich** behält sein eigenes, dunkles Erscheinungsbild.
 
 ## Prüfliste vor jedem Push
 
 Anhand der Aufnahmen, nicht aus dem Kopf:
 
-1. Kollidiert ein 3D-Objekt mit Text? → nein
-2. Hat jedes Objekt einen Kontaktschatten? → ja
-3. Ist die Kopfzeile über dunklen Abschnitten lesbar? → ja
-4. Erkennt man die Gegenstände ohne Beschriftung? → ja
-5. Ist irgendwo Bewegung, die nichts erklärt? → nein
-6. Bei `prefers-reduced-motion`: steht alles sofort und vollständig? → ja
+1. Höchstens ein oranger Hauptknopf je Bildschirmhöhe? → ja
+2. Abstände zwischen Abschnitten 80 px, nirgends doppelt? → ja
+3. Ragt am Handy etwas über den Rand (Kopfzeile, Tabellen, Knöpfe)? → nein
+4. Überschriften leicht (300), keine Versalien, Akzentlinie darunter? → ja
+5. Karten flach, Haarlinie, Radius 5? → ja
+6. Sind Produktbilder vollständig sichtbar? → ja

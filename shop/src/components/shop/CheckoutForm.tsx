@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ProduktBild } from "@/components/ui/Gestaltung";
 import { formatCents } from "@/lib/money";
 
 type ShippingOption = {
@@ -92,79 +93,79 @@ export function CheckoutForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-8 lg:grid-cols-[1fr_380px]">
-      <div className="space-y-6">
+    <form onSubmit={handleSubmit} className="grid gap-10 lg:grid-cols-[1fr_380px]">
+      <div className="space-y-4">
         {/* Kundendaten */}
-        <section className="card p-6">
-          <h2 className="font-display text-xl font-bold">Kontakt</h2>
-          <p className="mt-1 text-sm text-mist-700">
+        <section className="karte p-6">
+          <h2 className="text-heading-sm font-medium">Kontakt</h2>
+          <p className="mt-1 text-body-sm text-kohle">
             Bestellbestätigung und Tracking gehen an diese Adresse. Ein Kundenkonto ist nicht erforderlich.
           </p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="email" className="label">E-Mail *</label>
-              <input id="email" name="email" type="email" required defaultValue={customer?.email ?? ""} className="field" />
+              <label htmlFor="email" className="feldname">E-Mail *</label>
+              <input id="email" name="email" type="email" required defaultValue={customer?.email ?? ""} className="feld" />
             </div>
             <div>
-              <label htmlFor="phone" className="label">Telefon (optional)</label>
-              <input id="phone" name="phone" type="tel" className="field" />
+              <label htmlFor="phone" className="feldname">Telefon (optional)</label>
+              <input id="phone" name="phone" type="tel" className="feld" />
             </div>
           </div>
 
           {!customer && (
-            <label className="mt-5 flex cursor-pointer items-start gap-3">
+            <label className="mt-6 flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
                 checked={createAccount}
                 onChange={(event) => setCreateAccount(event.target.checked)}
-                className="mt-1 h-5 w-5 rounded border-mist-300 text-signal-500 focus:ring-signal-500"
+                className="auswahl mt-0.5"
               />
-              <span className="text-[15px]">
-                <span className="font-semibold">Kundenkonto anlegen</span>
-                <span className="block text-sm text-mist-700">Bestellhistorie, Rechnungen und schnellere Bestellungen.</span>
+              <span className="text-body">
+                <span className="font-medium">Kundenkonto anlegen</span>
+                <span className="block text-body-sm text-kohle">Bestellhistorie, Rechnungen und schnellere Bestellungen.</span>
               </span>
             </label>
           )}
           {createAccount && (
             <div className="mt-4">
-              <label htmlFor="password" className="label">Passwort (min. 10 Zeichen) *</label>
-              <input id="password" name="password" type="password" minLength={10} required className="field" />
+              <label htmlFor="password" className="feldname">Passwort (min. 10 Zeichen) *</label>
+              <input id="password" name="password" type="password" minLength={10} required className="feld" />
             </div>
           )}
         </section>
 
         {/* Lieferadresse */}
-        <section className="card p-6">
-          <h2 className="font-display text-xl font-bold">Lieferadresse</h2>
+        <section className="karte p-6">
+          <h2 className="text-heading-sm font-medium">Lieferadresse</h2>
           <AddressFields prefix="s" defaults={{ firstName: customer?.firstName ?? "", lastName: customer?.lastName ?? "" }} />
 
-          <label className="mt-5 flex cursor-pointer items-center gap-3">
+          <label className="mt-6 flex cursor-pointer items-center gap-3">
             <input
               type="checkbox"
               checked={billingSame}
               onChange={(event) => setBillingSame(event.target.checked)}
-              className="h-5 w-5 rounded border-mist-300 text-signal-500 focus:ring-signal-500"
+              className="auswahl"
             />
-            <span className="text-[15px] font-semibold">Rechnungsadresse entspricht der Lieferadresse</span>
+            <span className="text-body">Rechnungsadresse entspricht der Lieferadresse</span>
           </label>
         </section>
 
         {!billingSame && (
-          <section className="card p-6">
-            <h2 className="font-display text-xl font-bold">Rechnungsadresse</h2>
+          <section className="karte p-6">
+            <h2 className="text-heading-sm font-medium">Rechnungsadresse</h2>
             <AddressFields prefix="b" />
           </section>
         )}
 
         {/* Versandart */}
-        <section className="card p-6">
-          <h2 className="font-display text-xl font-bold">Versandart</h2>
-          <div className="mt-4 space-y-3">
+        <section className="karte p-6">
+          <h2 className="text-heading-sm font-medium">Versandart</h2>
+          <div className="mt-5 space-y-3">
             {shippingOptions.map((option) => (
               <label
                 key={option.code}
-                className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border-2 p-4 transition-colors ${
-                  shippingMethod === option.code ? "border-signal-500 bg-signal-50" : "border-mist-200 hover:border-mist-300"
+                className={`flex cursor-pointer items-center justify-between gap-4 rounded-karte border p-4 transition-colors ${
+                  shippingMethod === option.code ? "border-akzent" : "border-haarlinie hover:border-nebel"
                 }`}
               >
                 <span className="flex items-center gap-3">
@@ -174,88 +175,83 @@ export function CheckoutForm({
                     value={option.code}
                     checked={shippingMethod === option.code}
                     onChange={() => setShippingMethod(option.code)}
-                    className="h-5 w-5 border-mist-300 text-signal-500 focus:ring-signal-500"
+                    className="auswahl"
                   />
                   <span>
-                    <span className="block font-display font-bold">{option.label}</span>
-                    <span className="block text-sm text-mist-700">Lieferzeit {option.deliveryEstimate}</span>
+                    <span className="block font-medium">{option.label}</span>
+                    <span className="block text-body-sm text-kohle">Lieferzeit {option.deliveryEstimate}</span>
                   </span>
                 </span>
-                <span className="font-display font-bold tabular">{formatCents(option.priceCents)}</span>
+                <span className="font-medium tabular">{formatCents(option.priceCents)}</span>
               </label>
             ))}
           </div>
         </section>
 
-        <section className="card p-6">
-          <label htmlFor="customerNote" className="label">Anmerkung zur Bestellung (optional)</label>
-          <textarea id="customerNote" name="customerNote" rows={3} className="field" maxLength={1000} />
+        <section className="karte p-6">
+          <label htmlFor="customerNote" className="feldname">Anmerkung zur Bestellung (optional)</label>
+          <textarea id="customerNote" name="customerNote" rows={3} className="feld-mehrzeilig" maxLength={1000} />
         </section>
       </div>
 
       {/* Zusammenfassung */}
-      <aside className="lg:sticky lg:top-24 lg:self-start">
-        <div className="card p-6">
-          <h2 className="font-display text-xl font-bold">Ihre Bestellung</h2>
+      <aside className="lg:sticky lg:top-40 lg:self-start">
+        <div className="karte p-6">
+          <h2 className="text-heading-sm font-medium">Ihre Bestellung</h2>
 
-          <ul className="mt-5 space-y-3">
+          <ul className="mt-6 space-y-4">
             {cart.lines.map((line) => (
               <li key={line.itemId} className="flex gap-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist-100">
-                  {line.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={line.imageUrl} alt="" className="h-full w-full object-cover" />
-                  )}
-                </div>
-                <div className="flex flex-1 justify-between gap-2 text-sm">
+                <ProduktBild url={line.imageUrl} alt="" klein className="h-14 w-14 shrink-0" />
+                <div className="flex flex-1 justify-between gap-2 text-body-sm">
                   <span>
-                    <span className="font-semibold">{line.name}</span>
-                    {line.variantName && <span className="block text-mist-700">{line.variantName}</span>}
-                    <span className="block text-mist-500">{line.quantity} ×</span>
+                    <span className="font-medium">{line.name}</span>
+                    {line.variantName && <span className="block text-kohle">{line.variantName}</span>}
+                    <span className="block text-schiefer">{line.quantity} ×</span>
                   </span>
-                  <span className="font-semibold tabular">{formatCents(line.lineTotalCents)}</span>
+                  <span className="tabular">{formatCents(line.lineTotalCents)}</span>
                 </div>
               </li>
             ))}
           </ul>
 
-          <dl className="mt-5 space-y-2.5 border-t border-mist-200 pt-5 text-[15px]">
+          <dl className="mt-6 space-y-3 border-t border-haarlinie pt-5 text-body">
             <div className="flex justify-between">
-              <dt className="text-mist-700">Zwischensumme</dt>
+              <dt className="text-kohle">Zwischensumme</dt>
               <dd className="tabular">{formatCents(cart.subtotalCents)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-mist-700">Versand ({shipping?.label})</dt>
+              <dt className="text-kohle">Versand ({shipping?.label})</dt>
               <dd className="tabular">{formatCents(shippingCents)}</dd>
             </div>
-            <div className="flex justify-between text-sm">
-              <dt className="text-mist-500">enthaltene MwSt.</dt>
-              <dd className="text-mist-500 tabular">{formatCents(cart.taxCents)}</dd>
+            <div className="flex justify-between text-body-sm">
+              <dt className="text-schiefer">enthaltene MwSt.</dt>
+              <dd className="text-schiefer tabular">{formatCents(cart.taxCents)}</dd>
             </div>
-            <div className="flex justify-between border-t-2 border-carbon-900 pt-3">
-              <dt className="font-display text-lg font-extrabold">Gesamt</dt>
-              <dd className="font-display text-lg font-extrabold tabular">{formatCents(total)}</dd>
+            <div className="flex justify-between border-t border-haarlinie pt-4">
+              <dt className="text-subheading font-medium">Gesamt</dt>
+              <dd className="text-subheading font-medium tabular">{formatCents(total)}</dd>
             </div>
           </dl>
 
-          <label className="mt-5 flex cursor-pointer items-start gap-3">
-            <input type="checkbox" name="acceptsTerms" required className="mt-1 h-5 w-5 rounded border-mist-300 text-signal-500 focus:ring-signal-500" />
-            <span className="text-sm text-mist-700">
-              Ich akzeptiere die <a href="/agb" className="underline">AGB</a> und die{" "}
-              <a href="/widerruf" className="underline">Widerrufsbelehrung</a>. *
+          <label className="mt-6 flex cursor-pointer items-start gap-3">
+            <input type="checkbox" name="acceptsTerms" required className="auswahl mt-0.5" />
+            <span className="text-body-sm text-kohle">
+              Ich akzeptiere die <a href="/agb" className="underline underline-offset-4">AGB</a> und die{" "}
+              <a href="/widerruf" className="underline underline-offset-4">Widerrufsbelehrung</a>. *
             </span>
           </label>
 
           {error && (
-            <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700" role="alert">
+            <p className="hinweis-fehler mt-4" role="alert">
               {error}
             </p>
           )}
 
-          <button type="submit" className="btn-primary mt-5 w-full" disabled={pending}>
+          <button type="submit" className="knopf-aktion mt-6 w-full" disabled={pending}>
             {pending ? "Bestellung wird angelegt …" : "Zahlungspflichtig bestellen"}
           </button>
-          <p className="mt-3 text-center font-mono text-xs text-mist-500">
+          <p className="mt-4 text-center text-caption text-schiefer">
             Zahlung wird sicher über Stripe abgewickelt
           </p>
         </div>
@@ -272,44 +268,44 @@ function AddressFields({
   defaults?: { firstName?: string; lastName?: string };
 }) {
   return (
-    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+    <div className="mt-6 grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
-        <label htmlFor={`${prefix}-company`} className="label">Firma (optional)</label>
-        <input id={`${prefix}-company`} name={`${prefix}-company`} className="field" />
+        <label htmlFor={`${prefix}-company`} className="feldname">Firma (optional)</label>
+        <input id={`${prefix}-company`} name={`${prefix}-company`} className="feld" />
       </div>
       <div>
-        <label htmlFor={`${prefix}-firstName`} className="label">Vorname *</label>
-        <input id={`${prefix}-firstName`} name={`${prefix}-firstName`} required defaultValue={defaults?.firstName} className="field" />
+        <label htmlFor={`${prefix}-firstName`} className="feldname">Vorname *</label>
+        <input id={`${prefix}-firstName`} name={`${prefix}-firstName`} required defaultValue={defaults?.firstName} className="feld" />
       </div>
       <div>
-        <label htmlFor={`${prefix}-lastName`} className="label">Nachname *</label>
-        <input id={`${prefix}-lastName`} name={`${prefix}-lastName`} required defaultValue={defaults?.lastName} className="field" />
+        <label htmlFor={`${prefix}-lastName`} className="feldname">Nachname *</label>
+        <input id={`${prefix}-lastName`} name={`${prefix}-lastName`} required defaultValue={defaults?.lastName} className="feld" />
       </div>
       <div className="sm:col-span-2 grid grid-cols-[1fr_120px] gap-4">
         <div>
-          <label htmlFor={`${prefix}-street`} className="label">Straße *</label>
-          <input id={`${prefix}-street`} name={`${prefix}-street`} required className="field" />
+          <label htmlFor={`${prefix}-street`} className="feldname">Straße *</label>
+          <input id={`${prefix}-street`} name={`${prefix}-street`} required className="feld" />
         </div>
         <div>
-          <label htmlFor={`${prefix}-houseNumber`} className="label">Nr. *</label>
-          <input id={`${prefix}-houseNumber`} name={`${prefix}-houseNumber`} required className="field" />
+          <label htmlFor={`${prefix}-houseNumber`} className="feldname">Nr. *</label>
+          <input id={`${prefix}-houseNumber`} name={`${prefix}-houseNumber`} required className="feld" />
         </div>
       </div>
       <div className="sm:col-span-2">
-        <label htmlFor={`${prefix}-addressAddition`} className="label">Adresszusatz (optional)</label>
-        <input id={`${prefix}-addressAddition`} name={`${prefix}-addressAddition`} className="field" />
+        <label htmlFor={`${prefix}-addressAddition`} className="feldname">Adresszusatz (optional)</label>
+        <input id={`${prefix}-addressAddition`} name={`${prefix}-addressAddition`} className="feld" />
       </div>
       <div>
-        <label htmlFor={`${prefix}-zip`} className="label">PLZ *</label>
-        <input id={`${prefix}-zip`} name={`${prefix}-zip`} required className="field tabular" />
+        <label htmlFor={`${prefix}-zip`} className="feldname">PLZ *</label>
+        <input id={`${prefix}-zip`} name={`${prefix}-zip`} required className="feld tabular" />
       </div>
       <div>
-        <label htmlFor={`${prefix}-city`} className="label">Ort *</label>
-        <input id={`${prefix}-city`} name={`${prefix}-city`} required className="field" />
+        <label htmlFor={`${prefix}-city`} className="feldname">Ort *</label>
+        <input id={`${prefix}-city`} name={`${prefix}-city`} required className="feld" />
       </div>
       <div className="sm:col-span-2">
-        <label htmlFor={`${prefix}-country`} className="label">Land *</label>
-        <select id={`${prefix}-country`} name={`${prefix}-country`} defaultValue="DE" className="field">
+        <label htmlFor={`${prefix}-country`} className="feldname">Land *</label>
+        <select id={`${prefix}-country`} name={`${prefix}-country`} defaultValue="DE" className="feld">
           <option value="DE">Deutschland</option>
           <option value="AT">Österreich</option>
           <option value="CH">Schweiz</option>

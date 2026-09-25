@@ -1,6 +1,6 @@
 # Winterfeld Logistik – Premium E-Commerce Shop
 
-Produktionsnahe E-Commerce-Plattform: Storefront mit 3D-Markenwelt, Warenkorb und
+Produktionsnahe E-Commerce-Plattform: ruhige, helle Storefront, Warenkorb und
 Checkout, Stripe-Zahlungen, automatisierte DHL-/DHL-Express-Versandabwicklung und
 ein Backoffice, in dem Produkte, Kategorien und Bestellungen ohne
 Programmierkenntnisse verwaltet werden.
@@ -13,7 +13,6 @@ Frontend (Next.js App Router)
    │                                         ├─► Payment Service  (Stripe)
    │                                         ├─► Shipping Service (DHL Paket / DHL Express)
    │                                         └─► Mail Service     (SMTP)
-   └─ 3D-Szenen (React Three Fiber, lazy, clientseitig)
 ```
 
 ## Schnellstart
@@ -74,7 +73,7 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 | `src/services/` | Fachlogik: Katalog, Warenkorb, Bestellungen, Auswertungen |
 | `src/lib/shipping/` | Shipping-Provider-Interface + DHL Paket + DHL Express |
 | `src/lib/email/` | Transaktionale E-Mail-Vorlagen und Versand |
-| `src/components/three/` | 3D-Szenen (Hero, Package Journey) |
+| `src/components/ui/` | Bausteine der Storefront (Kopf-/Fußzeile, Produktkarte, `Gestaltung.tsx`) |
 | `src/db/` | Drizzle-Schema, Migrationen, Seed |
 
 ## Grundsätze im Code
@@ -88,8 +87,8 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 - **Bestand** wird beim Bestellen reserviert und erst bei bestätigter Zahlung abgebucht.
 - **Adminaktionen** (Status, Erstattung, Etikett, Produkt-/Kategorieänderung) landen im Audit-Log.
 - **Versanddienstleister** sind über ein einheitliches Interface austauschbar.
-- **3D** wird lazy geladen, respektiert `prefers-reduced-motion` und schaltet auf
-  schwachen Geräten automatisch auf eine vereinfachte Szene.
+- **Gestaltung** folgt `.claude/skills/winterfeld-design/SKILL.md` (Farben, Schrift,
+  Abstände, Radien als Tailwind-Tokens in `tailwind.config.ts`).
 
 ## Deployment auf Vercel
 
@@ -145,13 +144,13 @@ Der Build muss mit Rückgabewert 0 enden **und** mindestens ein Produkt auf der
 Startseite gerendert haben:
 
 ```bash
-grep -c "neigekarte" .next/server/app/index.html   # > 0
+grep -c "data-produktkarte" .next/server/app/index.html   # > 0
 ```
 
 ## Gestaltung: ansehen, nicht nur bauen
 
 Ein grüner Build sagt nichts über das Aussehen. Nach jeder Änderung an
-Oberfläche oder 3D-Szenen:
+der Oberfläche:
 
 ```bash
 npm install --no-save playwright     # einmalig je Umgebung
@@ -159,6 +158,5 @@ npm start &                          # Shop läuft auf :3000
 node shot.mjs                        # Aufnahmen nach ./aufnahmen
 ```
 
-Dann die Bilder tatsächlich ansehen. Geprüft wird mindestens: kollidiert kein
-3D-Objekt mit Text, hat die Kopfzeile über dunklen Abschnitten genug Kontrast,
-stehen Objekte mit Schatten statt frei im Raum.
+Dann die Bilder tatsächlich ansehen – Desktop und Handy. Die Prüfliste steht in
+`.claude/skills/winterfeld-design/SKILL.md`.

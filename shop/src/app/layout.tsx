@@ -1,26 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, JetBrains_Mono, Public_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 
 import "./globals.css";
 
-const display = Archivo({
+// Die eine Schrift des Shops, frei nutzbar (SIL Open Font License).
+// Nur die drei Stärken der Gestaltung: 300 Überschriften, 400 Text, 500 Betonung.
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const body = Public_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-mono",
+  weight: ["300", "400", "500"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -41,14 +29,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A1018",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="de" className={inter.variable}>
       <body>{children}</body>
     </html>
   );

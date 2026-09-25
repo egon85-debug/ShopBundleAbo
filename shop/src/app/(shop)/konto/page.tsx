@@ -3,6 +3,7 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 
 import { AuthForms } from "@/components/shop/AuthForms";
+import { Ueberschrift } from "@/components/ui/Gestaltung";
 import { customerLogoutAction } from "@/app/actions/account";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
@@ -17,13 +18,13 @@ export default async function AccountPage() {
 
   if (!customer) {
     return (
-      <div className="section py-12">
-        <h1 className="font-display text-display-lg font-extrabold">Kundenkonto</h1>
-        <p className="mt-3 max-w-xl text-mist-700">
+      <div className="seite py-12 lg:py-16">
+        <Ueberschrift als="h1" groesse="gross">Kundenkonto</Ueberschrift>
+        <p className="mt-6 max-w-xl text-kohle">
           Melden Sie sich an, um Bestellungen, Rechnungen und Sendungsverfolgung einzusehen. Für eine
           Bestellung ist ein Konto nicht erforderlich.
         </p>
-        <div className="mt-10">
+        <div className="mt-12">
           <AuthForms />
         </div>
       </div>
@@ -38,58 +39,57 @@ export default async function AccountPage() {
     .limit(5);
 
   return (
-    <div className="section py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="seite py-12 lg:py-16">
+      <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="eyebrow">Willkommen zurück</p>
-          <h1 className="mt-3 font-display text-display-lg font-extrabold">
+          <Ueberschrift als="h1" groesse="gross" augenbraue="Willkommen zurück">
             {customer.firstName} {customer.lastName}
-          </h1>
-          <p className="mt-2 text-mist-700">{customer.email}</p>
+          </Ueberschrift>
+          <p className="mt-6 text-kohle">{customer.email}</p>
         </div>
         <form action={customerLogoutAction}>
-          <button type="submit" className="btn-ghost">Abmelden</button>
+          <button type="submit" className="knopf-zweit">Abmelden</button>
         </form>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
-        <Link href="/konto/bestellungen" className="card p-6 transition-shadow hover:shadow-lift">
-          <p className="eyebrow">Bestellungen</p>
-          <p className="mt-2 font-display text-2xl font-extrabold">{recentOrders.length > 0 ? "Übersicht" : "Noch keine"}</p>
-          <p className="mt-1 text-sm text-mist-700">Bestellhistorie, Rechnungen und Tracking</p>
+      <div className="mt-12 grid gap-4 lg:grid-cols-3">
+        <Link href="/konto/bestellungen" className="karte p-6 transition-colors hover:bg-leinen">
+          <p className="augenbraue">Bestellungen</p>
+          <p className="mt-3 text-heading-sm font-light">{recentOrders.length > 0 ? "Übersicht" : "Noch keine"}</p>
+          <p className="mt-1 text-body-sm text-kohle">Bestellhistorie, Rechnungen und Tracking</p>
         </Link>
-        <div className="card p-6">
-          <p className="eyebrow">Kontaktdaten</p>
-          <p className="mt-2 text-[15px]">{customer.email}</p>
-          {customer.phone && <p className="text-[15px] text-mist-700">{customer.phone}</p>}
+        <div className="karte p-6">
+          <p className="augenbraue">Kontaktdaten</p>
+          <p className="mt-3">{customer.email}</p>
+          {customer.phone && <p className="text-kohle">{customer.phone}</p>}
         </div>
-        <div className="card p-6">
-          <p className="eyebrow">Newsletter</p>
-          <p className="mt-2 text-[15px]">{customer.acceptsMarketing ? "Abonniert" : "Nicht abonniert"}</p>
+        <div className="karte p-6">
+          <p className="augenbraue">Newsletter</p>
+          <p className="mt-3">{customer.acceptsMarketing ? "Abonniert" : "Nicht abonniert"}</p>
         </div>
       </div>
 
       {recentOrders.length > 0 && (
-        <section className="mt-12">
-          <h2 className="font-display text-display-md font-extrabold">Letzte Bestellungen</h2>
-          <div className="mt-6 space-y-3">
+        <section className="mt-20">
+          <Ueberschrift groesse="mittel">Letzte Bestellungen</Ueberschrift>
+          <div className="mt-8 divide-y divide-haarlinie border-y border-haarlinie">
             {recentOrders.map((order) => (
               <Link
                 key={order.id}
                 href={`/bestellung/${order.orderNumber}`}
-                className="card flex flex-wrap items-center justify-between gap-4 p-5 transition-shadow hover:shadow-lift"
+                className="flex flex-wrap items-center justify-between gap-4 px-2 py-5 transition-colors hover:bg-leinen"
               >
                 <div>
-                  <p className="font-mono font-bold">{order.orderNumber}</p>
-                  <p className="text-sm text-mist-700">
+                  <p className="font-medium">{order.orderNumber}</p>
+                  <p className="text-body-sm text-kohle">
                     {new Intl.DateTimeFormat("de-DE", { dateStyle: "long" }).format(order.placedAt ?? order.createdAt)}
                   </p>
                 </div>
                 <div className="flex items-center gap-6">
-                  <span className="rounded-full bg-mist-100 px-3 py-1 font-display text-xs font-bold">
+                  <span className="plakette-leise">
                     {ORDER_STATUS[order.status as keyof typeof ORDER_STATUS]}
                   </span>
-                  <span className="font-display font-extrabold tabular">{formatCents(order.totalCents)}</span>
+                  <span className="text-subheading tabular">{formatCents(order.totalCents)}</span>
                 </div>
               </Link>
             ))}

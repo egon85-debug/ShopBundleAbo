@@ -12,13 +12,13 @@ export default async function NewPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <div className="section py-16">
-      <div className="card mx-auto max-w-md p-7">
-        <h1 className="font-display text-2xl font-extrabold">Neues Passwort festlegen</h1>
+    <div className="seite py-16 lg:py-20">
+      <div className="karte mx-auto max-w-md p-8">
+        <h1 className="text-heading-sm font-medium">Neues Passwort festlegen</h1>
         {token ? (
           <ResetPasswordForm token={token} />
         ) : (
-          <p className="mt-4 text-mist-700">
+          <p className="mt-4 text-kohle">
             Dieser Link ist unvollständig. Fordern Sie unter „Konto → Passwort“ einen neuen Link an.
           </p>
         )}
