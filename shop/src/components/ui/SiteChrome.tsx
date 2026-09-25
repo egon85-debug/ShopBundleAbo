@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { CartBadge } from "@/components/ui/CartBadge";
-import { navigationCategories } from "@/services/navigation";
+import { NeuheitenBand } from "@/components/ui/NeuheitenBand";
+import { navigationCategories, neuheiten } from "@/services/navigation";
 
 /**
  * Kopf- und Fusszeile zeigen die Kategorien aus der Datenbank – zwischen-
@@ -13,18 +14,23 @@ import { navigationCategories } from "@/services/navigation";
 
 function Wortmarke() {
   return (
-    <Link href="/" className="shrink-0 text-subheading text-tinte" aria-label="Winterfeld Logistik – Startseite">
-      <span className="font-medium">Winterfeld</span> <span className="font-light">Logistik</span>
+    <Link href="/" className="shrink-0" aria-label="Winterfeld Logistik – Startseite">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/marke/winterfeld-logistik.svg" alt="" width={147} height={24} className="h-6 w-auto" />
     </Link>
   );
 }
 
-/** Kopfzeile: Hinweisleiste, Wortmarke, Kategorien, Suche, Konto, Warenkorb. */
+/**
+ * Kopfbereich: Hinweisleiste und Laufband mit Neuheiten scrollen mit weg, nur
+ * die eigentliche Kopfzeile (Wortmarke, Kategorien, Suche, Konto, Warenkorb)
+ * bleibt oben kleben – sonst wäre der klebende Block am Handy fast 200 px hoch.
+ */
 export async function SiteHeader() {
-  const categories = await navigationCategories();
+  const [categories, neueArtikel] = await Promise.all([navigationCategories(), neuheiten()]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white">
+    <>
       {/* Hinweisleiste */}
       <div className="bg-leinen">
         <div className="seite flex h-10 items-center justify-center gap-4 text-body-sm text-kohle">
@@ -35,7 +41,9 @@ export async function SiteHeader() {
         </div>
       </div>
 
-      <div className="border-b border-haarlinie">
+      <NeuheitenBand artikel={neueArtikel} />
+
+      <header className="sticky top-0 z-50 border-b border-haarlinie bg-white">
         <div className="seite flex h-16 items-center gap-4 sm:gap-8 lg:h-[72px]">
           <Wortmarke />
 
@@ -83,8 +91,8 @@ export async function SiteHeader() {
             </Link>
           ))}
         </nav>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
 
@@ -95,9 +103,8 @@ export async function SiteFooter() {
     <footer className="mt-20 bg-leinen text-kohle">
       <div className="seite grid gap-10 py-16 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-subheading text-tinte">
-            <span className="font-medium">Winterfeld</span> <span className="font-light">Logistik</span>
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/marke/winterfeld-logistik.svg" alt="Winterfeld Logistik" width={147} height={24} className="h-6 w-auto" />
           <p className="mt-4 max-w-xs text-body-sm">
             Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
           </p>
