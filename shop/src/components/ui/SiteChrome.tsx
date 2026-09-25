@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { CartBadge } from "@/components/ui/CartBadge";
-import { navigationCategories } from "@/services/navigation";
+import { NeuheitenBand } from "@/components/ui/NeuheitenBand";
+import { navigationCategories, neuheiten } from "@/services/navigation";
 
 /**
  * Kopf- und Fusszeile zeigen die Kategorien aus der Datenbank – zwischen-
@@ -20,12 +21,16 @@ function Wortmarke() {
   );
 }
 
-/** Kopfzeile: Hinweisleiste, Wortmarke, Kategorien, Suche, Konto, Warenkorb. */
+/**
+ * Kopfbereich: Hinweisleiste und Laufband mit Neuheiten scrollen mit weg, nur
+ * die eigentliche Kopfzeile (Wortmarke, Kategorien, Suche, Konto, Warenkorb)
+ * bleibt oben kleben – sonst wäre der klebende Block am Handy fast 200 px hoch.
+ */
 export async function SiteHeader() {
-  const categories = await navigationCategories();
+  const [categories, neueArtikel] = await Promise.all([navigationCategories(), neuheiten()]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white">
+    <>
       {/* Hinweisleiste */}
       <div className="bg-leinen">
         <div className="seite flex h-10 items-center justify-center gap-4 text-body-sm text-kohle">
@@ -36,7 +41,9 @@ export async function SiteHeader() {
         </div>
       </div>
 
-      <div className="border-b border-haarlinie">
+      <NeuheitenBand artikel={neueArtikel} />
+
+      <header className="sticky top-0 z-50 border-b border-haarlinie bg-white">
         <div className="seite flex h-16 items-center gap-4 sm:gap-8 lg:h-[72px]">
           <Wortmarke />
 
@@ -84,8 +91,8 @@ export async function SiteHeader() {
             </Link>
           ))}
         </nav>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
 

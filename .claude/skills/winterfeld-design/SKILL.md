@@ -112,8 +112,21 @@ sind flach.
 - eine zweite Akzentfarbe, Ampelfarben (grün/rot) für Status
 - Schriftgewicht über 500, Versalien in Überschriften
 - Schatten auf Karten, Verläufe, Glas-Effekte, 3D-Szenen, Scroll-Animationen
-  (einzige Bewegung: das Einstiegsvideo mit Abspann)
+  (Bewegung gibt es nur an zwei Stellen: Einstiegsvideo mit Abspann und
+  das Laufband „Neu im Shop“)
 - Bilder, Texte oder Namen der Vorlage
+
+## Laufband „Neu im Shop“
+
+Unter der Hinweisleiste laufen die neuesten Artikel mit Bild und Preis
+(`components/ui/NeuheitenBand.tsx`, Daten aus `neuheiten()` in
+`services/navigation.ts`, 60 s zwischengespeichert). Es läuft mit 40 px/s,
+hält bei Maus darüber und bei Tastaturfokus, lässt sich wischen, mit der Maus
+ziehen und über Pfeile blättern; nach eigenem Eingreifen 3 s Pause. Der
+Pausenknopf ist Pflicht (auch am Handy) – ohne ihn kann nur anhalten, wer eine
+Maus hat. Bei reduzierter Bewegung läuft es nicht von allein. In Kasse und
+Bestellbestätigung erscheint es nicht. Hinweisleiste und Laufband scrollen mit
+weg, nur die Kopfzeile darunter klebt oben.
 
 ## Bewusste Abweichungen von der Vorlage (dem Auftraggeber gemeldet)
 
