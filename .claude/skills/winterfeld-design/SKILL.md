@@ -102,13 +102,19 @@ sind flach.
 - eine zweite Akzentfarbe, Ampelfarben (grün/rot) für Status
 - Schriftgewicht über 500, Versalien in Überschriften
 - Schatten auf Karten, Verläufe, Glas-Effekte, 3D-Szenen, Scroll-Animationen
+  (einzige Bewegung: das Einstiegsvideo)
 - Bilder, Texte oder Namen der Vorlage
 
 ## Bewusste Abweichungen von der Vorlage (dem Auftraggeber gemeldet)
 
-- **Keine Fotos im Einstieg und im dunklen Band** – es gibt keine eigenen
-  Fotos. Der Einstieg ist typografisch mit einem echten Katalogprodukt in
-  einer Pfirsich-Karte; das Band trägt nur Text.
+- **Einstieg mit Video statt Foto:** rechts neben der Überschrift ein mit
+  Higgsfield erzeugtes Video (Seedance 2.0, 5 s, 1:1): Zuschnitt faltet sich
+  zum Karton, oranges Klebeband verschließt ihn. Liegt in
+  `shop/public/einstieg/` als WebM + MP4 mit Anfangs- und Endbild;
+  Baustein `components/ui/EinstiegsVideo.tsx`. Es läuft **einmal**, startet
+  erst bei halber Sichtbarkeit und bleibt auf dem verklebten Karton stehen;
+  bei reduzierter Bewegung nur das Endbild. Keine Schleife – die Handlung
+  hat Anfang und Ende. Das dunkle Band trägt weiterhin nur Text.
 - **Statusfarben:** Erfolg auf Leinen, Fehler auf Pfirsich statt Grün/Rot.
 - **Mehrzeilige Felder** mit Radius 24 statt 50 (50 wirkt bei Höhe > 1 Zeile
   wie eine Kapsel).

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { ProduktBild, Ueberschrift } from "@/components/ui/Gestaltung";
+import { EinstiegsVideo } from "@/components/ui/EinstiegsVideo";
+import { Ueberschrift } from "@/components/ui/Gestaltung";
 import { NewsletterForm } from "@/components/ui/NewsletterForm";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatCents } from "@/lib/money";
@@ -45,16 +46,12 @@ export default async function HomePage() {
     (item) => item.compareAtPriceCents && item.compareAtPriceCents > item.priceCents,
   );
   const shipping = shippingOptions();
-  // Ein echtes Produktfoto für den Einstieg – nur wenn es eins gibt.
-  const titelProdukt = [...bestsellers.items, ...newest.items].find((item) => item.imageUrl);
 
   return (
     <>
       {/* ── Einstieg ───────────────────────────────────────────────────── */}
-      {/* Mit Produktfoto zweispaltig (Text links, Produkt rechts), ohne einspaltig. */}
-      <section
-        className={`seite grid items-center gap-12 pt-16 lg:gap-16 lg:pt-24 ${titelProdukt ? "lg:grid-cols-2" : ""}`}
-      >
+      {/* Text links, rechts das Karton-Video (einmal abspielen, dann stehen lassen). */}
+      <section className="seite grid items-center gap-12 pt-16 lg:grid-cols-2 lg:gap-16 lg:pt-24">
         <div>
           <Ueberschrift als="h1" groesse="display" augenbraue="Direkt aus unserem Lager">
             Logistik. Einfach. Digital.
@@ -72,17 +69,13 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {titelProdukt && (
-          <Link href={`/produkt/${titelProdukt.slug}`} className="karte-hervor group block p-6">
-            <ProduktBild url={titelProdukt.imageUrl} alt={titelProdukt.name} className="aspect-square bg-white" />
-            <div className="mt-5 flex items-end justify-between gap-4">
-              <p className="text-subheading font-medium group-hover:underline group-hover:underline-offset-4">
-                {titelProdukt.name}
-              </p>
-              <p className="shrink-0 text-heading-sm tabular">{formatCents(titelProdukt.priceCents)}</p>
-            </div>
-          </Link>
-        )}
+        <div className="aspect-square overflow-hidden rounded-bild bg-leinen">
+          <EinstiegsVideo
+            video="/einstieg/karton"
+            anfangsbild="/einstieg/karton-anfang.webp"
+            endbild="/einstieg/karton-ende.webp"
+          />
+        </div>
       </section>
 
       {/* ── Kategorien ─────────────────────────────────────────────────── */}
