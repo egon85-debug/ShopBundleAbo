@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     s3_secret_key: str = ""
     s3_region: str = "eu-central-1"
     media_public_base_url: str = ""
+    # Oeffentlicher Name des Servers (derselbe Wert wie fuer den Reverse Proxy).
+    # Ohne MEDIA_PUBLIC_BASE_URL werden Bildadressen daraus gebildet — der
+    # Shop braucht sie absolut, sonst kommen keine Bilder an.
+    domain: str = ""
+
+    def oeffentliche_basis(self) -> str:
+        """https://<domain> oder leer."""
+        name = self.domain.strip().removeprefix("https://").removeprefix("http://").rstrip("/")
+        return f"https://{name}" if name else ""
 
     # KI-Provider
     anthropic_api_key: str = ""

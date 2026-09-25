@@ -162,6 +162,78 @@ def check_recherche(ean: str | None, suche: str | None) -> None:
         print("Keine vergleichbaren Angebote gefunden.")
 
 
+def shop_verbinden(url: str, name: str) -> None:
+    """Verbindung zum eigenen Shop anlegen (oder neu verschluesseln) und die
+    Werte ausgeben, die im Shop (Vercel) einzutragen sind.
+
+    Beide Geheimnisse entstehen hier und stehen nur in diesem Terminal —
+    nicht im Quellcode, nicht im Chat.
+    """
+    import json
+    import secrets
+
+    from app.config import get_settings
+    from app.models import ShopConnection
+    from app.utils.security import encrypt_credentials
+
+    lager = get_settings().oeffentliche_basis()
+    if not lager:
+        print("Fehler: DOMAIN ist in der .env nicht gesetzt (z. B. lager.ihre-domain.de).",
+              file=sys.stderr)
+        sys.exit(1)
+    url = url.strip().rstrip("/")
+    if not url.startswith("https://"):
+        print("Fehler: die Shop-Adresse muss mit https:// beginnen.", file=sys.stderr)
+        sys.exit(1)
+
+    api_key = secrets.token_hex(32)
+    webhook_secret = secrets.token_hex(32)
+    with get_sessionmaker()() as db:
+        verbindung = db.scalar(select(ShopConnection).where(
+            ShopConnection.connector_type == "winterfeld"))
+        neu = verbindung is None
+        if neu:
+            verbindung = ShopConnection(name=name, connector_type="winterfeld", base_url=url)
+            db.add(verbindung)
+        verbindung.base_url = url
+        verbindung.is_active = True
+        verbindung.webhook_secret = webhook_secret
+        verbindung.credentials_encrypted = encrypt_credentials(json.dumps({"api_key": api_key}))
+        db.commit()
+        verbindung_id = verbindung.id
+
+    webhook = f"{lager}/api/v1/shop/webhooks/{verbindung_id}/order"
+    print(f"Shop-Verbindung {'angelegt' if neu else 'erneuert (neue Schluessel)'}: {url}\n")
+    print("Jetzt in Vercel eintragen: Projekt → Settings → Environment Variables,")
+    print("Umgebung \"Production\" (bestehende Werte ersetzen):\n")
+    print(f"  INGEST_API_KEY        {api_key}")
+    print(f"  LAGER_WEBHOOK_URL     {webhook}")
+    print(f"  LAGER_WEBHOOK_SECRET  {webhook_secret}\n")
+    print("Danach in Vercel neu veroeffentlichen: Deployments → neuestes → ⋯ → Redeploy.")
+    print("Dann pruefen mit:  docker compose exec api python -m app.cli shop-testen")
+    print("\nDiese Werte nirgends sonst hineinkopieren (auch nicht in einen Chat).")
+
+
+def shop_testen() -> None:
+    from app.connectors.registry import build_connector
+    from app.models import ShopConnection
+    with get_sessionmaker()() as db:
+        verbindungen = db.scalars(select(ShopConnection).where(
+            ShopConnection.is_active.is_(True))).all()
+        if not verbindungen:
+            print("Keine aktive Shop-Verbindung. Zuerst: python -m app.cli shop-verbinden …")
+            sys.exit(1)
+        fehler = False
+        for v in verbindungen:
+            try:
+                build_connector(v).test_connection()
+                print(f"✓ {v.name} ({v.base_url}): Verbindung und Schluessel in Ordnung")
+            except Exception as exc:
+                fehler = True
+                print(f"✗ {v.name} ({v.base_url}): {exc}")
+    sys.exit(1 if fehler else 0)
+
+
 def app_holen() -> None:
     """Neueste Android-App von GitHub holen und unter /app bereitstellen."""
     from app.services import app_download
@@ -197,6 +269,12 @@ def main() -> None:
     recherche_parser.add_argument("--ean", default=None)
     recherche_parser.add_argument("--suche", default=None,
                                   help='z. B. "Makita DHP484Z"')
+    shop_parser = sub.add_parser(
+        "shop-verbinden", help="Verbindung zum eigenen Shop einrichten, Schluessel erzeugen")
+    shop_parser.add_argument("--url", required=True,
+                             help="z. B. https://winterfeld-logistik-shop.vercel.app")
+    shop_parser.add_argument("--name", default="Winterfeld Shop")
+    sub.add_parser("shop-testen", help="Shop-Verbindungen pruefen")
     sub.add_parser("app-holen", help="Neueste Android-App von GitHub unter /app bereitstellen")
 
     args = parser.parse_args()
@@ -212,6 +290,10 @@ def main() -> None:
         if not (args.ean or args.suche):
             parser.error("--ean oder --suche angeben")
         check_recherche(args.ean, args.suche)
+    elif args.command == "shop-verbinden":
+        shop_verbinden(args.url, args.name)
+    elif args.command == "shop-testen":
+        shop_testen()
     elif args.command == "app-holen":
         app_holen()
 
