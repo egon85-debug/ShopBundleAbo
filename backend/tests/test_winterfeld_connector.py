@@ -182,10 +182,10 @@ def test_lebensmittel_gehen_mit_ganzen_millilitern_und_pfand_in_cent(antwort):
     assert gesendet["pfandCents"] == 150 and gesendet["pfandArt"] == "einweg"
     assert gesendet["zutaten"] == "Wasser, Zucker, Kohlensäure"
     assert gesendet["lebensmittelHinweise"] == "Koffeinhaltig"
-    assert "allergene" not in gesendet
+    assert gesendet["allergene"] is None
 
 
-def test_ohne_lebensmittelangaben_bleibt_die_nutzlast_wie_bisher(antwort):
+def test_ohne_lebensmittelangaben_werden_sie_im_shop_geleert(antwort):
     gesendet = {}
 
     def handler(request):
@@ -194,4 +194,5 @@ def test_ohne_lebensmittelangaben_bleibt_die_nutzlast_wie_bisher(antwort):
         return httpx.Response(201, json={"id": "abc"})
 
     antwort(handler).publish_product(_listing())
-    assert not {"inhalt", "pfandCents", "pfandArt", "zutaten"} & set(gesendet)
+    assert gesendet["inhalt"] is None and gesendet["pfandCents"] == 0
+    assert gesendet["pfandArt"] is None and gesendet["zutaten"] is None

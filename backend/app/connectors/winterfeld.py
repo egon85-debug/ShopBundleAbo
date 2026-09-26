@@ -146,25 +146,26 @@ class WinterfeldShopConnector(ShopConnector):
         """Füllmenge (für den Grundpreis), Pfand und Kennzeichnung.
 
         Die Menge geht in ganzen Millilitern bzw. Gramm an den Shop – so rechnet
-        er den Grundpreis ohne Fliesskommazahlen.
+        er den Grundpreis ohne Fliesskommazahlen. Fehlende Angaben gehen
+        ausdrücklich als leer (null/0) mit: Das Lager ist die Quelle, eine hier
+        gelöschte Angabe soll auch im Shop verschwinden.
         """
-        daten: dict = {}
+        inhalt = None
         if listing.net_content_amount and listing.net_content_unit in _FAKTOR:
             einheit, faktor = _FAKTOR[listing.net_content_unit]
             menge = int((listing.net_content_amount * faktor).to_integral_value())
             if menge > 0:
-                daten["inhalt"] = {"menge": menge, "einheit": einheit,
-                                   "anzahl": listing.units_per_pack or 1}
-        if listing.deposit_amount and listing.deposit_amount > 0:
-            daten["pfandCents"] = int((listing.deposit_amount * 100).to_integral_value())
-            if listing.deposit_type:
-                daten["pfandArt"] = listing.deposit_type
-        for feld, schluessel in (("ingredients", "zutaten"), ("allergens", "allergene"),
-                                 ("food_notes", "lebensmittelHinweise")):
-            wert = getattr(listing, feld)
-            if wert and wert.strip():
-                daten[schluessel] = wert.strip()
-        return daten
+                inhalt = {"menge": menge, "einheit": einheit, "anzahl": listing.units_per_pack or 1}
+        pfand = listing.deposit_amount if listing.deposit_amount and listing.deposit_amount > 0 else None
+        text = lambda wert: wert.strip() if wert and wert.strip() else None  # noqa: E731
+        return {
+            "inhalt": inhalt,
+            "pfandCents": int((pfand * 100).to_integral_value()) if pfand else 0,
+            "pfandArt": listing.deposit_type if pfand else None,
+            "zutaten": text(listing.ingredients),
+            "allergene": text(listing.allergens),
+            "lebensmittelHinweise": text(listing.food_notes),
+        }
 
     def publish_product(self, listing: ShopListingPayload) -> ShopPublishResult:
         daten = self._post(self._payload(listing))
