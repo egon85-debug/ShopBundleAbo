@@ -27,34 +27,37 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
         if (state.capture == null) viewModel.startCapture(quickMode)
     }
 
-    // Spracherkennung an den Zustand koppeln; Mikrofon-Lebenszyklus sauber beenden.
-    val recognizer = remember {
-        VoiceRecognizer(
+    // Sprachabfrage an den Zustand koppeln; Mikrofon und Sprachausgabe sauber beenden.
+    val dialog = remember {
+        SprachDialog(
             context,
-            onPartial = viewModel::onLiveTranscript,
-            onFinal = viewModel::onVoiceFinished,
-            onError = { viewModel.stopVoice() },
+            onFrage = viewModel::onVoicePrompt,
+            onZwischenstand = viewModel::onLiveTranscript,
+            onErgebnis = viewModel::onVoiceResult,
+            onFehler = { viewModel.stopVoice() },
         )
     }
     var voiceRunning by remember { mutableStateOf(false) }
     LaunchedEffect(state.voiceActive) {
-        if (state.voiceActive && !voiceRunning) { recognizer.start(); voiceRunning = true }
+        if (state.voiceActive && !voiceRunning) { dialog.start(); voiceRunning = true }
         if (!state.voiceActive && voiceRunning) { voiceRunning = false }
     }
-    DisposableEffect(Unit) { onDispose { if (voiceRunning) recognizer.stop() } }
+    DisposableEffect(Unit) { onDispose { dialog.freigeben() } }
 
     when (step) {
         "camera" -> CameraScreen(
             photoCount = state.photoCount,
             voiceActive = state.voiceActive,
+            voicePrompt = state.voicePrompt,
             liveTranscript = state.liveTranscript,
+            voiceAnswers = state.voiceAnswers,
             processingHint = state.processingHint,
             onPhoto = viewModel::onPhotoTaken,
             onBarcode = { value ->
                 viewModel.answer(AnswerDto(field = "ean", value = value))
             },
             onDone = {
-                if (voiceRunning) { recognizer.stop(); voiceRunning = false }
+                if (voiceRunning) { dialog.stop(); voiceRunning = false }
                 step = "review"
             },
         )
@@ -69,7 +72,7 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
             onMorePhotos = { step = "camera" },
             onSpeakAgain = {
                 viewModel.restartVoice()
-                recognizer.start(); voiceRunning = true
+                dialog.start(); voiceRunning = true
                 step = "camera"
             },
             onSave = {

@@ -143,3 +143,54 @@ class TestAnswers:
             f"/api/v1/captures/{capture['id']}/answers", headers=headers,
             json={"answers": [{"field": "ean", "value": "4006381333932"}]})
         assert response.status_code == 422
+
+
+class TestSprachabfrageLagerplatz:
+    """Sprachabfrage: der Lagerplatz kommt einzeln gesprochen als eigene Antwort."""
+
+    def _plaetze(self, db):
+        from app.services import location_service
+        halle = location_service.create_location(db, parent_id=None, kind="hall", name="2")
+        bereich = location_service.create_location(db, parent_id=halle.id, kind="area", name="A")
+        regal = location_service.create_location(db, parent_id=bereich.id, kind="shelf", name="B4")
+        db.commit()
+        return regal
+
+    def _antwort(self, client, headers, capture_id, text):
+        return client.post(f"/api/v1/captures/{capture_id}/answers", headers=headers,
+                           json={"answers": [{"field": "storage_location_spoken", "value": text}]})
+
+    def test_code_ohne_trennzeichen(self, client, db, employee):
+        regal = self._plaetze(db)
+        headers = auth_headers(client)
+        capture = start_capture(client, headers, "cap-sprache-01")
+        response = self._antwort(client, headers, capture["id"], "H zwei A B vier")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["storage_location_code"] == regal.code == "H2/A/B4"
+        assert body["field_sources"]["storage_location_id"] == "user"
+
+    def test_wie_im_diktat(self, client, db, employee):
+        self._plaetze(db)
+        headers = auth_headers(client)
+        capture = start_capture(client, headers, "cap-sprache-02")
+        body = self._antwort(client, headers, capture["id"], "Halle zwei Regal B vier").json()
+        assert body["storage_location_code"] == "H2/A/B4"
+
+    def test_unbekannt_wird_rueckfrage(self, client, db, employee):
+        self._plaetze(db)
+        headers = auth_headers(client)
+        capture = start_capture(client, headers, "cap-sprache-03")
+        body = self._antwort(client, headers, capture["id"], "Keller links").json()
+        assert body["storage_location_code"] is None
+        frage = next(q for q in body["open_questions"] if q["field"] == "storage_location_spoken")
+        assert "Keller links" in frage["text"]
+
+        # Rückfrage beantworten: die alte Frage verschwindet, der Platz ist gesetzt.
+        response = client.post(
+            f"/api/v1/captures/{capture['id']}/answers", headers=headers,
+            json={"answers": [{"question_id": frage["id"], "field": "storage_location_spoken",
+                               "value": "H2/A/B4"}]})
+        body = response.json()
+        assert body["storage_location_code"] == "H2/A/B4"
+        assert not [q for q in body["open_questions"] if q["field"] == "storage_location_spoken"]

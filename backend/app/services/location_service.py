@@ -73,6 +73,28 @@ def resolve_spoken(db: Session, spoken: str) -> StorageLocation | None:
     return best
 
 
+def _kompakt(text: str) -> str:
+    """"H2 / a-b4" → "H2AB4" – nur Buchstaben und Ziffern, groß."""
+    return re.sub(r"[^0-9A-ZÄÖÜ]", "", text.upper())
+
+
+def resolve_answer(db: Session, spoken: str) -> StorageLocation | None:
+    """Einzeln gesprochener Lagerplatz aus der Sprachabfrage.
+
+    Erst wie im freien Diktat ("Halle zwei Regal B vier"), dann der Code oder
+    Name ohne Trennzeichen ("H2 A B4" → H2/A/B4). Mehrdeutig heißt: nichts.
+    """
+    location = resolve_spoken(db, spoken)
+    if location:
+        return location
+    gesucht = _kompakt(normalize_spoken(spoken))
+    if not gesucht:
+        return None
+    treffer = [loc for loc in db.scalars(select(StorageLocation))
+               if gesucht in (_kompakt(loc.code), _kompakt(loc.name))]
+    return treffer[0] if len(treffer) == 1 else None
+
+
 def create_location(db: Session, *, parent_id: str | None, kind: str, name: str) -> StorageLocation:
     if kind not in [k.value for k in LocationKind]:
         raise ValueError(f"Unbekannte Lagerplatz-Ebene: {kind}")

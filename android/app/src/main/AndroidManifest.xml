@@ -9,6 +9,17 @@
     <uses-feature android:name="android.hardware.camera" android:required="true" />
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
+    <!-- Ab Android 11 sieht die App Spracherkennung und Sprachausgabe nur, wenn
+         sie hier angemeldet sind (Paketsichtbarkeit). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".WinterfeldApp"
         android:label="@string/app_name"

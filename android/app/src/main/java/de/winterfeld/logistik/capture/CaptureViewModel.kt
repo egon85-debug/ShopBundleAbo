@@ -31,7 +31,11 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
         val serverState: ProductDto? = null,
         val photoCount: Int = 0,
         val voiceActive: Boolean = false,
+        /** Punkt, den die Sprachabfrage gerade abfragt (z. B. „Lagerplatz“). */
+        val voicePrompt: String? = null,
         val liveTranscript: String = "",
+        /** Schon beantwortete Punkte der Sprachabfrage: Titel → erkannter Wert. */
+        val voiceAnswers: List<Pair<String, String>> = emptyList(),
         val processingHint: String? = null,
         val duplicates: ConfirmResultDto? = null,
         val savedFlash: Boolean = false,      // "✓ Artikel gespeichert" (Schnellmodus)
@@ -69,22 +73,46 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(liveTranscript = text)
     }
 
-    fun onVoiceFinished(finalTranscript: String) {
+    /** Sprachabfrage ist bei [schritt]; null = beendet. */
+    fun onVoicePrompt(schritt: SprachAbfrage.Schritt?) {
+        _state.value = _state.value.copy(
+            voicePrompt = schritt?.titel,
+            voiceActive = schritt != null,
+            liveTranscript = "",
+        )
+    }
+
+    fun onVoiceResult(schritt: SprachAbfrage.Schritt, ergebnis: SprachAbfrage.Ergebnis) {
         val capture = _state.value.capture ?: return
-        _state.value = _state.value.copy(voiceActive = false)
-        if (finalTranscript.isBlank()) return
-        viewModelScope.launch {
-            captures.addTranscript(capture.id, finalTranscript)
-            SyncWorker.schedule(getApplication())
+        when (ergebnis) {
+            is SprachAbfrage.Ergebnis.Antwort -> {
+                answer(ergebnis.antwort)
+                merken(schritt.titel, ergebnis.anzeige)
+            }
+            is SprachAbfrage.Ergebnis.Freitext -> {
+                merken(schritt.titel, ergebnis.text)
+                // Freie Angaben wertet der Server wie bisher per KI aus.
+                viewModelScope.launch {
+                    captures.addTranscript(capture.id, ergebnis.text)
+                    SyncWorker.schedule(getApplication())
+                }
+            }
+            else -> Unit
         }
     }
 
+    private fun merken(titel: String, wert: String) {
+        val bisher = _state.value.voiceAnswers.filterNot { it.first == titel }
+        _state.value = _state.value.copy(voiceAnswers = bisher + (titel to wert))
+    }
+
     fun restartVoice() {
-        _state.value = _state.value.copy(voiceActive = true, liveTranscript = "")
+        _state.value = _state.value.copy(voiceActive = true, liveTranscript = "",
+                                         voiceAnswers = emptyList())
     }
 
     fun stopVoice() {
-        _state.value = _state.value.copy(voiceActive = false)
+        _state.value = _state.value.copy(voiceActive = false, voicePrompt = null)
     }
 
     /** Serverzustand (erkannte Felder, Rückfragen, Status) regelmäßig nachladen. */

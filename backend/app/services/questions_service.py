@@ -67,3 +67,11 @@ def build_questions(product: Product, conflicts: list[str]) -> list[dict]:
         ))
 
     return questions
+
+
+def lagerplatz_frage(gesprochen: str) -> dict:
+    """Rückfrage, wenn ein gesprochener Lagerplatz keinem angelegten Platz entspricht."""
+    return _question(
+        f"Lagerplatz „{gesprochen}“ nicht gefunden – bitte den Code angeben (z. B. H2/A/B4).",
+        field="storage_location_spoken",
+    )
