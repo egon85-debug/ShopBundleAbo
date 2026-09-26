@@ -6,6 +6,7 @@ import { AddToCartForm } from "@/components/ui/AddToCartForm";
 import { ProductGallery } from "@/components/shop/ProductGallery";
 import { Ueberschrift, Verfuegbarkeit } from "@/components/ui/Gestaltung";
 import { ProductCard } from "@/components/ui/ProductCard";
+import { beschreibungHtml } from "@/lib/beschreibung";
 import { formatCents, taxFromGross } from "@/lib/money";
 import { getShippingProvider } from "@/lib/shipping/registry";
 import { getProductBySlug } from "@/services/catalog";
@@ -38,6 +39,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product || !product.isActive) notFound();
+  const beschreibung = beschreibungHtml(product.description);
 
   const inStock = product.available > 0 || product.allowBackorder;
   const hasDiscount = product.compareAtPriceCents !== null && product.compareAtPriceCents > product.priceCents;
@@ -134,7 +136,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           {product.description && (
             <section className="mt-12 border-t border-haarlinie pt-8">
               <h2 className="text-heading-sm font-medium">Beschreibung</h2>
-              <div className="mt-4 whitespace-pre-line text-body text-kohle">{product.description}</div>
+              {beschreibung ? (
+                // Bereinigt in beschreibungHtml: nur <p>, <ul>, <li>, <strong> … ohne Attribute.
+                <div className="beschreibung mt-4 text-body text-kohle" dangerouslySetInnerHTML={{ __html: beschreibung }} />
+              ) : (
+                <div className="mt-4 whitespace-pre-line text-body text-kohle">{product.description}</div>
+              )}
             </section>
           )}
 
