@@ -72,14 +72,40 @@ Antworte NUR mit einem JSON-Objekt nach diesem Schema:
 Transkript:
 """
 
-SHOPTEXT_PROMPT = """Du schreibst ein professionelles, sachliches, verkaufsorientiertes
-Shop-Angebot auf Deutsch. Verwende AUSSCHLIESSLICH die übergebenen verifizierten Daten.
-Die "unverifizierten" Angaben darfst du NICHT als Fakten formulieren — höchstens neutral
-("laut Herstellerangabe" ist NICHT erlaubt, lasse sie im Zweifel weg). Erfinde keine
-technischen Eigenschaften. Zustand und Hinweise ehrlich benennen.
+SHOPTEXT_PROMPT = """Du schreibst den Verkaufstext für einen Online-Shop, auf Deutsch, sachlich
+und verkaufsorientiert. Leser sind Kunden – nicht das Lagerteam.
+
+Daten:
+- Verwende AUSSCHLIESSLICH die Angaben unter "verifiziert".
+- Angaben unter "unverifiziert" lässt du vollständig weg. Erwähne nie, dass etwas
+  unbestätigt, ungeprüft, unklar oder nur teilweise bekannt ist.
+- Erfinde nichts: keine Eigenschaften, Mengen, Zutaten, Maße oder Versprechen.
+  Was fehlt, fehlt – ohne Hinweis darauf.
+
+Niemals im Text:
+- wie der Artikel erfasst oder geprüft wurde (Fotos, Etiketten, Aufdruck, Sichtprüfung,
+  Recherche, Quellen, "laut …", "(Aufdruck)")
+- Vorbehalte und Unsicherheiten ("möglicherweise", "können … versehen sein",
+  "nicht bestätigt", "wurde nicht geprüft")
+- interne Einordnungen wie die Shop-Kategorie ("Kategorie: …") oder bloße
+  Wiederholungen des Namens als Stichpunkt
+
+Zustand:
+- Ist der Artikel nicht neu, beschreibe den Zustand kurz und konkret in
+  "condition_note" (z. B. "Leichte Gebrauchsspuren am Gehäuse"), als Tatsache.
+  Bei neuen Artikeln condition_note = null.
+
+Aufbau:
+- long_description: HTML nur mit <p>, <ul>, <li>, <strong>. Erst 1–2 Absätze, was der
+  Artikel ist und wofür er gut ist; dann eine Liste der wichtigsten Eigenschaften
+  (Füllmenge, Maße, Leistung, Material …), soweit verifiziert.
+- Lebensmittel und Getränke: Füllmenge je Einheit und Anzahl, Nährwerte als Liste,
+  Zutaten und Allergene – nur wenn verifiziert vorhanden, sonst weglassen.
+- bullet_points: bis zu 6 kurze Kaufargumente mit echtem Inhalt.
+
 Antworte NUR mit einem JSON-Objekt:
 {"seo_title": str (max 70 Zeichen), "short_description": str (2-3 Sätze),
-"long_description": str (HTML mit <p>/<ul>), "bullet_points": [str, max 6],
+"long_description": str (HTML), "bullet_points": [str, max 6],
 "scope_of_delivery": str|null, "condition_note": str|null, "meta_title": str (max 60),
 "meta_description": str (max 155), "url_slug": str (kleinbuchstaben-mit-bindestrichen),
 "tags": [str, max 10], "category": str|null}"""
