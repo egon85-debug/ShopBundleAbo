@@ -22,6 +22,22 @@ from app.connectors.base import (
 
 _INGEST_PFAD = "/api/ingest/produkt"
 
+# Obergrenzen des Prüfschemas im Shop (shop/src/services/ingest.ts). Ein Feld
+# darüber lässt den ganzen Artikel mit 422 scheitern – und die Veröffentlichung
+# hinge in Wiederholungen. KI-Texte werden deshalb hier gekürzt.
+_GRENZEN = {"name": 300, "kurzbeschreibung": 2000, "slug": 320, "seoTitel": 200,
+            "seoBeschreibung": 320, "zustand": 60, "kategorie": 160, "alt": 300}
+
+
+def _kuerzen(text: str | None, grenze: int) -> str | None:
+    """Auf `grenze` Zeichen kürzen, möglichst an einer Wortgrenze, mit „…“."""
+    if text is None or len(text) <= grenze:
+        return text
+    schnitt = text[: grenze - 1]
+    if " " in schnitt[grenze // 2:]:
+        schnitt = schnitt[: schnitt.rfind(" ")]
+    return schnitt.rstrip(" ,.;:-") + "…"
+
 
 class WinterfeldShopConnector(ShopConnector):
     connector_type = "winterfeld"
@@ -94,28 +110,30 @@ class WinterfeldShopConnector(ShopConnector):
 
         payload: dict = {
             "sku": listing.sku,
-            "name": listing.title,
-            "kurzbeschreibung": listing.short_description,
+            "name": _kuerzen(listing.title, _GRENZEN["name"]),
+            "kurzbeschreibung": _kuerzen(listing.short_description, _GRENZEN["kurzbeschreibung"]),
             "beschreibung": listing.long_description,
             # Geld wandert als ganzzahliger Centbetrag – nie als Fliesskommazahl.
             "preisCents": int((listing.price * 100).to_integral_value()),
             "bestand": listing.stock_quantity,
-            "zustand": listing.condition,
+            "zustand": _kuerzen(listing.condition, _GRENZEN["zustand"]),
             "aktiv": aktiv,
             "merkmale": merkmale,
         }
-        if listing.ean:
-            payload["ean"] = listing.ean
+        ean = "".join(z for z in (listing.ean or "") if z.isdigit())
+        if 8 <= len(ean) <= 14:  # sonst lieber weglassen als den Artikel scheitern lassen
+            payload["ean"] = ean
         if listing.url_slug:
-            payload["slug"] = listing.url_slug
+            payload["slug"] = _kuerzen(listing.url_slug, _GRENZEN["slug"]).rstrip("…")
         if listing.meta_title:
-            payload["seoTitel"] = listing.meta_title
+            payload["seoTitel"] = _kuerzen(listing.meta_title, _GRENZEN["seoTitel"])
         if listing.meta_description:
-            payload["seoBeschreibung"] = listing.meta_description
+            payload["seoBeschreibung"] = _kuerzen(listing.meta_description, _GRENZEN["seoBeschreibung"])
         if listing.category:
-            payload["kategorien"] = [{"name": listing.category}]
+            payload["kategorien"] = [{"name": _kuerzen(listing.category, _GRENZEN["kategorie"])}]
         if listing.image_urls:
-            payload["bilder"] = [{"url": url, "alt": listing.title} for url in listing.image_urls]
+            alt = _kuerzen(listing.title, _GRENZEN["alt"])
+            payload["bilder"] = [{"url": url, "alt": alt} for url in listing.image_urls]
         return payload
 
     def publish_product(self, listing: ShopListingPayload) -> ShopPublishResult:
