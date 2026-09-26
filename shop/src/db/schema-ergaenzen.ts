@@ -8,6 +8,9 @@
  *
  * Schlägt das Ergänzen fehl, bricht der Build ab: Der neue Code würde die
  * Spalten sofort abfragen, die alte Veröffentlichung bleibt dann online.
+ *
+ * Die CI baut mit einer Schein-DATABASE_URL ohne Datenbank und setzt dafür
+ * SCHEMA_ERGAENZEN=aus.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -18,6 +21,10 @@ const DATEIEN = ["0001_lebensmittelangaben.sql"];
 
 async function main() {
   const url = process.env.DATABASE_URL;
+  if (process.env.SCHEMA_ERGAENZEN === "aus") {
+    console.log("[schema] SCHEMA_ERGAENZEN=aus – Schema-Ergänzung übersprungen.");
+    return;
+  }
   if (!url) {
     console.log("[schema] Keine DATABASE_URL – Schema-Ergänzung übersprungen.");
     return;
