@@ -107,6 +107,7 @@ const views = {
     const page = await api("/products?limit=100");
     main().innerHTML = `
       <h2>Artikel (${page.total})</h2>
+      <p class="muted">Zum Ändern aller Angaben einen Artikel anklicken oder „Bearbeiten“ wählen.</p>
       <div class="toolbar"><label>Suche <input id="prod-search" placeholder="Name, SKU, EAN …"></label>
         <button class="btn" id="prod-search-btn">Suchen</button></div>
       <div class="table-wrap" id="prod-table"></div>`;
@@ -115,7 +116,8 @@ const views = {
         <th>SKU</th><th>Name</th><th>EAN</th><th>Bestand</th><th>VK</th>
         <th>Status</th><th>Shop</th><th>Lagerplatz</th></tr></thead><tbody>
         ${items.map((p) => `<tr><td>${esc(p.internal_sku)}</td>
-          <td><a href="#artikel/${p.id}">${esc(p.product_name || "(ohne Namen)")}</a><br><span class="muted">${esc(p.manufacturer || "")}</span></td>
+          <td><a href="#artikel/${p.id}">${esc(p.product_name || "(ohne Namen)")}</a><br><span class="muted">${esc(p.manufacturer || "")}</span>
+            <br><a class="btn small" href="#artikel/${p.id}" style="margin-top:6px">Bearbeiten</a></td>
           <td>${esc(p.ean || "–")}</td><td>${p.stock_quantity} (${p.available_quantity} verf.)</td>
           <td>${fmtMoney(p.sale_price)}</td><td>${statusBadge(p.processing_status)}</td>
           <td>${statusBadge(p.publication_status)}</td>
