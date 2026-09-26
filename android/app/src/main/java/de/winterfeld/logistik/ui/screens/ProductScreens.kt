@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
@@ -233,7 +234,8 @@ private fun ProductListItem(product: ProductDto, baseUrl: String, onClick: () ->
 
 // ─── Artikel-Detail mit Bearbeiten ───────────────────────────────────────────
 
-enum class FeldArt { TEXT, ZIFFERN, PREIS, MEHRZEILIG, ZUSTAND, LAGERPLATZ, LIEFERANT }
+enum class FeldArt { TEXT, ZIFFERN, PREIS, MEHRZEILIG, ZUSTAND, LAGERPLATZ, LIEFERANT,
+                     MENGE, EINHEIT, PFANDART }
 
 /** Ein bearbeitbares Feld; [key] ist der Feldname im PATCH des Servers. */
 data class Feld(val key: String, val label: String, val art: FeldArt = FeldArt.TEXT)
@@ -257,6 +259,16 @@ val FELDER_LAGER = listOf(
     Feld("storage_location_id", "Lagerplatz", FeldArt.LAGERPLATZ),
     Feld("supplier_id", "Lieferant", FeldArt.LIEFERANT),
 )
+val FELDER_LEBENSMITTEL = listOf(
+    Feld("net_content_amount", "Füllmenge je Einheit", FeldArt.MENGE),
+    Feld("net_content_unit", "Einheit", FeldArt.EINHEIT),
+    Feld("units_per_pack", "Anzahl im Gebinde", FeldArt.ZIFFERN),
+    Feld("deposit_amount", "Pfand gesamt je Verkaufseinheit", FeldArt.PREIS),
+    Feld("deposit_type", "Pfandart", FeldArt.PFANDART),
+    Feld("ingredients", "Zutaten", FeldArt.MEHRZEILIG),
+    Feld("allergens", "Allergene", FeldArt.MEHRZEILIG),
+    Feld("food_notes", "Pflichthinweise (z. B. „Koffeinhaltig“)", FeldArt.MEHRZEILIG),
+)
 val FELD_NOTIZEN = Feld("notes", "Bemerkungen", FeldArt.MEHRZEILIG)
 
 /** Anzeigewert eines Felds; null heißt "nicht ausgefüllt". */
@@ -275,6 +287,14 @@ fun feldWert(p: ProductDto, feld: Feld): String? = when (feld.key) {
     "storage_location_id" -> p.storageLocationCode
     "supplier_id" -> p.supplierName
     "notes" -> p.notes
+    "net_content_amount" -> Labels.menge(p.netContentAmount)
+    "net_content_unit" -> Labels.einheit(p.netContentUnit)
+    "units_per_pack" -> p.unitsPerPack?.toString()
+    "deposit_amount" -> p.depositAmount?.let(Labels::preis)
+    "deposit_type" -> Labels.pfandart(p.depositType)
+    "ingredients" -> p.ingredients
+    "allergens" -> p.allergens
+    "food_notes" -> p.foodNotes
     else -> null
 }.takeUnless { it.isNullOrBlank() }
 
@@ -371,6 +391,9 @@ private fun serverMeldung(e: HttpException): String {
 fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
                          onEdit: (Feld) -> Unit, onQuestion: (QuestionDto) -> Unit,
                          onUseRecommended: (String) -> Unit) {
+    // Für Werkzeug & Co. keine acht leeren Zeilen: erst auf Antippen aufklappen.
+    val hatLebensmittel = FELDER_LEBENSMITTEL.any { feldWert(p, it) != null }
+    var lebensmittelOffen by rememberSaveable(p.id) { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize().testTag("artikel-detail"),
                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
                verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -443,6 +466,19 @@ fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
                     }
                 } else {
                     ListRow("Marktpreis", subtitle = "Noch keine Preisrecherche")
+                }
+            }
+        }
+
+        item { SectionHeader("Lebensmittel & Getränke") }
+        item {
+            if (hatLebensmittel || lebensmittelOffen) {
+                FeldKarte(p, FELDER_LEBENSMITTEL, onEdit)
+            } else {
+                ListCard {
+                    ListRow("Angaben hinzufügen", icon = Icons.Default.Add,
+                            subtitle = "Füllmenge, Pfand, Zutaten, Allergene — nur für Lebensmittel und Getränke",
+                            onClick = { lebensmittelOffen = true })
                 }
             }
         }
@@ -537,6 +573,16 @@ private fun FeldDialog(
 
         FeldArt.LIEFERANT -> LieferantDialog(p, suppliers, saving, onDismiss, onSave)
 
+        FeldArt.EINHEIT -> AuswahlDialog(
+            feld.label, listOf<Pair<String?, String>>(null to "Keine Angabe") + Labels.EINHEITEN,
+            selected = p.netContentUnit, saving = saving,
+            onDismiss = onDismiss) { onSave(mapOf("net_content_unit" to it)) }
+
+        FeldArt.PFANDART -> AuswahlDialog(
+            feld.label, listOf<Pair<String?, String>>(null to "Keine Angabe") + Labels.PFANDARTEN,
+            selected = p.depositType, saving = saving,
+            onDismiss = onDismiss) { onSave(mapOf("deposit_type" to it)) }
+
         else -> TextDialog(feld, p, saving, onDismiss, onSave)
     }
 }
@@ -547,6 +593,7 @@ private fun TextDialog(feld: Feld, p: ProductDto, saving: Boolean,
     val rohwert = when (feld.key) {
         "purchase_price_net" -> p.purchasePriceNet?.replace('.', ',')
         "sale_price" -> p.salePrice?.replace('.', ',')
+        "deposit_amount" -> p.depositAmount?.replace('.', ',')
         else -> feldWert(p, feld)
     }
     var text by remember { mutableStateOf(rohwert ?: "") }
@@ -556,6 +603,7 @@ private fun TextDialog(feld: Feld, p: ProductDto, saving: Boolean,
         val wert: String? = try {
             when (feld.art) {
                 FeldArt.PREIS -> Labels.preisEingabe(text)
+                FeldArt.MENGE -> Labels.mengeEingabe(text)
                 else -> text.trim().ifEmpty { null }
             }
         } catch (e: IllegalArgumentException) { fehler = e.message; return }
@@ -575,6 +623,7 @@ private fun TextDialog(feld: Feld, p: ProductDto, saving: Boolean,
                 supportingText = {
                     Text(fehler ?: when (feld.art) {
                         FeldArt.PREIS -> "z. B. 12,50 — leer lassen zum Entfernen"
+                        FeldArt.MENGE -> "z. B. 0,33 (Einheit extra wählen) — leer lassen zum Entfernen"
                         else -> "Leer lassen zum Entfernen"
                     })
                 },
@@ -582,7 +631,7 @@ private fun TextDialog(feld: Feld, p: ProductDto, saving: Boolean,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = when (feld.art) {
                         FeldArt.ZIFFERN -> KeyboardType.Number
-                        FeldArt.PREIS -> KeyboardType.Decimal
+                        FeldArt.PREIS, FeldArt.MENGE -> KeyboardType.Decimal
                         else -> KeyboardType.Text
                     },
                     capitalization = if (feld.art == FeldArt.TEXT || feld.art == FeldArt.MEHRZEILIG)
