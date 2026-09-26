@@ -24,11 +24,25 @@ async function api(path, options = {}, retry = true) {
   }
   if (!res.ok) {
     let detail = res.statusText;
-    try { detail = JSON.stringify((await res.json()).detail); } catch (_) {}
+    try { detail = fehlertext((await res.json()).detail); } catch (_) {}
     throw new Error(detail);
   }
   if (res.status === 204) return null;
   return res.json();
+}
+
+/** Fehlerantwort der API lesbar machen, z. B. „Verkaufspreis: kein gültiger Geldbetrag“. */
+function fehlertext(detail) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const namen = Object.fromEntries(ARTIKEL_GRUPPEN.flatMap(([, felder]) => felder.map(([k, l]) => [k, l])));
+    return detail.map((e) => {
+      const feld = (e.loc || []).at(-1);
+      return `${namen[feld] || feld}: ${String(e.msg || "").replace(/^Value error, /, "")}`;
+    }).join("; ");
+  }
+  if (detail && typeof detail === "object") return detail.detail || JSON.stringify(detail);
+  return String(detail);
 }
 
 async function tryRefresh() {
@@ -101,7 +115,7 @@ const views = {
         <th>SKU</th><th>Name</th><th>EAN</th><th>Bestand</th><th>VK</th>
         <th>Status</th><th>Shop</th><th>Lagerplatz</th></tr></thead><tbody>
         ${items.map((p) => `<tr><td>${esc(p.internal_sku)}</td>
-          <td>${esc(p.product_name || "–")}<br><span class="muted">${esc(p.manufacturer || "")}</span></td>
+          <td><a href="#artikel/${p.id}">${esc(p.product_name || "(ohne Namen)")}</a><br><span class="muted">${esc(p.manufacturer || "")}</span></td>
           <td>${esc(p.ean || "–")}</td><td>${p.stock_quantity} (${p.available_quantity} verf.)</td>
           <td>${fmtMoney(p.sale_price)}</td><td>${statusBadge(p.processing_status)}</td>
           <td>${statusBadge(p.publication_status)}</td>
@@ -149,6 +163,11 @@ const views = {
             </div></a>`;
         }).join("")}
       </div>`;
+  },
+
+  async artikel(productId) {
+    if (!productId) { location.hash = "#products"; return; }
+    return artikelDetail(productId);
   },
 
   async suppliers() {
@@ -398,7 +417,7 @@ async function freigabeDetail(productId) {
   };
 
   main().innerHTML = `
-    <p><a href="#freigabe">← Zurück zur Übersicht</a></p>
+    <p><a href="#freigabe">← Zurück zur Übersicht</a> · <a href="#artikel/${product.id}">Angaben bearbeiten →</a></p>
     <div class="freigabe-kopf">
       <div>
         <h2>${esc(product.product_name || "(ohne Namen)")}</h2>
@@ -497,6 +516,335 @@ async function freigabeDetail(productId) {
   }
 }
 
+// ── Artikel bearbeiten ───────────────────────────────────────────────────────
+// Dieselben Angaben wie in der App (und die, die dort keinen Platz haben):
+// Stammdaten, Preise, Lager, Beschreibungen, Merkmale, Shoptext. Gespeichert
+// wird nur, was sich geändert hat – als Benutzerangabe, die Vorrang vor
+// KI-Vermutungen hat und im Audit-Log landet.
+
+const ZUSTAENDE = { new: "Neu", new_opened: "Neu, geöffnet", refurbished: "Generalüberholt",
+  used: "Gebraucht", defective: "Defekt", unknown: "Unbekannt" };
+const BEWEGUNGEN = { inbound: "Wareneingang (+)", return: "Rücknahme (+)",
+  damaged: "Beschädigt / Ausschuss (−)", manual_correction: "Korrektur (±)",
+  inventory_correction: "Inventur (±)" };
+
+/** Feldgruppen: [Schlüssel, Beschriftung, Art]. Art: text | zahl | geld | datum | lang | zustand | lager | lieferant */
+const ARTIKEL_GRUPPEN = [
+  ["Artikel", [
+    ["product_name", "Name"], ["manufacturer", "Hersteller"], ["brand", "Marke"],
+    ["model", "Modell"], ["ean", "EAN / Barcode", "zahl"], ["gtin", "GTIN", "zahl"],
+    ["mpn", "Herstellernummer (MPN)"], ["category", "Kategorie"], ["subcategory", "Unterkategorie"],
+    ["condition", "Zustand", "zustand"], ["packaging_condition", "Verpackung"],
+    ["serial_number", "Seriennummer"], ["batch_number", "Charge"],
+  ]],
+  ["Preise", [
+    ["purchase_price_net", "Einkaufspreis netto", "geld"],
+    ["purchase_price_gross", "Einkaufspreis brutto", "geld"],
+    ["sale_price", "Verkaufspreis", "geld"], ["minimum_sale_price", "Mindestpreis", "geld"],
+  ]],
+  ["Lager & Einkauf", [
+    ["storage_location_id", "Lagerplatz", "lager"], ["supplier_id", "Lieferant", "lieferant"],
+    ["purchase_date", "Einkaufsdatum", "datum"], ["invoice_number", "Rechnungsnummer"],
+  ]],
+  ["Beschreibung", [
+    ["short_description", "Kurzbeschreibung", "lang"], ["long_description", "Beschreibung", "lang"],
+    ["notes", "Bemerkungen (intern)", "lang"],
+  ]],
+];
+
+/** Merkmale (Schlüssel → Wert) als Zeilen, die man ergänzen und löschen kann. */
+function merkmalEditor(name, werte) {
+  const zeile = (k = "", v = "") => `<div class="merkmal-zeile">
+      <input data-merkmal-k placeholder="z. B. Farbe" value="${esc(k)}">
+      <input data-merkmal-v placeholder="z. B. Schwarz" value="${esc(v)}">
+      <button type="button" class="btn small danger" data-merkmal-weg title="Zeile entfernen">✕</button>
+    </div>`;
+  const eintraege = Object.entries(werte || {});
+  return `<div class="merkmale" data-merkmale="${name}">
+      ${(eintraege.length ? eintraege : [["", ""]]).map(([k, v]) => zeile(k, v)).join("")}
+      <button type="button" class="btn small" data-merkmal-neu>+ Zeile</button>
+    </div>`;
+}
+
+function merkmaleLesen(container) {
+  const ergebnis = {};
+  container.querySelectorAll(".merkmal-zeile").forEach((z) => {
+    const k = z.querySelector("[data-merkmal-k]").value.trim();
+    const v = z.querySelector("[data-merkmal-v]").value.trim();
+    if (k) ergebnis[k] = v;
+  });
+  return ergebnis;
+}
+
+function merkmaleAktivieren(root) {
+  root.addEventListener("click", (e) => {
+    if (e.target.matches("[data-merkmal-weg]")) {
+      const box = e.target.closest(".merkmale");
+      e.target.closest(".merkmal-zeile").remove();
+      if (!box.querySelector(".merkmal-zeile")) box.querySelector("[data-merkmal-neu]").click();
+    }
+    if (e.target.matches("[data-merkmal-neu]")) {
+      e.target.insertAdjacentHTML("beforebegin", `<div class="merkmal-zeile">
+        <input data-merkmal-k placeholder="z. B. Farbe"><input data-merkmal-v placeholder="z. B. Schwarz">
+        <button type="button" class="btn small danger" data-merkmal-weg title="Zeile entfernen">✕</button></div>`);
+    }
+  });
+}
+
+/** Wert fürs Formular: Geld mit Komma, Datum als JJJJ-MM-TT, sonst Text. */
+function feldWert(product, key, art) {
+  const v = product[key];
+  if (v == null) return "";
+  if (art === "geld") return Number(v).toFixed(2).replace(".", ",");
+  if (art === "datum") return String(v).slice(0, 10);
+  return String(v);
+}
+
+function feldHtml(product, [key, label, art = "text"], stamm) {
+  const wert = feldWert(product, key, art);
+  const quelle = (product.field_sources || {})[key];
+  const hinweis = quelle && quelle !== "user" && wert
+    ? `<span class="quelle" title="Herkunft der Angabe – mit eigener Eingabe überschreiben">${
+        { ai: "KI", vision: "KI", research: "Recherche", voice: "Sprache" }[quelle] || esc(quelle)}</span>` : "";
+  let eingabe;
+  if (art === "zustand") {
+    eingabe = `<select name="${key}">${Object.entries(ZUSTAENDE).map(([v, l]) =>
+      `<option value="${v}" ${v === product[key] ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  } else if (art === "lager" || art === "lieferant") {
+    const liste = art === "lager" ? stamm.lagerplaetze : stamm.lieferanten;
+    const text = (x) => art === "lager" ? x.code : x.name;
+    eingabe = `<select name="${key}"><option value="">– keiner –</option>${liste.map((x) =>
+      `<option value="${x.id}" ${x.id === product[key] ? "selected" : ""}>${esc(text(x))}</option>`).join("")}</select>`;
+  } else if (art === "lang") {
+    eingabe = `<textarea name="${key}" rows="${key === "long_description" ? 8 : 3}">${esc(wert)}</textarea>`;
+  } else {
+    const typ = art === "datum" ? "date" : "text";
+    const modus = art === "geld" ? 'inputmode="decimal" placeholder="0,00"' : art === "zahl" ? 'inputmode="numeric"' : "";
+    eingabe = `<input name="${key}" type="${typ}" ${modus} value="${esc(wert)}">`;
+  }
+  const breit = art === "lang" ? ' class="breit"' : "";
+  return `<label${breit}><span>${esc(label)} ${hinweis}</span>${eingabe}</label>`;
+}
+
+async function artikelDetail(productId) {
+  const [product, stamm, listing, bewegungen] = await Promise.all([
+    api("/products/" + productId),
+    Promise.all([api("/storage-locations").catch(() => []), api("/suppliers").catch(() => [])])
+      .then(([lagerplaetze, lieferanten]) => ({ lagerplaetze, lieferanten })),
+    api(`/shop/products/${productId}/listing`).catch(() => null),
+    api(`/products/${productId}/stock-movements`).catch(() => []),
+  ]);
+  const darfBestand = ["warehouse_manager", "admin"].includes(currentUser?.role);
+  const darfShoptext = darfFreigeben();
+  const fragen = product.open_questions || [];
+
+  const frageHtml = (f) => {
+    let eingabe;
+    if (f.kind === "candidate_select") {
+      eingabe = `<div class="kandidaten">${(f.options || []).map((o) => `
+        <button type="button" class="btn small" data-kandidat="${o.index}" data-frage="${f.id}">
+          ${esc(o.product_name || "?")}${o.manufacturer ? " · " + esc(o.manufacturer) : ""}${o.ean ? " · EAN " + esc(o.ean) : ""}
+        </button>`).join("")}</div>`;
+    } else if (f.kind === "choice") {
+      eingabe = `<div class="kandidaten">${(f.options || []).map((o) =>
+        `<button type="button" class="btn small" data-antwort="${esc(o)}" data-frage="${f.id}" data-feld="${esc(f.field || "")}">${esc(o)}</button>`).join("")}</div>`;
+    } else {
+      eingabe = `<div class="toolbar" style="margin:0">
+        <input data-antwort-eingabe="${f.id}" ${f.kind === "number" ? 'inputmode="numeric"' : ""} placeholder="Antwort">
+        <button type="button" class="btn small primary" data-antwort-senden="${f.id}" data-feld="${esc(f.field || "")}">Übernehmen</button></div>`;
+    }
+    return `<div class="frage"><p>${esc(f.text)}</p>${eingabe}</div>`;
+  };
+
+  main().innerHTML = `
+    <p><a href="#products">← Alle Artikel</a> · <a href="#freigabe/${product.id}">Bilder &amp; Freigabe →</a></p>
+    <div class="freigabe-kopf">
+      <div>
+        <h2>${esc(product.product_name || "(ohne Namen)")}</h2>
+        <p class="muted">${esc(product.internal_sku)} · Bestand ${product.stock_quantity}
+          (${product.available_quantity} verfügbar) · angelegt ${fmtDate(product.created_at)}</p>
+      </div>
+      <div>${statusBadge(product.processing_status)} ${statusBadge(product.publication_status)}</div>
+    </div>
+
+    ${fragen.length ? `<div class="card fragen"><strong>Offene Fragen (${fragen.length})</strong>
+      ${fragen.map(frageHtml).join("")}</div>` : ""}
+
+    <form id="artikel-form" class="artikel-form">
+      ${ARTIKEL_GRUPPEN.map(([titel, felder]) => `
+        <section class="card"><h3>${titel}</h3>
+          <div class="form-grid">${felder.map((f) => feldHtml(product, f, stamm)).join("")}</div>
+          ${titel === "Preise" && (product.recommended_sale_price || product.lowest_market_price) ? `
+            <p class="muted marktpreis">Marktpreis ${fmtMoney(product.lowest_market_price)} – ${fmtMoney(product.highest_market_price)}
+              ${product.recommended_sale_price ? ` · empfohlen <strong>${fmtMoney(product.recommended_sale_price)}</strong>
+                <button type="button" class="btn small" id="empfehlung">Als Verkaufspreis übernehmen</button>` : ""}</p>` : ""}
+        </section>`).join("")}
+      <section class="card"><h3>Merkmale</h3>
+        <p class="muted">Erscheinen im Shop als Eigenschaftsliste, z. B. Farbe, Maße, Material.</p>
+        ${merkmalEditor("attributes", product.attributes)}
+        <h3 style="margin-top:18px">Technische Daten</h3>
+        ${merkmalEditor("technical_data", product.technical_data)}
+      </section>
+      <div class="speicherleiste">
+        <button class="btn primary" type="submit">Änderungen speichern</button>
+        <span id="artikel-meldung"></span>
+      </div>
+    </form>
+
+    <section class="card"><h3>Shoptext</h3>
+      ${listing ? `<form id="shoptext-form" class="form-grid">
+          <label class="breit"><span>SEO-Titel (max. 200 Zeichen)</span><input name="seo_title" maxlength="200" value="${esc(listing.seo_title || "")}"></label>
+          <label class="breit"><span>Kurzbeschreibung</span><textarea name="short_description" rows="3">${esc(listing.short_description || "")}</textarea></label>
+          <label class="breit"><span>Beschreibung</span><textarea name="long_description" rows="8">${esc(listing.long_description || "")}</textarea></label>
+          <label class="breit"><span>Stichpunkte (eine Zeile je Punkt)</span><textarea name="bullet_points" rows="5">${esc((listing.bullet_points || []).join("\n"))}</textarea></label>
+          <label><span>Lieferumfang</span><input name="scope_of_delivery" value="${esc(listing.scope_of_delivery || "")}"></label>
+          <label><span>Hinweis zum Zustand</span><input name="condition_note" value="${esc(listing.condition_note || "")}"></label>
+          <label><span>Meta-Titel</span><input name="meta_title" maxlength="200" value="${esc(listing.meta_title || "")}"></label>
+          <label><span>Adresse im Shop (Slug)</span><input name="url_slug" value="${esc(listing.url_slug || "")}"></label>
+          <label class="breit"><span>Meta-Beschreibung (max. 320 Zeichen) <span class="muted" id="meta-zaehler"></span></span><textarea name="meta_description" rows="2" maxlength="320">${esc(listing.meta_description || "")}</textarea></label>
+          <label class="breit"><span>Schlagwörter (mit Komma getrennt)</span><input name="tags" value="${esc((listing.tags || []).join(", "))}"></label>
+          <div class="speicherleiste breit">
+            ${darfShoptext ? '<button class="btn primary" type="submit">Shoptext speichern</button>' : '<span class="muted">Shoptexte ändern dürfen Shop-Manager, Lagerleiter und Administratoren.</span>'}
+            ${darfShoptext ? '<button class="btn" type="button" id="shoptext-neu">Von der KI neu schreiben lassen</button>' : ""}
+            <span id="shoptext-meldung"></span>
+          </div>
+        </form>`
+      : `<p class="muted">Noch kein Shoptext vorhanden. Er entsteht automatisch nach der Erkennung.</p>
+         ${darfShoptext ? '<button class="btn" type="button" id="shoptext-neu">Jetzt von der KI schreiben lassen</button> <span id="shoptext-meldung"></span>' : ""}`}
+    </section>
+
+    <section class="card"><h3>Bestand</h3>
+      <p>Bestand <strong>${product.stock_quantity}</strong> · reserviert ${product.reserved_quantity}
+        · verfügbar <strong>${product.available_quantity}</strong></p>
+      ${darfBestand ? `<form id="bewegung-form" class="toolbar">
+          <label>Vorgang <select name="movement_type">${Object.entries(BEWEGUNGEN).map(([v, l]) =>
+            `<option value="${v}">${l}</option>`).join("")}</select></label>
+          <label>Menge <input name="quantity_change" type="number" step="1" required placeholder="z. B. 5 oder -2" style="width:130px"></label>
+          <label style="flex:1">Grund <input name="reason" placeholder="z. B. Nachlieferung, Inventur"></label>
+          <button class="btn" type="submit">Buchen</button>
+          <span id="bewegung-meldung"></span>
+        </form>` : '<p class="muted">Bestand buchen dürfen Lagerleiter und Administratoren.</p>'}
+      ${bewegungen.length ? `<div class="table-wrap"><table><thead><tr><th>Zeitpunkt</th><th>Vorgang</th>
+        <th>Menge</th><th>Bestand</th><th>Grund</th></tr></thead><tbody>
+        ${bewegungen.slice(0, 20).map((b) => `<tr><td>${fmtDate(b.created_at)}</td>
+          <td>${esc(BEWEGUNGEN[b.movement_type] || b.movement_type)}</td>
+          <td>${b.quantity_change > 0 ? "+" : ""}${b.quantity_change}</td>
+          <td>${b.quantity_before} → ${b.quantity_after}</td><td class="muted">${esc(b.reason || "")}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
+    </section>`;
+
+  const neuLaden = () => artikelDetail(productId);
+  /** art: "ok" (gespeichert), "fehler" oder "info" (Hinweis, nichts passiert). */
+  const melden = (id, text, art = "ok") => {
+    const el = document.getElementById(id);
+    const klasse = { ok: "ok", fehler: "error", info: "muted" }[art === true ? "fehler" : art];
+    if (el) el.innerHTML = `<span class="${klasse}">${esc(text)}</span>`;
+  };
+  // Am Formular, nicht an main(): main() bleibt bestehen, das Formular entsteht
+  // bei jedem Laden neu – sonst sammelten sich die Handler an.
+  merkmaleAktivieren(document.getElementById("artikel-form"));
+
+  // Stammdaten speichern: nur geänderte Felder, leere Felder werden geleert.
+  document.getElementById("artikel-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const aenderungen = {};
+    for (const [, felder] of ARTIKEL_GRUPPEN) {
+      for (const [key, , art = "text"] of felder) {
+        const neu = form.elements[key].value.trim();
+        if (neu === feldWert(product, key, art)) continue;
+        aenderungen[key] = neu === "" ? null : neu;
+      }
+    }
+    for (const name of ["attributes", "technical_data"]) {
+      const neu = merkmaleLesen(form.querySelector(`[data-merkmale="${name}"]`));
+      if (JSON.stringify(neu) !== JSON.stringify(product[name] || {})) aenderungen[name] = neu;
+    }
+    if (Object.keys(aenderungen).length === 0) { melden("artikel-meldung", "Keine Änderungen.", "info"); return; }
+    try {
+      await api("/products/" + productId, { method: "PATCH", body: aenderungen });
+      await neuLaden();
+      melden("artikel-meldung", `✓ Gespeichert (${Object.keys(aenderungen).length} Angabe${Object.keys(aenderungen).length === 1 ? "" : "n"}).`);
+    } catch (err) { melden("artikel-meldung", "Fehler: " + err.message, true); }
+  };
+
+  const empfehlung = document.getElementById("empfehlung");
+  if (empfehlung) empfehlung.onclick = () => {
+    document.querySelector('#artikel-form [name="sale_price"]').value =
+      Number(product.recommended_sale_price).toFixed(2).replace(".", ",");
+    melden("artikel-meldung", "Empfohlener Preis eingetragen – noch speichern.", "info");
+  };
+
+  // Offene Fragen beantworten
+  const antworten = async (antwort) => {
+    try {
+      await api(`/captures/${productId}/answers`, { method: "POST", body: { answers: [antwort] } });
+      await neuLaden();
+    } catch (err) { alert("Antwort nicht gespeichert: " + err.message); }
+  };
+  main().querySelectorAll("[data-kandidat]").forEach((b) => b.onclick = () =>
+    antworten({ question_id: b.dataset.frage, selected_candidate_index: Number(b.dataset.kandidat) }));
+  main().querySelectorAll("[data-antwort]").forEach((b) => b.onclick = () =>
+    antworten({ question_id: b.dataset.frage, field: b.dataset.feld || null, value: b.dataset.antwort }));
+  main().querySelectorAll("[data-antwort-senden]").forEach((b) => b.onclick = () => {
+    const wert = main().querySelector(`[data-antwort-eingabe="${b.dataset.antwortSenden}"]`).value.trim();
+    if (!wert) return;
+    antworten({ question_id: b.dataset.antwortSenden, field: b.dataset.feld || null, value: wert });
+  });
+
+  // Shoptext
+  const shoptext = document.getElementById("shoptext-form");
+  if (shoptext) {
+    const zaehler = () => { document.getElementById("meta-zaehler").textContent =
+      `(${shoptext.elements.meta_description.value.length}/320)`; };
+    shoptext.elements.meta_description.oninput = zaehler; zaehler();
+    shoptext.onsubmit = async (e) => {
+      e.preventDefault();
+      const f = e.target.elements;
+      const liste = (text, trenner) => text.split(trenner).map((x) => x.trim()).filter(Boolean);
+      const body = {};
+      for (const key of ["seo_title", "short_description", "long_description", "scope_of_delivery",
+                         "condition_note", "meta_title", "meta_description", "url_slug"]) {
+        const neu = f[key].value.trim();
+        if (neu !== (listing[key] || "")) body[key] = neu || null;
+      }
+      const punkte = liste(f.bullet_points.value, "\n");
+      if (JSON.stringify(punkte) !== JSON.stringify(listing.bullet_points || [])) body.bullet_points = punkte;
+      const tags = liste(f.tags.value, ",");
+      if (JSON.stringify(tags) !== JSON.stringify(listing.tags || [])) body.tags = tags;
+      if (Object.keys(body).length === 0) { melden("shoptext-meldung", "Keine Änderungen.", "info"); return; }
+      try {
+        await api(`/shop/products/${productId}/listing`, { method: "PATCH", body });
+        await neuLaden();
+        melden("shoptext-meldung", "✓ Shoptext gespeichert.");
+      } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
+    };
+  }
+  const shoptextNeu = document.getElementById("shoptext-neu");
+  if (shoptextNeu) shoptextNeu.onclick = async () => {
+    if (listing && !confirm("Shoptext neu schreiben lassen? Eigene Änderungen am Shoptext werden ersetzt.")) return;
+    try {
+      await api(`/shop/products/${productId}/listing/regenerate`, { method: "POST" });
+      melden("shoptext-meldung", "✓ Wird neu geschrieben – in etwa einer Minute neu laden.");
+    } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
+  };
+
+  // Lagerbewegung
+  const bewegung = document.getElementById("bewegung-form");
+  if (bewegung) bewegung.onsubmit = async (e) => {
+    e.preventDefault();
+    const daten = Object.fromEntries(new FormData(e.target).entries());
+    const menge = Number(daten.quantity_change);
+    if (!Number.isInteger(menge) || menge === 0) { melden("bewegung-meldung", "Menge muss eine ganze Zahl ungleich 0 sein.", true); return; }
+    try {
+      await api(`/products/${productId}/stock-movements`, { method: "POST", body: {
+        movement_type: daten.movement_type, quantity_change: menge, reason: daten.reason || null } });
+      await neuLaden();
+      melden("bewegung-meldung", "✓ Gebucht.");
+    } catch (err) { melden("bewegung-meldung", "Fehler: " + err.message, true); }
+  };
+}
+
 // ── Navigation & Auth-Flow ───────────────────────────────────────────────────
 
 function showLogin() {
@@ -517,8 +865,9 @@ async function showApp() {
 function navigate() {
   // Routen haben die Form "#ansicht" oder "#ansicht/<id>" (z. B. #freigabe/<artikel-id>).
   const [route, param] = (location.hash || "#dashboard").slice(1).split("/", 2);
+  const menue = route === "artikel" ? "products" : route;
   document.querySelectorAll("#nav a").forEach((a) =>
-    a.classList.toggle("active", a.getAttribute("href") === "#" + route));
+    a.classList.toggle("active", a.getAttribute("href") === "#" + menue));
   const view = views[route] || views.dashboard;
   main().innerHTML = '<p class="muted">Lade …</p>';
   view(param ? decodeURIComponent(param) : undefined).catch((err) => {
