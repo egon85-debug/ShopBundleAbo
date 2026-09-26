@@ -14,6 +14,9 @@ EDITABLE_FIELDS = {
     "purchase_price_gross", "sale_price", "minimum_sale_price", "supplier_id",
     "purchase_date", "invoice_number", "storage_location_id", "batch_number",
     "serial_number", "notes",
+    # Lebensmittel & Getränke
+    "net_content_amount", "net_content_unit", "units_per_pack", "deposit_amount",
+    "deposit_type", "ingredients", "allergens", "food_notes",
 }
 
 

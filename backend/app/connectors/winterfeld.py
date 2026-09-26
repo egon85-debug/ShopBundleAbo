@@ -29,6 +29,10 @@ _GRENZEN = {"name": 300, "kurzbeschreibung": 2000, "slug": 320, "seoTitel": 200,
             "seoBeschreibung": 320, "zustand": 60, "kategorie": 160, "alt": 300}
 
 
+# Einheit der Füllmenge → Basiseinheit im Shop und Umrechnungsfaktor.
+_FAKTOR = {"ml": ("ml", 1), "l": ("ml", 1000), "g": ("g", 1), "kg": ("g", 1000)}
+
+
 def _kuerzen(text: str | None, grenze: int) -> str | None:
     """Auf `grenze` Zeichen kürzen, möglichst an einer Wortgrenze, mit „…“."""
     if text is None or len(text) <= grenze:
@@ -134,7 +138,33 @@ class WinterfeldShopConnector(ShopConnector):
         if listing.image_urls:
             alt = _kuerzen(listing.title, _GRENZEN["alt"])
             payload["bilder"] = [{"url": url, "alt": alt} for url in listing.image_urls]
+        payload.update(self._lebensmittel(listing))
         return payload
+
+    @staticmethod
+    def _lebensmittel(listing: ShopListingPayload) -> dict:
+        """Füllmenge (für den Grundpreis), Pfand und Kennzeichnung.
+
+        Die Menge geht in ganzen Millilitern bzw. Gramm an den Shop – so rechnet
+        er den Grundpreis ohne Fliesskommazahlen.
+        """
+        daten: dict = {}
+        if listing.net_content_amount and listing.net_content_unit in _FAKTOR:
+            einheit, faktor = _FAKTOR[listing.net_content_unit]
+            menge = int((listing.net_content_amount * faktor).to_integral_value())
+            if menge > 0:
+                daten["inhalt"] = {"menge": menge, "einheit": einheit,
+                                   "anzahl": listing.units_per_pack or 1}
+        if listing.deposit_amount and listing.deposit_amount > 0:
+            daten["pfandCents"] = int((listing.deposit_amount * 100).to_integral_value())
+            if listing.deposit_type:
+                daten["pfandArt"] = listing.deposit_type
+        for feld, schluessel in (("ingredients", "zutaten"), ("allergens", "allergene"),
+                                 ("food_notes", "lebensmittelHinweise")):
+            wert = getattr(listing, feld)
+            if wert and wert.strip():
+                daten[schluessel] = wert.strip()
+        return daten
 
     def publish_product(self, listing: ShopListingPayload) -> ShopPublishResult:
         daten = self._post(self._payload(listing))

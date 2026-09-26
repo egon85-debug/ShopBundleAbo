@@ -163,3 +163,35 @@ def test_unbrauchbare_ean_wird_weggelassen_statt_abgelehnt(antwort):
 
     antwort(handler).publish_product(_listing(ean="unbekannt"))
     assert "ean" not in gesendet
+
+
+def test_lebensmittel_gehen_mit_ganzen_millilitern_und_pfand_in_cent(antwort):
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc"})
+
+    antwort(handler).publish_product(_listing(
+        net_content_amount=Decimal("1.5"), net_content_unit="l", units_per_pack=6,
+        deposit_amount=Decimal("1.50"), deposit_type="einweg",
+        ingredients="Wasser, Zucker, Kohlensäure", allergens="", food_notes="Koffeinhaltig",
+    ))
+    assert gesendet["inhalt"] == {"menge": 1500, "einheit": "ml", "anzahl": 6}
+    assert gesendet["pfandCents"] == 150 and gesendet["pfandArt"] == "einweg"
+    assert gesendet["zutaten"] == "Wasser, Zucker, Kohlensäure"
+    assert gesendet["lebensmittelHinweise"] == "Koffeinhaltig"
+    assert "allergene" not in gesendet
+
+
+def test_ohne_lebensmittelangaben_bleibt_die_nutzlast_wie_bisher(antwort):
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc"})
+
+    antwort(handler).publish_product(_listing())
+    assert not {"inhalt", "pfandCents", "pfandArt", "zutaten"} & set(gesendet)

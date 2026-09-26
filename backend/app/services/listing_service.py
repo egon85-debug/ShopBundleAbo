@@ -20,6 +20,8 @@ from app.providers.registry import get_llm
 _TEXT_FIELDS = [
     "product_name", "manufacturer", "brand", "model", "mpn", "ean", "category",
     "subcategory", "condition", "packaging_condition",
+    "net_content_amount", "net_content_unit", "units_per_pack", "deposit_amount",
+    "deposit_type", "ingredients", "allergens", "food_notes",
 ]
 
 # Sätze über die Erfassung selbst oder mit Vorbehalten gehören nicht in den Shop.

@@ -551,6 +551,13 @@ const ARTIKEL_GRUPPEN = [
     ["purchase_price_gross", "Einkaufspreis brutto", "geld"],
     ["sale_price", "Verkaufspreis", "geld"], ["minimum_sale_price", "Mindestpreis", "geld"],
   ]],
+  ["Lebensmittel & Getränke", [
+    ["net_content_amount", "Füllmenge je Einheit", "menge"], ["net_content_unit", "Einheit", "einheit"],
+    ["units_per_pack", "Anzahl im Gebinde", "anzahl"],
+    ["deposit_amount", "Pfand gesamt je Verkaufseinheit", "geld"], ["deposit_type", "Pfandart", "pfandart"],
+    ["ingredients", "Zutaten", "lang"], ["allergens", "Allergene", "lang"],
+    ["food_notes", "Pflichthinweise (z. B. „Koffeinhaltig“, Aufbewahrung)", "lang"],
+  ]],
   ["Lager & Einkauf", [
     ["storage_location_id", "Lagerplatz", "lager"], ["supplier_id", "Lieferant", "lieferant"],
     ["purchase_date", "Einkaufsdatum", "datum"], ["invoice_number", "Rechnungsnummer"],
@@ -605,6 +612,7 @@ function feldWert(product, key, art) {
   const v = product[key];
   if (v == null) return "";
   if (art === "geld") return Number(v).toFixed(2).replace(".", ",");
+  if (art === "menge") return String(Number(v)).replace(".", ",");
   if (art === "datum") return String(v).slice(0, 10);
   return String(v);
 }
@@ -619,6 +627,11 @@ function feldHtml(product, [key, label, art = "text"], stamm) {
   if (art === "zustand") {
     eingabe = `<select name="${key}">${Object.entries(ZUSTAENDE).map(([v, l]) =>
       `<option value="${v}" ${v === product[key] ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  } else if (art === "einheit" || art === "pfandart") {
+    const optionen = art === "einheit"
+      ? { ml: "ml", l: "Liter", g: "g", kg: "kg" } : { einweg: "Einweg", mehrweg: "Mehrweg" };
+    eingabe = `<select name="${key}"><option value="">–</option>${Object.entries(optionen).map(([v, l]) =>
+      `<option value="${v}" ${v === product[key] ? "selected" : ""}>${l}</option>`).join("")}</select>`;
   } else if (art === "lager" || art === "lieferant") {
     const liste = art === "lager" ? stamm.lagerplaetze : stamm.lieferanten;
     const text = (x) => art === "lager" ? x.code : x.name;
@@ -628,11 +641,23 @@ function feldHtml(product, [key, label, art = "text"], stamm) {
     eingabe = `<textarea name="${key}" rows="${key === "long_description" ? 8 : 3}">${esc(wert)}</textarea>`;
   } else {
     const typ = art === "datum" ? "date" : "text";
-    const modus = art === "geld" ? 'inputmode="decimal" placeholder="0,00"' : art === "zahl" ? 'inputmode="numeric"' : "";
+    const modus = art === "geld" ? 'inputmode="decimal" placeholder="0,00"'
+      : art === "menge" ? 'inputmode="decimal" placeholder="z. B. 0,33"'
+      : art === "zahl" || art === "anzahl" ? 'inputmode="numeric"' : "";
     eingabe = `<input name="${key}" type="${typ}" ${modus} value="${esc(wert)}">`;
   }
   const breit = art === "lang" ? ' class="breit"' : "";
   return `<label${breit}><span>${esc(label)} ${hinweis}</span>${eingabe}</label>`;
+}
+
+/** Grundpreis wie im Shop: Preis je 1 l bzw. 1 kg über alle Einheiten im Gebinde. */
+function grundpreisText(p) {
+  if (!p.sale_price || !p.net_content_amount || !p.net_content_unit) return null;
+  const basis = { ml: 0.001, l: 1, g: 0.001, kg: 1 }[p.net_content_unit];
+  const menge = Number(p.net_content_amount) * basis * (p.units_per_pack || 1);
+  if (!menge) return null;
+  const je = ["ml", "l"].includes(p.net_content_unit) ? "l" : "kg";
+  return `${fmtMoney(Number(p.sale_price) / menge)}/${je}`;
 }
 
 async function artikelDetail(productId) {
@@ -683,6 +708,9 @@ async function artikelDetail(productId) {
       ${ARTIKEL_GRUPPEN.map(([titel, felder]) => `
         <section class="card"><h3>${titel}</h3>
           <div class="form-grid">${felder.map((f) => feldHtml(product, f, stamm)).join("")}</div>
+          ${titel === "Lebensmittel & Getränke" ? `<p class="muted marktpreis">Nur bei Lebensmitteln und Getränken ausfüllen.
+            Pfand ist der Gesamtbetrag je Verkaufseinheit (6er Träger à 0,25 € = 1,50 €).
+            ${grundpreisText(product) ? `Grundpreis im Shop: <strong>${grundpreisText(product)}</strong>` : ""}</p>` : ""}
           ${titel === "Preise" && (product.recommended_sale_price || product.lowest_market_price) ? `
             <p class="muted marktpreis">Marktpreis ${fmtMoney(product.lowest_market_price)} – ${fmtMoney(product.highest_market_price)}
               ${product.recommended_sale_price ? ` · empfohlen <strong>${fmtMoney(product.recommended_sale_price)}</strong>
