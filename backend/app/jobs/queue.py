@@ -3,7 +3,7 @@ FOR UPDATE SKIP LOCKED, Retry mit Exponential-Backoff + Jitter (Anforderung 20/3
 import random
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -32,8 +32,36 @@ def wartet(db: Session, *, product_id: str, job_type: str) -> bool:
         Job.status.in_([JobStatus.QUEUED.value, JobStatus.FAILED.value])).limit(1)) is not None
 
 
+HAENGT_GRUND = ("Abgebrochen: Die Verarbeitung wurde unterbrochen (z. B. durch einen "
+                "Neustart des Servers) und wird automatisch wiederholt.")
+
+
+def haengende_freigeben(db: Session) -> int:
+    """Aufträge, die seit `job_stale_minutes` auf „running“ stehen, wieder einplanen.
+
+    Stirbt der Prozess mitten in einem Auftrag (Neustart, Update, Absturz),
+    räumt niemand die Sperre ab – der Auftrag bliebe für immer „running“.
+    Mit ausgeschöpften Versuchen wird er „dead“ (sichtbar mit „Erneut
+    versuchen“), sonst sofort wieder fällig.
+    """
+    grenze = utcnow() - timedelta(minutes=get_settings().job_stale_minutes)
+    haengend = (Job.status == JobStatus.RUNNING.value, Job.locked_at < grenze)
+    frei = {"locked_at": None, "locked_by": None}
+    tot = db.execute(update(Job).where(*haengend, Job.attempts >= Job.max_attempts)
+                     .values(status=JobStatus.DEAD.value, last_error=HAENGT_GRUND, **frei)
+                     .execution_options(synchronize_session=False)).rowcount
+    neu = db.execute(update(Job).where(*haengend)
+                     .values(status=JobStatus.FAILED.value, run_at=utcnow(),
+                             last_error=HAENGT_GRUND, **frei)
+                     .execution_options(synchronize_session=False)).rowcount
+    if tot or neu:
+        db.commit()
+    return (tot or 0) + (neu or 0)
+
+
 def claim_next(db: Session, worker_id: str) -> Job | None:
     """Nächsten fälligen Job exklusiv übernehmen."""
+    haengende_freigeben(db)
     stmt = (
         select(Job)
         .where(Job.status.in_([JobStatus.QUEUED.value, JobStatus.FAILED.value]),

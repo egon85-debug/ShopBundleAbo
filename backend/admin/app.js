@@ -319,12 +319,21 @@ const views = {
       <div class="table-wrap"><table><thead><tr><th>Typ</th><th>Status</th>
         <th>Versuche</th><th>Nächster Lauf</th><th>Letzter Fehler</th><th></th></tr>
       </thead><tbody>
-        ${jobs.map((j) => `<tr><td>${esc(j.job_type)}</td><td>${statusBadge(j.status)}</td>
+        ${jobs.map((j) => {
+          // Ein Auftrag, der lange auf „running“ steht, ist beim Neustart des
+          // Servers abgebrochen; der Worker plant ihn nach 15 Minuten selbst neu ein.
+          const minuten = j.locked_at ? (Date.now() - new Date(j.locked_at)) / 60000 : 0;
+          const haengt = j.status === "running" && minuten >= 15;
+          const laeuft = j.status === "running" && !haengt
+            ? `<br><span class="muted">läuft seit ${Math.max(1, Math.round(minuten))} Min.</span>` : "";
+          return `<tr><td>${esc(j.job_type)}</td>
+          <td>${haengt ? '<span class="badge err">hängt</span>' : statusBadge(j.status)}${laeuft}</td>
           <td>${j.attempts}/${j.max_attempts}</td><td>${fmtDate(j.run_at)}</td>
-          <td class="muted">${esc((j.last_error || "").slice(0, 160))}</td>
-          <td>${["dead", "failed"].includes(j.status)
+          <td class="muted">${esc((j.last_error || "").slice(0, 300))}</td>
+          <td>${["dead", "failed"].includes(j.status) || haengt
             ? `<button class="btn small" data-retry="${j.id}">Erneut versuchen</button>` : ""}</td>
-          </tr>`).join("")}
+          </tr>`;
+        }).join("")}
       </tbody></table></div>`;
     main().querySelectorAll("[data-retry]").forEach((btn) => {
       btn.onclick = async () => {

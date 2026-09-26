@@ -135,6 +135,7 @@ class JobOut(ApiModel):
     attempts: int
     max_attempts: int
     run_at: datetime
+    locked_at: datetime | None = None
     last_error: str | None
     product_id: str | None
     created_at: datetime

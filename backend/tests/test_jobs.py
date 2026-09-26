@@ -91,3 +91,38 @@ class TestWorker:
         assert "ConnectionError" in job.last_error
         # Produkt existiert weiter — Artikel wurde nicht verloren.
         assert db.get(type(product), product.id) is not None
+
+
+class TestHaengendeAuftraege:
+    """Stirbt der Prozess mitten im Auftrag, darf der nicht ewig „running“ bleiben."""
+
+    def _haengend(self, db, minuten, versuche=1):
+        from datetime import timedelta
+        job = queue.enqueue(db, job_type="publish_product", payload={"publication_id": "x"})
+        job.status = JobStatus.RUNNING.value
+        job.locked_by = "alter-prozess"
+        job.locked_at = utcnow() - timedelta(minutes=minuten)
+        job.attempts = versuche
+        db.commit()
+        return job
+
+    def test_haengender_auftrag_wird_wieder_aufgenommen(self, db, engine):
+        job = self._haengend(db, minuten=20)
+        uebernommen = queue.claim_next(db, "neuer-prozess")
+        assert uebernommen is not None and uebernommen.id == job.id
+        assert uebernommen.locked_by == "neuer-prozess"
+        assert uebernommen.attempts == 2
+        assert "unterbrochen" in uebernommen.last_error
+
+    def test_laufender_auftrag_bleibt_unangetastet(self, db, engine):
+        job = self._haengend(db, minuten=2)
+        assert queue.claim_next(db, "neuer-prozess") is None
+        db.refresh(job)
+        assert job.status == JobStatus.RUNNING.value and job.locked_by == "alter-prozess"
+
+    def test_ausgeschoepfte_versuche_werden_dead(self, db, engine):
+        job = self._haengend(db, minuten=20, versuche=5)
+        assert queue.claim_next(db, "neuer-prozess") is None
+        db.refresh(job)
+        assert job.status == JobStatus.DEAD.value
+        assert job.locked_by is None
