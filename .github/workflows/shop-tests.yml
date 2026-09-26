@@ -31,3 +31,5 @@ jobs:
         env:
           DATABASE_URL: postgres://user:pass@localhost:5432/db
           SESSION_SECRET: ci-build-secret-not-used-at-runtime
+          # Keine Datenbank in der CI – die Schema-Ergänzung vor dem Build auslassen.
+          SCHEMA_ERGAENZEN: aus

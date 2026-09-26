@@ -101,3 +101,31 @@ h2 { margin-top: 0; }
   .sidenav { width: 100%; flex-direction: row; overflow-x: auto; }
   .content { padding: 14px; }
 }
+
+/* Artikel bearbeiten */
+.artikel-form { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.artikel-form h3, .card h3 { margin: 0 0 12px; }
+.form-grid .breit, .artikel-form label.breit { grid-column: 1 / -1; }
+label > span:first-child { display: flex; gap: 6px; align-items: center; }
+.quelle { font-size: .7rem; font-weight: 700; padding: 0 6px; border-radius: 999px;
+          background: #e3ecff; color: var(--accent); }
+textarea { resize: vertical; }
+.merkmale { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.merkmal-zeile { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+                 gap: 8px; width: 100%; }
+.merkmal-zeile input, .form-grid input, .form-grid select, .form-grid textarea { min-width: 0; width: 100%; }
+@media (max-width: 760px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .card { padding: 14px; }
+}
+.speicherleiste { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 0 0; }
+/* Nur beim langen Artikelformular bleibt „Speichern“ unten im Blick. */
+.artikel-form > .speicherleiste { position: sticky; bottom: 0; z-index: 2; padding: 12px 0;
+                                  background: var(--bg); }
+.fragen { margin-bottom: 14px; border-color: #f5c46a; background: #fffaf0; }
+.frage { padding: 10px 0; border-top: 1px solid var(--border); }
+.frage:first-of-type { border-top: none; }
+.frage p { margin: 0 0 8px; }
+.kandidaten { display: flex; gap: 8px; flex-wrap: wrap; }
+.marktpreis { margin: 12px 0 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.card + .card, section.card { margin-bottom: 14px; }

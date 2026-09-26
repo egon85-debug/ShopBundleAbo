@@ -92,8 +92,9 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Orde
         shippingMethod: input.shippingMethod,
         subtotalCents: cart.subtotalCents,
         shippingCents,
+        depositCents: cart.depositCents,
         taxCents: cart.taxCents,
-        totalCents: cart.subtotalCents + shippingCents,
+        totalCents: cart.subtotalCents + cart.depositCents + shippingCents,
         customerNote: input.customerNote ?? null,
         placedAt: new Date(),
       })
@@ -113,6 +114,7 @@ export async function createOrderFromCart(input: CreateOrderInput): Promise<Orde
         weightGrams: line.weightGrams,
         quantity: line.quantity,
         totalCents: line.lineTotalCents,
+        depositCents: line.depositCents,
       })),
     );
 
@@ -418,6 +420,7 @@ function mailData(order: Awaited<ReturnType<typeof withDetails>>): OrderMailData
       totalCents: item.totalCents,
     })),
     subtotalCents: order.subtotalCents,
+    depositCents: order.depositCents,
     shippingCents: order.shippingCents,
     taxCents: order.taxCents,
     totalCents: order.totalCents,

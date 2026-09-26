@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # Jobs
     job_max_attempts: int = 5
     job_retry_base_seconds: int = 30
+    # Nach so vielen Minuten gilt ein Auftrag in „running“ als abgebrochen
+    # (Prozess neu gestartet) und wird wieder eingeplant. Länger als der
+    # längste echte Auftrag (Erkennung mit Websuche: wenige Minuten).
+    job_stale_minutes: int = 15
     # Job-Worker im selben Prozess wie die API starten. Für kleine Installationen
     # (ein Lager, wenige Tablets) genügt das und spart einen zweiten Dienst.
     # Bei mehreren API-Prozessen liefe er mehrfach – dann besser als eigener

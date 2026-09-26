@@ -23,6 +23,9 @@ export type CartLine = {
   unitPriceCents: number;
   quantity: number;
   lineTotalCents: number;
+  /** Pfand je Einheit (brutto) – kommt zum Preis hinzu, nicht darin enthalten. */
+  depositCents: number;
+  lineDepositCents: number;
   taxRate: number;
   weightGrams: number;
   available: number;
@@ -34,6 +37,9 @@ export type CartSummary = {
   lines: CartLine[];
   itemCount: number;
   subtotalCents: number;
+  /** Summe des Pfands aller Positionen. */
+  depositCents: number;
+  /** Enthaltene MwSt. auf Waren und Pfand. */
   taxCents: number;
   weightGrams: number;
 };
@@ -127,6 +133,7 @@ export async function summarize(cartId: string): Promise<CartSummary> {
       name: products.name,
       sku: products.sku,
       priceCents: products.priceCents,
+      depositCents: products.depositCents,
       taxRate: products.taxRate,
       weightGrams: products.weightGrams,
       variantId: productVariants.id,
@@ -167,6 +174,8 @@ export async function summarize(cartId: string): Promise<CartSummary> {
       unitPriceCents,
       quantity: row.quantity,
       lineTotalCents: unitPriceCents * row.quantity,
+      depositCents: row.depositCents,
+      lineDepositCents: row.depositCents * row.quantity,
       taxRate: row.taxRate,
       weightGrams: (row.variantWeightGrams ?? row.weightGrams) * row.quantity,
       available: Math.max((stockRow?.quantity ?? 0) - (stockRow?.reserved ?? 0), 0),
@@ -175,13 +184,19 @@ export async function summarize(cartId: string): Promise<CartSummary> {
   });
 
   const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const taxCents = lines.reduce((sum, line) => sum + taxFromGross(line.lineTotalCents, line.taxRate), 0);
+  const depositCents = lines.reduce((sum, line) => sum + line.lineDepositCents, 0);
+  // Pfand teilt den Steuersatz der Ware.
+  const taxCents = lines.reduce(
+    (sum, line) => sum + taxFromGross(line.lineTotalCents + line.lineDepositCents, line.taxRate),
+    0,
+  );
 
   return {
     cartId,
     lines,
     itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
     subtotalCents,
+    depositCents,
     taxCents,
     weightGrams: lines.reduce((sum, line) => sum + line.weightGrams, 0),
   };

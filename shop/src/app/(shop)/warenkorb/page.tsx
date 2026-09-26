@@ -25,7 +25,7 @@ export default async function CartPage() {
     );
   }
 
-  const total = cart.subtotalCents + cheapestShipping;
+  const total = cart.subtotalCents + cart.depositCents + cheapestShipping;
 
   return (
     <div className="seite py-12 lg:py-16">
@@ -99,6 +99,12 @@ export default async function CartPage() {
                 <dt className="text-kohle">Zwischensumme</dt>
                 <dd className="tabular">{formatCents(cart.subtotalCents)}</dd>
               </div>
+              {cart.depositCents > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-kohle">Pfand</dt>
+                  <dd className="tabular">{formatCents(cart.depositCents)}</dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-kohle">Versand ab</dt>
                 <dd className="tabular">{formatCents(cheapestShipping)}</dd>

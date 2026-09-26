@@ -153,6 +153,18 @@ export const products = pgTable(
     isFeatured: boolean("is_featured").notNull().default(false),
     seoTitle: varchar("seo_title", { length: 200 }),
     seoDescription: varchar("seo_description", { length: 320 }),
+    // Lebensmittel & Getränke – für Grundpreis, Pfand und Kennzeichnung.
+    /** Füllmenge je Einheit in ganzen Millilitern bzw. Gramm (siehe netContentUnit). */
+    netContentAmount: integer("net_content_amount"),
+    netContentUnit: varchar("net_content_unit", { length: 4 }), // "ml" | "g"
+    /** Einheiten je Verkaufseinheit, z. B. 6 im Träger. */
+    unitsPerPack: integer("units_per_pack"),
+    /** Pfand je Verkaufseinheit in Cent (brutto); kommt zum Preis hinzu. */
+    depositCents: integer("deposit_cents").notNull().default(0),
+    depositType: varchar("deposit_type", { length: 16 }), // "einweg" | "mehrweg"
+    ingredients: text("ingredients"),
+    allergens: text("allergens"),
+    foodNotes: text("food_notes"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -310,6 +322,8 @@ export const orders = pgTable(
 
     subtotalCents: integer("subtotal_cents").notNull(),
     shippingCents: integer("shipping_cents").notNull().default(0),
+    /** Summe des Pfands aller Positionen (brutto); in totalCents enthalten. */
+    depositCents: integer("deposit_cents").notNull().default(0),
     taxCents: integer("tax_cents").notNull().default(0),
     discountCents: integer("discount_cents").notNull().default(0),
     totalCents: integer("total_cents").notNull(),
@@ -367,6 +381,8 @@ export const orderItems = pgTable(
     weightGrams: integer("weight_grams").notNull().default(0),
     quantity: integer("quantity").notNull(),
     totalCents: integer("total_cents").notNull(),
+    /** Pfand je Einheit zum Bestellzeitpunkt (Snapshot). */
+    depositCents: integer("deposit_cents").notNull().default(0),
     createdAt: createdAt(),
   },
   (t) => [index("order_items_order_idx").on(t.orderId)],

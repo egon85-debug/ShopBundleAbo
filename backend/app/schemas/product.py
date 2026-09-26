@@ -7,6 +7,34 @@ from app.schemas.common import ApiModel
 from app.utils.money import parse_money
 
 
+EINHEITEN = {"ml", "l", "g", "kg"}
+PFANDARTEN = {"einweg", "mehrweg"}
+
+
+def _menge(v):
+    """Füllmenge: „0,33“, „1.5“, 500 → Decimal; leer → None."""
+    if v is None or v == "":
+        return None
+    try:
+        wert = Decimal(str(v).strip().replace(" ", "").replace(",", "."))
+    except Exception:
+        raise ValueError("keine gültige Menge")
+    if wert <= 0:
+        raise ValueError("Menge muss größer als 0 sein")
+    return wert
+
+
+def _auswahl(erlaubt: set[str], name: str):
+    def pruefen(v):
+        if v is None or v == "":
+            return None
+        v = str(v).strip().lower()
+        if v not in erlaubt:
+            raise ValueError(f"{name} muss eines von {', '.join(sorted(erlaubt))} sein")
+        return v
+    return pruefen
+
+
 def _money(v):
     if v is None or v == "":
         return None
@@ -59,11 +87,27 @@ class ProductBase(BaseModel):
     batch_number: str | None = None
     serial_number: str | None = None
     notes: str | None = None
+    net_content_amount: Decimal | None = None
+    net_content_unit: str | None = None
+    units_per_pack: int | None = Field(default=None, ge=1, le=10000)
+    deposit_amount: Decimal | None = None
+    deposit_type: str | None = None
+    ingredients: str | None = None
+    allergens: str | None = None
+    food_notes: str | None = None
 
     _money = field_validator(
         "purchase_price_net", "purchase_price_gross", "sale_price", "minimum_sale_price",
-        mode="before",
+        "deposit_amount", mode="before",
     )(_money)
+    _menge = field_validator("net_content_amount", mode="before")(_menge)
+    _einheit = field_validator("net_content_unit", mode="before")(_auswahl(EINHEITEN, "Einheit"))
+    _pfandart = field_validator("deposit_type", mode="before")(_auswahl(PFANDARTEN, "Pfandart"))
+
+    @field_validator("units_per_pack", mode="before")
+    @classmethod
+    def _anzahl(cls, v):
+        return None if v in (None, "") else v
 
 
 class ProductUpdate(ProductBase):
@@ -89,6 +133,14 @@ class ProductOut(ApiModel):
     technical_data: dict
     condition: str
     packaging_condition: str | None
+    net_content_amount: Decimal | None = None
+    net_content_unit: str | None = None
+    units_per_pack: int | None = None
+    deposit_amount: Decimal | None = None
+    deposit_type: str | None = None
+    ingredients: str | None = None
+    allergens: str | None = None
+    food_notes: str | None = None
     purchase_price_net: Decimal | None
     purchase_price_gross: Decimal | None
     sale_price: Decimal | None

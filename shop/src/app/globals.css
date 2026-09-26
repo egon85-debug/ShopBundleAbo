@@ -157,6 +157,32 @@
   }
 }
 
+/* Produktbeschreibung aus der Lagererfassung (bereinigtes HTML, siehe lib/beschreibung.ts). */
+@layer components {
+  .beschreibung > * + * {
+    @apply mt-4;
+  }
+  .beschreibung ul,
+  .beschreibung ol {
+    @apply space-y-1 pl-5;
+  }
+  .beschreibung ul {
+    @apply list-disc;
+  }
+  .beschreibung ol {
+    @apply list-decimal;
+  }
+  .beschreibung li::marker {
+    @apply text-asche;
+  }
+  .beschreibung strong,
+  .beschreibung b,
+  .beschreibung h3,
+  .beschreibung h4 {
+    @apply font-medium text-tinte;
+  }
+}
+
 /* Abspann des Einstiegsvideos (components/ui/EinstiegsVideo.tsx).
    warten = Video läuft noch, laeuft = Abspann spielt, fertig = Endbild ohne Bewegung. */
 .abspann[data-zustand="warten"] .abspann-wort,

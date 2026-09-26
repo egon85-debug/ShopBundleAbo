@@ -23,6 +23,15 @@ class ShopListingPayload:
     meta_title: str | None = None
     meta_description: str | None = None
     attributes: dict = field(default_factory=dict)
+    # Lebensmittel & Getränke
+    net_content_amount: Decimal | None = None
+    net_content_unit: str | None = None
+    units_per_pack: int | None = None
+    deposit_amount: Decimal | None = None
+    deposit_type: str | None = None
+    ingredients: str | None = None
+    allergens: str | None = None
+    food_notes: str | None = None
 
 
 @dataclass

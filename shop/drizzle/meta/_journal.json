@@ -8,6 +8,13 @@
       "when": 1788126921542,
       "tag": "0000_initiales_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790384400000,
+      "tag": "0001_lebensmittelangaben",
+      "breakpoints": true
     }
   ]
 }

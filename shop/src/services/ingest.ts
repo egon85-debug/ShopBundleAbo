@@ -62,6 +62,21 @@ export const ingestArtikelSchema = z
     aktiv: z.boolean().optional(),
     seoTitel: z.string().trim().max(200).optional(),
     seoBeschreibung: z.string().trim().max(320).optional(),
+    /** Lebensmittel & Getränke. `null` löscht die Angabe im Shop. */
+    inhalt: z
+      .object({
+        /** Menge je Einheit in ganzen ml bzw. g. */
+        menge: z.number().int().min(1).max(10_000_000),
+        einheit: z.enum(["ml", "g"]),
+        anzahl: z.number().int().min(1).max(10_000).default(1),
+      })
+      .nullable()
+      .optional(),
+    pfandCents: z.number().int().min(0).max(100_000).nullable().optional(),
+    pfandArt: z.enum(["einweg", "mehrweg"]).nullable().optional(),
+    zutaten: z.string().trim().max(5000).nullable().optional(),
+    allergene: z.string().trim().max(2000).nullable().optional(),
+    lebensmittelHinweise: z.string().trim().max(2000).nullable().optional(),
   })
   .refine((wert) => Boolean(wert.sku || wert.id), {
     message: "sku oder id wird benötigt",
@@ -115,6 +130,23 @@ async function kategorieId(name: string, slugWunsch?: string): Promise<string> {
   return neu.id;
 }
 
+/** Nur mitgeschickte Lebensmittelangaben schreiben; `null` leert sie. */
+export function lebensmittelWerte(eingabe: IngestArtikel) {
+  const leer = (wert: string | null | undefined) => (wert?.trim() ? wert.trim() : null);
+  return {
+    ...(eingabe.inhalt !== undefined && {
+      netContentAmount: eingabe.inhalt?.menge ?? null,
+      netContentUnit: eingabe.inhalt?.einheit ?? null,
+      unitsPerPack: eingabe.inhalt ? eingabe.inhalt.anzahl : null,
+    }),
+    ...(eingabe.pfandCents !== undefined && { depositCents: eingabe.pfandCents ?? 0 }),
+    ...(eingabe.pfandArt !== undefined && { depositType: eingabe.pfandArt }),
+    ...(eingabe.zutaten !== undefined && { ingredients: leer(eingabe.zutaten) }),
+    ...(eingabe.allergene !== undefined && { allergens: leer(eingabe.allergene) }),
+    ...(eingabe.lebensmittelHinweise !== undefined && { foodNotes: leer(eingabe.lebensmittelHinweise) }),
+  };
+}
+
 export async function uebernehmeArtikel(eingabe: IngestArtikel): Promise<IngestErgebnis> {
   // Vorrang hat die id: sie zeigt eindeutig auf einen bereits uebernommenen
   // Artikel, auch wenn dessen SKU im Backoffice geaendert wurde.
@@ -155,6 +187,7 @@ export async function uebernehmeArtikel(eingabe: IngestArtikel): Promise<IngestE
     ...(eingabe.aktiv !== undefined && { isActive: eingabe.aktiv }),
     ...(eingabe.seoTitel !== undefined && { seoTitle: eingabe.seoTitel }),
     ...(eingabe.seoBeschreibung !== undefined && { seoDescription: eingabe.seoBeschreibung }),
+    ...lebensmittelWerte(eingabe),
     updatedAt: new Date(),
   };
 

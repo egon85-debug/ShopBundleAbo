@@ -17,6 +17,29 @@ object Labels {
         "used" to "Gebraucht", "defective" to "Defekt", "unknown" to "Unbekannt",
     )
 
+    val EINHEITEN = listOf("ml" to "ml", "l" to "Liter", "g" to "g", "kg" to "kg")
+    val PFANDARTEN = listOf("einweg" to "Einweg", "mehrweg" to "Mehrweg")
+
+    fun einheit(value: String?): String? = EINHEITEN.firstOrNull { it.first == value }?.second ?: value
+    fun pfandart(value: String?): String? = PFANDARTEN.firstOrNull { it.first == value }?.second ?: value
+
+    /** Füllmenge vom Server ("1.000", "0.330") lesbar: "1", "0,33". */
+    fun menge(value: String?): String? =
+        value?.toBigDecimalOrNull()?.stripTrailingZeros()?.toPlainString()?.replace('.', ',')
+
+    /**
+     * Füllmengen-Eingabe: Komma oder Punkt, muss größer als 0 sein.
+     * Leere Eingabe heißt "Feld leeren" (null).
+     */
+    fun mengeEingabe(text: String): String? {
+        val bereinigt = text.replace(" ", "").trim()
+        if (bereinigt.isEmpty()) return null
+        val zahl = bereinigt.replace(',', '.').toBigDecimalOrNull()
+            ?: throw IllegalArgumentException("Bitte eine Zahl eingeben, z. B. 0,33")
+        require(zahl > BigDecimal.ZERO) { "Die Menge muss größer als 0 sein" }
+        return zahl.stripTrailingZeros().toPlainString()
+    }
+
     fun zustand(value: String?): String =
         ZUSTAENDE.firstOrNull { it.first == value }?.second ?: value ?: "–"
 

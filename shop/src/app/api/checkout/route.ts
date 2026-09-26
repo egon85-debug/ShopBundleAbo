@@ -117,6 +117,19 @@ export async function POST(request: Request) {
           },
         },
       })),
+      // Pfand als eigene Position – er steckt nicht im Warenpreis.
+      ...(order.depositCents > 0
+        ? [
+            {
+              quantity: 1,
+              price_data: {
+                currency: "eur",
+                unit_amount: order.depositCents,
+                product_data: { name: "Pfand" },
+              },
+            },
+          ]
+        : []),
       {
         quantity: 1,
         price_data: {

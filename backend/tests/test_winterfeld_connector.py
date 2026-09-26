@@ -128,3 +128,71 @@ def test_fehlender_api_schluessel_wird_frueh_erkannt():
     connector = WinterfeldShopConnector(BASIS, {})
     with pytest.raises(ShopConnectorError, match="api_key fehlt"):
         connector.publish_product(_listing())
+
+
+def test_lange_ki_texte_werden_auf_die_grenzen_des_shops_gekuerzt(antwort):
+    """Zu lange SEO-Texte liessen den Shop mit 422 ablehnen – die
+    Veröffentlichung hinge dann in Wiederholungen."""
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc", "pfad": "/produkt/x"})
+
+    connector = antwort(handler)
+    connector.publish_product(_listing(
+        title="Wort " * 100,
+        meta_title="Titel " * 60,
+        meta_description="Beschreibung " * 40,
+        ean="4006 3813 3393 1",
+    ))
+    assert len(gesendet["name"]) <= 300
+    assert len(gesendet["seoTitel"]) <= 200 and gesendet["seoTitel"].endswith("…")
+    assert len(gesendet["seoBeschreibung"]) <= 320
+    assert gesendet["ean"] == "4006381333931"
+
+
+def test_unbrauchbare_ean_wird_weggelassen_statt_abgelehnt(antwort):
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc"})
+
+    antwort(handler).publish_product(_listing(ean="unbekannt"))
+    assert "ean" not in gesendet
+
+
+def test_lebensmittel_gehen_mit_ganzen_millilitern_und_pfand_in_cent(antwort):
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc"})
+
+    antwort(handler).publish_product(_listing(
+        net_content_amount=Decimal("1.5"), net_content_unit="l", units_per_pack=6,
+        deposit_amount=Decimal("1.50"), deposit_type="einweg",
+        ingredients="Wasser, Zucker, Kohlensäure", allergens="", food_notes="Koffeinhaltig",
+    ))
+    assert gesendet["inhalt"] == {"menge": 1500, "einheit": "ml", "anzahl": 6}
+    assert gesendet["pfandCents"] == 150 and gesendet["pfandArt"] == "einweg"
+    assert gesendet["zutaten"] == "Wasser, Zucker, Kohlensäure"
+    assert gesendet["lebensmittelHinweise"] == "Koffeinhaltig"
+    assert gesendet["allergene"] is None
+
+
+def test_ohne_lebensmittelangaben_werden_sie_im_shop_geleert(antwort):
+    gesendet = {}
+
+    def handler(request):
+        import json
+        gesendet.update(json.loads(request.content))
+        return httpx.Response(201, json={"id": "abc"})
+
+    antwort(handler).publish_product(_listing())
+    assert gesendet["inhalt"] is None and gesendet["pfandCents"] == 0
+    assert gesendet["pfandArt"] is None and gesendet["zutaten"] is None

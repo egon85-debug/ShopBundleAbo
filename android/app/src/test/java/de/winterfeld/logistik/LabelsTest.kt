@@ -65,4 +65,24 @@ class LabelsTest {
         patchBody(mapOf("ean" to null, "sale_price" to "9.90")).writeTo(buffer)
         assertEquals("""{"ean":null,"sale_price":"9.90"}""", buffer.readUtf8())
     }
+
+    @Test
+    fun `Fuellmenge wird gelesen und eingegeben`() {
+        assertEquals("0,33", Labels.menge("0.330"))
+        assertEquals("1", Labels.menge("1.000"))
+        assertNull(Labels.menge(null))
+        assertEquals("0.33", Labels.mengeEingabe("0,33"))
+        assertEquals("1", Labels.mengeEingabe(" 1,0 "))
+        assertEquals("1500", Labels.mengeEingabe("1500"))
+        assertNull("leer heißt Feld leeren", Labels.mengeEingabe(""))
+        assertThrows(IllegalArgumentException::class.java) { Labels.mengeEingabe("viel") }
+        assertThrows(IllegalArgumentException::class.java) { Labels.mengeEingabe("0") }
+    }
+
+    @Test
+    fun `Einheit und Pfandart auf Deutsch`() {
+        assertEquals("Liter", Labels.einheit("l"))
+        assertEquals("Mehrweg", Labels.pfandart("mehrweg"))
+        assertNull(Labels.einheit(null))
+    }
 }

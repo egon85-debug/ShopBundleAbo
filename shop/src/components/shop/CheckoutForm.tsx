@@ -23,6 +23,7 @@ type CheckoutCart = {
     imageUrl: string | null;
   }[];
   subtotalCents: number;
+  depositCents: number;
   taxCents: number;
   itemCount: number;
 };
@@ -49,7 +50,7 @@ export function CheckoutForm({
 
   const shipping = shippingOptions.find((option) => option.code === shippingMethod);
   const shippingCents = shipping?.priceCents ?? 0;
-  const total = cart.subtotalCents + shippingCents;
+  const total = cart.subtotalCents + cart.depositCents + shippingCents;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -220,6 +221,12 @@ export function CheckoutForm({
               <dt className="text-kohle">Zwischensumme</dt>
               <dd className="tabular">{formatCents(cart.subtotalCents)}</dd>
             </div>
+            {cart.depositCents > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-kohle">Pfand</dt>
+                <dd className="tabular">{formatCents(cart.depositCents)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-kohle">Versand ({shipping?.label})</dt>
               <dd className="tabular">{formatCents(shippingCents)}</dd>

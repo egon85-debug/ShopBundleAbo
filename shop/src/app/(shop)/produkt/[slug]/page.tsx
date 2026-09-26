@@ -6,6 +6,8 @@ import { AddToCartForm } from "@/components/ui/AddToCartForm";
 import { ProductGallery } from "@/components/shop/ProductGallery";
 import { Ueberschrift, Verfuegbarkeit } from "@/components/ui/Gestaltung";
 import { ProductCard } from "@/components/ui/ProductCard";
+import { beschreibungHtml } from "@/lib/beschreibung";
+import { fuellmengeText, grundpreisText, pfandText } from "@/lib/grundpreis";
 import { formatCents, taxFromGross } from "@/lib/money";
 import { getShippingProvider } from "@/lib/shipping/registry";
 import { getProductBySlug } from "@/services/catalog";
@@ -38,6 +40,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product || !product.isActive) notFound();
+  const beschreibung = beschreibungHtml(product.description);
+  const grundpreis = grundpreisText(product.priceCents, product);
+  const pfand = pfandText(product);
+  const fuellmenge = fuellmengeText(product);
+  const lebensmittel = [
+    ["Füllmenge", fuellmenge],
+    ["Zutaten", product.ingredients],
+    ["Allergene", product.allergens],
+    ["Hinweise", product.foodNotes],
+    ["Pfand", pfand && `${pfand.replace(/^zzgl\. /, "")} je Verkaufseinheit`],
+  ].filter((eintrag): eintrag is [string, string] => Boolean(eintrag[1]));
 
   const inStock = product.available > 0 || product.allowBackorder;
   const hasDiscount = product.compareAtPriceCents !== null && product.compareAtPriceCents > product.priceCents;
@@ -103,6 +116,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </span>
             )}
           </div>
+          {(grundpreis || pfand) && (
+            <p className="mt-1 text-body-sm text-kohle">
+              {[fuellmenge && grundpreis ? `${fuellmenge} · ${grundpreis}` : grundpreis, pfand]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
           <p className="mt-1 text-body-sm text-schiefer">
             inkl. {product.taxRate} % MwSt. ({formatCents(taxCents)}) · zzgl.{" "}
             <Link href="/versand" className="underline hover:text-tinte">Versand</Link> ab{" "}
@@ -134,7 +154,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           {product.description && (
             <section className="mt-12 border-t border-haarlinie pt-8">
               <h2 className="text-heading-sm font-medium">Beschreibung</h2>
-              <div className="mt-4 whitespace-pre-line text-body text-kohle">{product.description}</div>
+              {beschreibung ? (
+                // Bereinigt in beschreibungHtml: nur <p>, <ul>, <li>, <strong> … ohne Attribute.
+                <div className="beschreibung mt-4 text-body text-kohle" dangerouslySetInnerHTML={{ __html: beschreibung }} />
+              ) : (
+                <div className="mt-4 whitespace-pre-line text-body text-kohle">{product.description}</div>
+              )}
+            </section>
+          )}
+
+          {lebensmittel.length > 0 && (
+            <section className="mt-10 border-t border-haarlinie pt-8">
+              <h2 className="text-heading-sm font-medium">Lebensmittelangaben</h2>
+              <dl className="mt-4 divide-y divide-haarlinie">
+                {lebensmittel.map(([label, wert]) => (
+                  <div key={label} className="grid gap-1 py-3 sm:grid-cols-[160px_1fr] sm:gap-4">
+                    <dt className="text-body-sm text-schiefer">{label}</dt>
+                    <dd className="whitespace-pre-line text-body text-tinte">{wert}</dd>
+                  </div>
+                ))}
+              </dl>
             </section>
           )}
 

@@ -56,6 +56,14 @@ def build_payload(db: Session, product: Product) -> ShopListingPayload:
         meta_title=listing.meta_title if listing else None,
         meta_description=listing.meta_description if listing else None,
         attributes=dict(product.attributes or {}),
+        net_content_amount=product.net_content_amount,
+        net_content_unit=product.net_content_unit,
+        units_per_pack=product.units_per_pack,
+        deposit_amount=product.deposit_amount,
+        deposit_type=product.deposit_type,
+        ingredients=product.ingredients,
+        allergens=product.allergens,
+        food_notes=product.food_notes,
     )
 
 

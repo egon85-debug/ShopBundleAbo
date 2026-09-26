@@ -81,6 +81,17 @@ class Product(Base, IdMixin, TimestampMixin):
     condition: Mapped[str] = mapped_column(String(24), default=Condition.UNKNOWN.value, nullable=False)
     packaging_condition: Mapped[str | None] = mapped_column(String(255))
 
+    # Lebensmittel & Getränke: Angaben für Grundpreis, Pfand und Kennzeichnung im
+    # Shop. Nur Benutzerangaben – die KI erfindet so etwas nicht.
+    net_content_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))  # je Einheit
+    net_content_unit: Mapped[str | None] = mapped_column(String(8))  # ml | l | g | kg
+    units_per_pack: Mapped[int | None] = mapped_column(Integer)  # z. B. 6 im Träger
+    deposit_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))  # Pfand je Verkaufseinheit
+    deposit_type: Mapped[str | None] = mapped_column(String(16))  # einweg | mehrweg
+    ingredients: Mapped[str | None] = mapped_column(Text)
+    allergens: Mapped[str | None] = mapped_column(Text)
+    food_notes: Mapped[str | None] = mapped_column(Text)  # z. B. „Koffeinhaltig“
+
     purchase_price_net: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     purchase_price_gross: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     sale_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
