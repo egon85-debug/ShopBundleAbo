@@ -65,6 +65,12 @@ export type ProductListItem = {
   available: number;
   allowBackorder: boolean;
   isFeatured: boolean;
+  /** Für Grundpreis und Pfand (Lebensmittel & Getränke). */
+  netContentAmount: number | null;
+  netContentUnit: string | null;
+  unitsPerPack: number | null;
+  depositCents: number;
+  depositType: string | null;
 };
 
 export type ProductQuery = {
@@ -134,6 +140,11 @@ export async function listProducts(query: ProductQuery = {}): Promise<{ items: P
       priceCents: products.priceCents,
       compareAtPriceCents: products.compareAtPriceCents,
       isFeatured: products.isFeatured,
+      netContentAmount: products.netContentAmount,
+      netContentUnit: products.netContentUnit,
+      unitsPerPack: products.unitsPerPack,
+      depositCents: products.depositCents,
+      depositType: products.depositType,
       quantity: inventory.quantity,
       reserved: inventory.reserved,
       allowBackorder: inventory.allowBackorder,
@@ -165,6 +176,11 @@ export async function listProducts(query: ProductQuery = {}): Promise<{ items: P
     imageUrl: images.find((image) => image.productId === row.id)?.url ?? null,
     available: Math.max((row.quantity ?? 0) - (row.reserved ?? 0), 0),
     allowBackorder: row.allowBackorder ?? false,
+    netContentAmount: row.netContentAmount,
+    netContentUnit: row.netContentUnit,
+    unitsPerPack: row.unitsPerPack,
+    depositCents: row.depositCents,
+    depositType: row.depositType,
   }));
 
   if (query.inStockOnly) {
@@ -234,6 +250,11 @@ export async function listProductsByIds(ids: string[]): Promise<ProductListItem[
       priceCents: products.priceCents,
       compareAtPriceCents: products.compareAtPriceCents,
       isFeatured: products.isFeatured,
+      netContentAmount: products.netContentAmount,
+      netContentUnit: products.netContentUnit,
+      unitsPerPack: products.unitsPerPack,
+      depositCents: products.depositCents,
+      depositType: products.depositType,
       quantity: inventory.quantity,
       reserved: inventory.reserved,
       allowBackorder: inventory.allowBackorder,
@@ -260,6 +281,11 @@ export async function listProductsByIds(ids: string[]): Promise<ProductListItem[
     imageUrl: images.find((image) => image.productId === row.id)?.url ?? null,
     available: Math.max((row.quantity ?? 0) - (row.reserved ?? 0), 0),
     allowBackorder: row.allowBackorder ?? false,
+    netContentAmount: row.netContentAmount,
+    netContentUnit: row.netContentUnit,
+    unitsPerPack: row.unitsPerPack,
+    depositCents: row.depositCents,
+    depositType: row.depositType,
   }));
 }
 

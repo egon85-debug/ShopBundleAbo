@@ -11,6 +11,8 @@ export interface OrderMailData {
   customerName: string;
   items: { name: string; variantName?: string | null; quantity: number; totalCents: number }[];
   subtotalCents: number;
+  /** Pfand (0 = keine Zeile). */
+  depositCents?: number;
   shippingCents: number;
   taxCents: number;
   totalCents: number;
@@ -72,6 +74,8 @@ function itemsTable(data: OrderMailData): string {
 ${rows}
 <tr><td colspan="2" style="padding:10px 0 2px;font-size:14px;color:${MUTED};">Zwischensumme</td>
     <td style="padding:10px 0 2px;text-align:right;font-size:14px;">${formatCents(data.subtotalCents)}</td></tr>
+${data.depositCents ? `<tr><td colspan="2" style="padding:2px 0;font-size:14px;color:${MUTED};">Pfand</td>
+    <td style="padding:2px 0;text-align:right;font-size:14px;">${formatCents(data.depositCents)}</td></tr>` : ""}
 <tr><td colspan="2" style="padding:2px 0;font-size:14px;color:${MUTED};">Versand (${escapeHtml(data.shippingMethodLabel)})</td>
     <td style="padding:2px 0;text-align:right;font-size:14px;">${formatCents(data.shippingCents)}</td></tr>
 <tr><td colspan="2" style="padding:2px 0 10px;font-size:12px;color:${MUTED};">enthaltene MwSt.</td>

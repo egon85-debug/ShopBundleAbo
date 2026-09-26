@@ -108,6 +108,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
             <dl className="mt-5 space-y-2 border-t border-mist-200 pt-5 text-[15px]">
               <div className="flex justify-between"><dt className="text-mist-700">Zwischensumme</dt><dd className="tabular">{formatCents(order.subtotalCents)}</dd></div>
+              {order.depositCents > 0 && (
+                <div className="flex justify-between"><dt className="text-mist-700">Pfand</dt><dd className="tabular">{formatCents(order.depositCents)}</dd></div>
+              )}
               <div className="flex justify-between"><dt className="text-mist-700">Versand</dt><dd className="tabular">{formatCents(order.shippingCents)}</dd></div>
               <div className="flex justify-between text-sm"><dt className="text-mist-500">enthaltene MwSt.</dt><dd className="text-mist-500 tabular">{formatCents(order.taxCents)}</dd></div>
               {order.refundedCents > 0 && (

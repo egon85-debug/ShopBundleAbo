@@ -44,6 +44,7 @@ export default async function CheckoutPage() {
               imageUrl: line.imageUrl,
             })),
             subtotalCents: cart.subtotalCents,
+            depositCents: cart.depositCents,
             taxCents: cart.taxCents,
             itemCount: cart.itemCount,
           }}

@@ -174,6 +174,12 @@ export default async function OrderPage({
                 <dt className="text-kohle">Zwischensumme</dt>
                 <dd className="tabular">{formatCents(order.subtotalCents)}</dd>
               </div>
+              {order.depositCents > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-kohle">Pfand</dt>
+                  <dd className="tabular">{formatCents(order.depositCents)}</dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-kohle">Versand</dt>
                 <dd className="tabular">{formatCents(order.shippingCents)}</dd>

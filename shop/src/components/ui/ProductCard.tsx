@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ProduktBild, Verfuegbarkeit } from "@/components/ui/Gestaltung";
+import { grundpreisText, pfandText } from "@/lib/grundpreis";
 import { formatCents } from "@/lib/money";
 import type { ProductListItem } from "@/services/catalog";
 
@@ -15,6 +16,9 @@ export function ProductCard({ product }: { product: ProductListItem }) {
   const savings = hasDiscount
     ? Math.round(((product.compareAtPriceCents! - product.priceCents) / product.compareAtPriceCents!) * 100)
     : 0;
+
+  const grundpreis = grundpreisText(product.priceCents, product);
+  const pfand = pfandText(product);
 
   return (
     <article data-produktkarte className="karte group h-full p-4 transition-colors duration-200 hover:border-nebel">
@@ -39,6 +43,9 @@ export function ProductCard({ product }: { product: ProductListItem }) {
               <p className="text-body-sm tabular text-schiefer line-through">
                 {formatCents(product.compareAtPriceCents!)}
               </p>
+            )}
+            {(grundpreis || pfand) && (
+              <p className="text-caption tabular text-schiefer">{[grundpreis, pfand].filter(Boolean).join(" · ")}</p>
             )}
           </div>
           <Verfuegbarkeit verfuegbar={product.available} nachbestellbar={product.allowBackorder} />
