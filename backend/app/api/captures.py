@@ -217,6 +217,18 @@ def answer_questions(capture_id: str, body: CaptureAnswers,
                 conf["purchase_price_net"] = 1.0
                 conf["purchase_price_gross"] = 1.0
                 product.field_confidence = conf
+            elif answer.field == "storage_location_spoken":
+                # Sprachabfrage: Lagerplatz einzeln gesprochen. Nicht zuordenbar →
+                # Rückfrage statt Raten; die App liest storage_location_code.
+                from app.services import location_service, questions_service
+                spoken = str(value or "").strip()
+                location = location_service.resolve_answer(db, spoken) if spoken else None
+                if location:
+                    product_service.apply_user_update(
+                        db, product=product, changes={"storage_location_id": location.id}, user=user)
+                elif spoken:
+                    frage = questions_service.lagerplatz_frage(spoken)
+                    remaining[frage["id"]] = frage
             elif answer.field == "ean":
                 ean = normalize_gtin(str(value)) if value else None
                 if ean and not is_valid_gtin(ean):

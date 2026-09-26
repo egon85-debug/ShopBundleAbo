@@ -11,6 +11,9 @@
  *
  * Die CI baut mit einer Schein-DATABASE_URL ohne Datenbank und setzt dafür
  * SCHEMA_ERGAENZEN=aus.
+ *
+ * Bewusst reines JavaScript für `node`: tsx braucht esbuild, dessen
+ * Installationsskript neuere npm-Versionen (Vercel) nicht mehr ausführen.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";

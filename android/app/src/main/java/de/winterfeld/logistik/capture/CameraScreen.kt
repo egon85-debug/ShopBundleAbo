@@ -54,7 +54,9 @@ private val SUGGESTED_ORDER = listOf("front", "back", "packaging", "barcode", "t
 fun CameraScreen(
     photoCount: Int,
     voiceActive: Boolean,
+    voicePrompt: String?,
     liveTranscript: String,
+    voiceAnswers: List<Pair<String, String>>,
     processingHint: String?,
     onPhoto: (File, String) -> Unit,
     onBarcode: (String) -> Unit,
@@ -94,11 +96,17 @@ fun CameraScreen(
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()
                    .background(Color(0xAA000000)).padding(12.dp)) {
             if (voiceActive) {
-                Text("● Spracheingabe läuft …", color = Color(0xFFFF5252),
+                // Sprachabfrage: welche Angabe gerade dran ist und was erkannt wird.
+                Text("● ${voicePrompt ?: "Spracheingabe"} …", color = Color(0xFFFF5252),
                      style = MaterialTheme.typography.titleLarge)
                 if (liveTranscript.isNotBlank()) {
                     Text(liveTranscript, color = Color.White, maxLines = 2)
                 }
+                Text("„weiter“ überspringt · „zurück“ · „fertig“ beendet",
+                     color = Color(0xFFBDBDBD), style = MaterialTheme.typography.bodySmall)
+            }
+            voiceAnswers.forEach { (titel, wert) ->
+                Text("✓ $titel: $wert", color = Color(0xFFA5D6A7), maxLines = 1)
             }
             processingHint?.let { Text(it, color = Color(0xFF9CC3FF)) }
             val nextMissing = SUGGESTED_ORDER.getOrNull(photoCount)
