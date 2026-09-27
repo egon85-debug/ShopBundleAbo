@@ -6,7 +6,8 @@
  * rein ergänzend und wiederholbar (ADD COLUMN IF NOT EXISTS) – ein zweiter
  * Lauf ändert nichts. Ohne DATABASE_URL (Vorschau, lokal) passiert nichts.
  *
- * Schlägt das Ergänzen fehl, bricht der Build ab: Der neue Code würde die
+ * Schlägt das Ergänzen fehl (z. B. fehlende Rechte für eine noch fehlende
+ * Spalte), bricht der Build ab: Der neue Code würde die
  * Spalten sofort abfragen, die alte Veröffentlichung bleibt dann online.
  *
  * Die CI baut mit einer Schein-DATABASE_URL ohne Datenbank und setzt dafür
@@ -21,6 +22,8 @@ import path from "node:path";
 import postgres from "postgres";
 
 const DATEIEN = ["0001_lebensmittelangaben.sql"];
+/** ALTER TABLE "tabelle" ADD COLUMN IF NOT EXISTS "spalte" … */
+const SPALTE = /ALTER TABLE\s+"([^"]+)"\s+ADD COLUMN IF NOT EXISTS\s+"([^"]+)"/i;
 
 async function main() {
   const url = process.env.DATABASE_URL;
@@ -36,10 +39,24 @@ async function main() {
   try {
     for (const datei of DATEIEN) {
       const inhalt = readFileSync(path.join(process.cwd(), "drizzle", datei), "utf8");
-      for (const befehl of inhalt.split("--> statement-breakpoint").map((b) => b.trim()).filter(Boolean)) {
+      const befehle = inhalt.split("--> statement-breakpoint").map((b) => b.trim()).filter(Boolean);
+      // Nur fehlende Spalten anlegen: ALTER TABLE verlangt die Eigentümerrechte
+      // an der Tabelle auch dann, wenn die Spalte schon existiert – und der
+      // Datenbankbenutzer des Shops ist (zu Recht) nicht Eigentümer.
+      const vorhanden = new Set(
+        (await sql`select table_name, column_name from information_schema.columns
+                   where table_schema = current_schema()`).map((z) => `${z.table_name}.${z.column_name}`),
+      );
+      const fehlend = befehle.filter((befehl) => {
+        const treffer = befehl.match(SPALTE);
+        return !treffer || !vorhanden.has(`${treffer[1]}.${treffer[2]}`);
+      });
+      for (const befehl of fehlend) {
         await sql.unsafe(befehl);
       }
-      console.log(`[schema] ${datei}: angewendet (bzw. schon vorhanden).`);
+      console.log(fehlend.length
+        ? `[schema] ${datei}: ${fehlend.length} Änderung(en) angewendet.`
+        : `[schema] ${datei}: schon vorhanden.`);
     }
   } finally {
     await sql.end();
