@@ -41,4 +41,17 @@ class TokenStoreTest {
         TokenStore.oeffnen(erstellen = { prefs }, zuruecksetzen = { zurueckgesetzt++ })
         assertEquals(0, zurueckgesetzt)
     }
+
+    @Test
+    fun `gemerkte Anmeldedaten ueberstehen das Abmelden und lassen sich vergessen`() {
+        val store = TokenStore(prefs)
+        store.anmeldedatenMerken("lager@example.com", "geheim-123")
+        store.accessToken = "a"; store.refreshToken = "r"
+        store.clearTokens()
+        assertEquals("lager@example.com", store.gespeicherteEmail)
+        assertEquals("geheim-123", store.gespeichertesPasswort)
+        store.anmeldedatenVergessen()
+        assertEquals(null, store.gespeicherteEmail)
+        assertEquals(null, store.gespeichertesPasswort)
+    }
 }

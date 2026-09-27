@@ -33,6 +33,14 @@ class AuthRepository(private val api: ApiClient, private val tokenStore: TokenSt
     }
 
     fun logout() = tokenStore.clearTokens()
+
+    val gespeicherteEmail: String? get() = tokenStore.gespeicherteEmail
+    val gespeichertesPasswort: String? get() = tokenStore.gespeichertesPasswort
+
+    fun anmeldedatenMerken(email: String, passwort: String) =
+        tokenStore.anmeldedatenMerken(email, passwort)
+
+    fun anmeldedatenVergessen() = tokenStore.anmeldedatenVergessen()
 }
 
 /**

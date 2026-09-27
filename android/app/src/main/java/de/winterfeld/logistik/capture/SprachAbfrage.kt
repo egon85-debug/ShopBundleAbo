@@ -8,6 +8,9 @@ import de.winterfeld.logistik.ui.components.Labels
  * („Lagerplatz“ → Ton → Aufnahme → „Bestand“ → …). Hier steht nur, was
  * gefragt wird und wie eine Antwort gelesen wird — ohne Android, damit es
  * sich testen lässt. Ablauf und Ton: [SprachDialog].
+ *
+ * [Schritt.ansage] und [Ergebnis.Unklar.ansage] benennen Audiodateien in
+ * res/raw (erzeugt mit tools/ansagen_erzeugen.py).
  */
 object SprachAbfrage {
 
@@ -15,20 +18,23 @@ object SprachAbfrage {
     data class Schritt(val feld: String?, val titel: String, val ansage: String)
 
     val SCHRITTE = listOf(
-        Schritt("storage_location_spoken", "Lagerplatz", "Lagerplatz"),
-        Schritt("stock_quantity", "Bestand", "Bestand"),
-        Schritt("condition", "Zustand", "Zustand"),
-        Schritt("purchase_price_net", "Einkaufspreis netto", "Einkaufspreis netto"),
-        Schritt(null, "Weitere Angaben", "Weitere Angaben"),
+        Schritt("storage_location_spoken", "Lagerplatz", "ansage_lagerplatz"),
+        Schritt("stock_quantity", "Bestand", "ansage_bestand"),
+        Schritt("condition", "Zustand", "ansage_zustand"),
+        Schritt("purchase_price_net", "Einkaufspreis netto", "ansage_einkaufspreis"),
+        Schritt(null, "Weitere Angaben", "ansage_weitere"),
     )
+
+    const val ANSAGE_NICHT_VERSTANDEN = "ansage_nicht_verstanden"
+    const val ANSAGE_FERTIG = "ansage_fertig"
 
     sealed interface Ergebnis {
         /** Angabe für ein Feld — geht als Antwort an den Server. */
         data class Antwort(val antwort: AnswerDto, val anzeige: String) : Ergebnis
         /** Freier Text für die KI-Auswertung. */
         data class Freitext(val text: String) : Ergebnis
-        /** Nicht verstanden — [hinweis] wird angesagt, dann dieselbe Frage noch einmal. */
-        data class Unklar(val hinweis: String) : Ergebnis
+        /** Nicht verstanden — [ansage] wird abgespielt, [hinweis] angezeigt, dann dieselbe Frage noch einmal. */
+        data class Unklar(val hinweis: String, val ansage: String = ANSAGE_NICHT_VERSTANDEN) : Ergebnis
         data object Weiter : Ergebnis
         data object Zurueck : Ergebnis
         data object Fertig : Ergebnis
@@ -53,13 +59,13 @@ object SprachAbfrage {
         return when (feld) {
             "stock_quantity" -> zahl(klein)?.let {
                 Ergebnis.Antwort(AnswerDto(field = feld, value = it.toString()), "$it Stück")
-            } ?: Ergebnis.Unklar("Bitte eine Zahl sagen")
+            } ?: Ergebnis.Unklar("Bitte eine Zahl sagen", "ansage_bitte_zahl")
             "condition" -> zustand(klein)?.let {
                 Ergebnis.Antwort(AnswerDto(field = feld, value = it), Labels.zustand(it))
-            } ?: Ergebnis.Unklar("Neu, geöffnet, gebraucht oder defekt")
+            } ?: Ergebnis.Unklar("Neu, geöffnet, gebraucht oder defekt", "ansage_bitte_zustand")
             "purchase_price_net" -> preis(klein)?.let {
                 Ergebnis.Antwort(AnswerDto(field = feld, value = it), Labels.preis(it))
-            } ?: Ergebnis.Unklar("Bitte einen Betrag sagen")
+            } ?: Ergebnis.Unklar("Bitte einen Betrag sagen", "ansage_bitte_betrag")
             else -> Ergebnis.Antwort(AnswerDto(field = feld, value = text), text)
         }
     }

@@ -32,9 +32,10 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
         SprachDialog(
             context,
             onFrage = viewModel::onVoicePrompt,
+            onHoeren = viewModel::onVoiceListening,
             onZwischenstand = viewModel::onLiveTranscript,
             onErgebnis = viewModel::onVoiceResult,
-            onFehler = { viewModel.stopVoice() },
+            onFehler = viewModel::onVoiceError,
         )
     }
     var voiceRunning by remember { mutableStateOf(false) }
@@ -51,6 +52,11 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
             voicePrompt = state.voicePrompt,
             liveTranscript = state.liveTranscript,
             voiceAnswers = state.voiceAnswers,
+            voiceListening = state.voiceListening,
+            voiceError = state.voiceError,
+            onVoiceStart = viewModel::restartVoice,
+            onVoiceSkip = dialog::ueberspringen,
+            onVoiceStop = { dialog.stop(); viewModel.stopVoice() },
             processingHint = state.processingHint,
             onPhoto = viewModel::onPhotoTaken,
             onBarcode = { value ->
