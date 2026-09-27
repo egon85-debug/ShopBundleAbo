@@ -83,6 +83,13 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
+    # Die Startadresse fuehrt in die Verwaltung – sonst sieht man dort nur
+    # {"detail":"Not Found"} und haelt den Server fuer nicht erreichbar.
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+    def startseite():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/admin/", status_code=307)
+
     # HEAD gehoert dazu: Download-Manager auf dem Handy fragen damit zuerst
     # Groesse und Wiederaufnahme ab und brechen sonst ab (405).
     @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
