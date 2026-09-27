@@ -20,6 +20,7 @@ import {
 import { KATEGORIE_TAG } from "@/services/navigation";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import { lagerAenderungen, meldeProduktAenderung, meldungsHinweis } from "@/lib/lager-meldung";
 import { parseToCents } from "@/lib/money";
 import { categorySchema, productSchema, slugify } from "@/lib/validation";
 
@@ -96,6 +97,11 @@ export async function saveProductAction(
     seoDescription: input.seoDescription ?? null,
   };
 
+  // Alter Stand für die Meldung ans Lager (dort unter der bisherigen SKU bekannt).
+  const [vorher] = productId
+    ? await db.select().from(products).where(eq(products.id, productId)).limit(1)
+    : [];
+
   try {
     const id = await db.transaction(async (tx) => {
       let id = productId;
@@ -157,7 +163,17 @@ export async function saveProductAction(
     revalidatePath("/admin/produkte");
     revalidatePath("/shop");
     revalidatePath(`/produkt/${input.slug}`);
-    return { ok: true, message: "Produkt gespeichert.", id };
+
+    let hinweis = "";
+    if (vorher) {
+      const aenderung = await meldeProduktAenderung(vorher.sku, "update", lagerAenderungen(vorher, values));
+      hinweis = meldungsHinweis(aenderung);
+      if (vorher.isActive !== values.isActive) {
+        const status = await meldeProduktAenderung(vorher.sku, values.isActive ? "activate" : "deactivate");
+        hinweis ||= meldungsHinweis(status);
+      }
+    }
+    return { ok: true, message: `Produkt gespeichert.${hinweis}`, id };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Speichern fehlgeschlagen.";
     if (message.includes("unique") || message.includes("duplicate")) {
@@ -223,6 +239,7 @@ export async function toggleProductActiveAction(formData: FormData): Promise<voi
     oldValue: product.isActive,
     newValue: !product.isActive,
   });
+  await meldeProduktAenderung(product.sku, product.isActive ? "deactivate" : "activate");
   revalidatePath("/admin/produkte");
   revalidatePath("/shop");
 }
@@ -242,6 +259,7 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
     action: "delete",
     oldValue: product.sku,
   });
+  await meldeProduktAenderung(product.sku, "delete");
   revalidatePath("/admin/produkte");
   revalidatePath("/shop");
 }
