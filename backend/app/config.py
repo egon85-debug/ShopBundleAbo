@@ -42,7 +42,8 @@ class Settings(BaseSettings):
 
     # KI-Provider
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-5"
+    # Sonnet 5 kostet etwa 40 % von Opus 5 – nötig für das Budget je Artikel.
+    anthropic_model: str = "claude-sonnet-5"
     stt_api_base: str = "https://api.openai.com/v1"
     stt_api_key: str = ""
     stt_model: str = "whisper-1"
@@ -53,7 +54,13 @@ class Settings(BaseSettings):
     # (braucht nur ANTHROPIC_API_KEY). anthropic | http | off erzwingen.
     research_provider: str = "auto"
     # Websuchen je Recherche (Anthropic berechnet sie einzeln, ca. 1 Cent).
-    research_max_searches: int = 4
+    research_max_searches: int = 2
+    # Abgerufene Seiten werden auf so viele Tokens gekürzt – ganze Shopseiten
+    # sind sonst der größte Kostenblock einer Recherche.
+    research_max_fetch_tokens: int = 6000
+    # Harte Obergrenze der KI-Kosten je Artikel in US-Dollar (Listenpreise).
+    # Vor jedem KI-Schritt wird geprüft, ob das Restbudget dafür reicht.
+    ki_budget_je_artikel_usd: float = 0.35
     background_removal_api_base: str = ""
     # Hintergrund entfernen: auto = externer Dienst, falls
     # BACKGROUND_REMOVAL_API_BASE gesetzt ist, sonst lokal auf dem Server

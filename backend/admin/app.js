@@ -121,7 +121,10 @@ function kiKostenUebersicht(k) {
           <td class="zahl">${fmtUsd(usd)}</td>
           <td class="zahl muted">${gesamt ? Math.round(usd / gesamt * 100) : 0} %<span class="ki-laeufe"> · ${n} ${n === 1 ? "Lauf" : "Läufe"}</span></td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Noch keine gemessenen KI-Läufe.</p>'}
-      <p class="muted" style="margin-top:10px">${fmtZahl(z.eingabe_tokens)} Eingabe- und
+      <p style="margin-top:10px">Modell <strong>${esc(k.modell || "–")}</strong> ·
+        Budget je Artikel <strong>${fmtUsd(k.budget_je_artikel_usd)}</strong>
+        <span class="muted">(Einstellung ANTHROPIC_MODEL bzw. KI_BUDGET_JE_ARTIKEL_USD in der .env)</span></p>
+      <p class="muted" style="margin-top:6px">${fmtZahl(z.eingabe_tokens)} Eingabe- und
         ${fmtZahl(z.ausgabe_tokens)} Ausgabe-Tokens, ${fmtZahl(z.websuchen)} Websuchen.
         Listenpreise der Anthropic-API in US-Dollar; gemessen wird seit dem Update, ältere Läufe fehlen.</p>
     </section>`;
@@ -131,16 +134,20 @@ function kiKostenArtikel(k) {
   if (!k) return "";
   const laeufe = k.laeufe || [];
   return `
-    <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}</h3>
+    <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}
+        <span class="muted" style="font-weight:400">von ${fmtUsd(k.budget_usd)} Budget</span></h3>
       ${laeufe.length ? `<div class="table-wrap"><table><thead><tr><th>Zeitpunkt</th><th>Schritt</th>
         <th>Modell</th><th class="zahl">Eingabe</th><th class="zahl">Ausgabe</th>
         <th class="zahl">Websuchen</th><th class="zahl">Kosten</th></tr></thead><tbody>
         ${laeufe.map((l) => `<tr><td>${fmtDate(l.created_at)}</td>
-          <td>${esc(KI_ZWECK[l.kind] || l.kind)}${l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
-          <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)" : esc(l.model || l.provider || "–")}</td>
+          <td>${esc(KI_ZWECK[l.kind] || l.kind)}${l.status === "budget"
+            ? ` <span class="badge warn" title="${esc(l.error || "")}">ausgelassen: Budget</span>`
+            : l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
+          <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)"
+            : l.status === "budget" ? "–" : esc(l.model || l.provider || "–")}</td>
           <td class="zahl">${fmtZahl(l.input_tokens)}</td><td class="zahl">${fmtZahl(l.output_tokens)}</td>
           <td class="zahl">${fmtZahl(l.web_searches)}</td>
-          <td class="zahl">${l.provider === "wiederverwendet" ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
+          <td class="zahl">${["wiederverwendet", "budget"].includes(l.provider) ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Für diesen Artikel lief noch keine KI.</p>'}
       ${k.ungemessen ? `<p class="muted">${k.ungemessen} Lauf/Läufe vor dem Update – ohne gemessenen Verbrauch.</p>` : ""}
     </section>`;

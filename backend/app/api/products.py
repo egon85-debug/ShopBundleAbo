@@ -169,6 +169,10 @@ def reprice(product_id: str, db: Session = Depends(get_db),
             user: User = Depends(get_current_user)):
     """„Marktpreise aktualisieren“: neuer Recherche-Lauf im Hintergrund."""
     product = _get_product(db, product_id)
+    from app.services import ki_verbrauch
+    grund = ki_verbrauch.budget_pruefen(db, product.id, "price_research")
+    if grund:
+        raise HTTPException(409, grund)
     if not queue.wartet(db, product_id=product.id, job_type=JobType.RESEARCH_PRICES.value):
         queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
                       payload={"product_id": product.id, "frisch": True}, product_id=product.id)

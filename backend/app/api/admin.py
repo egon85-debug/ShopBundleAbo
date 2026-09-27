@@ -41,7 +41,10 @@ def ki_kosten(tage: int = 30, db: Session = Depends(get_db),
     from app.services import ki_verbrauch
     jetzt = utcnow()
     tage = max(1, min(tage, 366))
+    from app.config import get_settings
     return {
+        "modell": get_settings().anthropic_model,
+        "budget_je_artikel_usd": str(ki_verbrauch.budget_usd()),
         "zeitraum": ki_verbrauch.uebersicht(db, jetzt - timedelta(days=tage)),
         "monat": ki_verbrauch.uebersicht(
             db, jetzt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)),
