@@ -2,6 +2,10 @@ package de.winterfeld.logistik.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,8 +38,9 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
     var serverUrl by remember {
         mutableStateOf(initialServerUrl.ifEmpty { BuildConfig.DEFAULT_SERVER_URL })
     }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(auth.gespeicherteEmail.orEmpty()) }
+    var password by remember { mutableStateOf(auth.gespeichertesPasswort.orEmpty()) }
+    var merken by remember { mutableStateOf(auth.gespeicherteEmail != null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -63,12 +68,24 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation())
+            // Anmeldedaten verschlüsselt auf dem Gerät merken — beim nächsten
+            // Mal stehen E-Mail und Passwort schon drin.
+            Row(Modifier.fillMaxWidth().toggleable(value = merken, role = Role.Checkbox,
+                                                   onValueChange = { merken = it }),
+                verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = merken, onCheckedChange = null)
+                Text("Anmeldedaten auf diesem Gerät speichern",
+                     modifier = Modifier.padding(start = 8.dp))
+            }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             BigButton(if (busy) "Anmelden …" else "Anmelden", enabled = !busy) {
                 busy = true; error = null
                 scope.launch {
                     try {
                         auth.login(serverUrl, email.trim(), password)
+                        // Erst nach erfolgreicher Anmeldung merken, nie falsche Daten.
+                        if (merken) auth.anmeldedatenMerken(email.trim(), password)
+                        else auth.anmeldedatenVergessen()
                         onLoggedIn()
                     } catch (e: Exception) {
                         error = ServerUrl.anmeldeFehler(e)

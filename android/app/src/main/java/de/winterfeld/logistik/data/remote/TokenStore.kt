@@ -72,6 +72,22 @@ class TokenStore(private val prefs: SharedPreferences) {
 
     val isLoggedIn: Boolean get() = refreshToken != null
 
+    /**
+     * Auf Wunsch gemerkte Anmeldedaten (Knopf auf dem Anmeldebildschirm).
+     * Liegen wie die Tokens nur in dieser verschlüsselten Ablage; der Schlüssel
+     * dafür verlässt den Android-Schlüsselspeicher nie.
+     */
+    val gespeicherteEmail: String? get() = prefs.getString("login_email", null)
+    val gespeichertesPasswort: String? get() = prefs.getString("login_passwort", null)
+
+    fun anmeldedatenMerken(email: String, passwort: String) {
+        prefs.edit().putString("login_email", email).putString("login_passwort", passwort).apply()
+    }
+
+    fun anmeldedatenVergessen() {
+        prefs.edit().remove("login_email").remove("login_passwort").apply()
+    }
+
     fun clearTokens() {
         prefs.edit().remove("access_token").remove("refresh_token").apply()
     }

@@ -42,6 +42,18 @@ async def lifespan(app: FastAPI):
             worker.stop()
 
 
+class _AdminDateien(StaticFiles):
+    """Verwaltungsoberflaeche immer frisch: ohne Cache-Control behalten Browser
+    app.js und index.html nach eigenem Ermessen tagelang, und neue Ansichten
+    kommen nach einem Update nicht an. "no-cache" fragt jedes Mal per ETag
+    nach — unveraendert kostet das nur eine kurze 304-Antwort."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -71,6 +83,13 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
+    # Die Startadresse fuehrt in die Verwaltung – sonst sieht man dort nur
+    # {"detail":"Not Found"} und haelt den Server fuer nicht erreichbar.
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+    def startseite():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/admin/", status_code=307)
+
     # HEAD gehoert dazu: Download-Manager auf dem Handy fragen damit zuerst
     # Groesse und Wiederaufnahme ab und brechen sonst ab (405).
     @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
@@ -98,7 +117,7 @@ def create_app() -> FastAPI:
     for admin_dir in (Path(__file__).resolve().parents[1] / "admin",
                       Path(__file__).resolve().parents[2] / "admin"):
         if admin_dir.is_dir():
-            app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True),
+            app.mount("/admin", _AdminDateien(directory=str(admin_dir), html=True),
                       name="admin")
             break
 

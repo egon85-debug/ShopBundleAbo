@@ -36,6 +36,10 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
         val liveTranscript: String = "",
         /** Schon beantwortete Punkte der Sprachabfrage: Titel → erkannter Wert. */
         val voiceAnswers: List<Pair<String, String>> = emptyList(),
+        /** Mikrofon offen: „Jetzt sprechen“. */
+        val voiceListening: Boolean = false,
+        /** Grund, warum die Sprachabfrage nicht läuft — sichtbar statt still. */
+        val voiceError: String? = null,
         val processingHint: String? = null,
         val duplicates: ConfirmResultDto? = null,
         val savedFlash: Boolean = false,      // "✓ Artikel gespeichert" (Schnellmodus)
@@ -79,7 +83,17 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
             voicePrompt = schritt?.titel,
             voiceActive = schritt != null,
             liveTranscript = "",
+            voiceError = if (schritt != null) null else _state.value.voiceError,
         )
+    }
+
+    fun onVoiceListening(offen: Boolean) {
+        _state.value = _state.value.copy(voiceListening = offen)
+    }
+
+    fun onVoiceError(meldung: String) {
+        _state.value = _state.value.copy(voiceError = meldung, voiceActive = false,
+                                         voicePrompt = null, voiceListening = false)
     }
 
     fun onVoiceResult(schritt: SprachAbfrage.Schritt, ergebnis: SprachAbfrage.Ergebnis) {
@@ -108,11 +122,12 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
 
     fun restartVoice() {
         _state.value = _state.value.copy(voiceActive = true, liveTranscript = "",
-                                         voiceAnswers = emptyList())
+                                         voiceAnswers = emptyList(), voiceError = null)
     }
 
     fun stopVoice() {
-        _state.value = _state.value.copy(voiceActive = false, voicePrompt = null)
+        _state.value = _state.value.copy(voiceActive = false, voicePrompt = null,
+                                         voiceListening = false)
     }
 
     /** Serverzustand (erkannte Felder, Rückfragen, Status) regelmäßig nachladen. */
