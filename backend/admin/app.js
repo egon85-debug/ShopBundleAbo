@@ -87,9 +87,68 @@ const fmtDate = (s) => (s ? new Date(s).toLocaleString("de-DE") : "–");
 const fmtMoney = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
   { style: "currency", currency: "EUR" }));
 
+// ── KI-Kosten ────────────────────────────────────────────────────────────────
+const KI_ZWECK = {
+  vision: "Bilderkennung", product_research: "Produktrecherche", price_research: "Preisrecherche",
+  extraction: "Sprachauswertung", shoptext: "Shoptext", stt: "Transkription",
+};
+/** US-Dollar mit bis zu 4 Nachkommastellen – einzelne Läufe kosten Bruchteile eines Cents. */
+const fmtUsd = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
+  { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+const fmtZahl = (n) => (n == null ? "–" : Number(n).toLocaleString("de-DE"));
+
+function kiKostenUebersicht(k) {
+  if (!k) return "";
+  const m = k.monat, z = k.zeitraum;
+  const posten = Object.entries(z.nach_zweck || {})
+    .map(([kind, v]) => [KI_ZWECK[kind] || kind, Number(v.usd), v.laeufe])
+    .sort((a, b) => b[1] - a[1]);
+  const gesamt = Number(z.gesamt_usd) || 0;
+  return `
+    <section class="card">
+      <h3>KI-Kosten</h3>
+      <div class="stat-grid">
+        ${[["Dieser Monat", fmtUsd(m.gesamt_usd)], ["Artikel diesen Monat", fmtZahl(m.artikel)],
+           ["Schnitt je Artikel", fmtUsd(m.schnitt_je_artikel_usd)],
+           ["Recherchen wiederverwendet", fmtZahl(m.wiederverwendet)]]
+          .map(([label, wert]) => `<div class="stat"><div class="num">${wert}</div>
+             <div class="muted">${label}</div></div>`).join("")}
+      </div>
+      <h4 style="margin:18px 0 8px">Wofür – letzte 30 Tage (${fmtUsd(z.gesamt_usd)})</h4>
+      ${posten.length ? `<div class="table-wrap"><table class="ki-anteile"><tbody>${posten.map(([name, usd, n]) => `
+        <tr><td>${esc(name)}</td>
+          <td class="ki-balken"><span style="width:${gesamt ? (usd / gesamt * 100).toFixed(1) : 0}%"></span></td>
+          <td class="zahl">${fmtUsd(usd)}</td>
+          <td class="zahl muted">${gesamt ? Math.round(usd / gesamt * 100) : 0} %<span class="ki-laeufe"> · ${n} ${n === 1 ? "Lauf" : "Läufe"}</span></td></tr>`).join("")}
+        </tbody></table></div>` : '<p class="muted">Noch keine gemessenen KI-Läufe.</p>'}
+      <p class="muted" style="margin-top:10px">${fmtZahl(z.eingabe_tokens)} Eingabe- und
+        ${fmtZahl(z.ausgabe_tokens)} Ausgabe-Tokens, ${fmtZahl(z.websuchen)} Websuchen.
+        Listenpreise der Anthropic-API in US-Dollar; gemessen wird seit dem Update, ältere Läufe fehlen.</p>
+    </section>`;
+}
+
+function kiKostenArtikel(k) {
+  if (!k) return "";
+  const laeufe = k.laeufe || [];
+  return `
+    <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}</h3>
+      ${laeufe.length ? `<div class="table-wrap"><table><thead><tr><th>Zeitpunkt</th><th>Schritt</th>
+        <th>Modell</th><th class="zahl">Eingabe</th><th class="zahl">Ausgabe</th>
+        <th class="zahl">Websuchen</th><th class="zahl">Kosten</th></tr></thead><tbody>
+        ${laeufe.map((l) => `<tr><td>${fmtDate(l.created_at)}</td>
+          <td>${esc(KI_ZWECK[l.kind] || l.kind)}${l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
+          <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)" : esc(l.model || l.provider || "–")}</td>
+          <td class="zahl">${fmtZahl(l.input_tokens)}</td><td class="zahl">${fmtZahl(l.output_tokens)}</td>
+          <td class="zahl">${fmtZahl(l.web_searches)}</td>
+          <td class="zahl">${l.provider === "wiederverwendet" ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
+        </tbody></table></div>` : '<p class="muted">Für diesen Artikel lief noch keine KI.</p>'}
+      ${k.ungemessen ? `<p class="muted">${k.ungemessen} Lauf/Läufe vor dem Update – ohne gemessenen Verbrauch.</p>` : ""}
+    </section>`;
+}
+
 const views = {
   async dashboard() {
-    const d = await api("/dashboard");
+    const [d, kosten] = await Promise.all([api("/dashboard"), api("/ki-kosten").catch(() => null)]);
     main().innerHTML = `
       <h2>Systemstatus</h2>
       <div class="stat-grid">
@@ -100,7 +159,8 @@ const views = {
              <div class="muted">${label}</div></div>`).join("")}
       </div>
       ${d.failed_jobs > 0 ? `<div class="card"><span class="badge err">${d.failed_jobs}
-          endgültig fehlgeschlagene Jobs</span> – siehe <a href="#jobs">Jobs &amp; Fehler</a></div>` : ""}`;
+          endgültig fehlgeschlagene Jobs</span> – siehe <a href="#jobs">Jobs &amp; Fehler</a></div>` : ""}
+      ${kiKostenUebersicht(kosten)}`;
   },
 
   async products() {
@@ -663,12 +723,13 @@ function grundpreisText(p) {
 }
 
 async function artikelDetail(productId) {
-  const [product, stamm, listing, bewegungen] = await Promise.all([
+  const [product, stamm, listing, bewegungen, kiKosten] = await Promise.all([
     api("/products/" + productId),
     Promise.all([api("/storage-locations").catch(() => []), api("/suppliers").catch(() => [])])
       .then(([lagerplaetze, lieferanten]) => ({ lagerplaetze, lieferanten })),
     api(`/shop/products/${productId}/listing`).catch(() => null),
     api(`/products/${productId}/stock-movements`).catch(() => []),
+    api(`/products/${productId}/ki-kosten`).catch(() => null),
   ]);
   const darfBestand = ["warehouse_manager", "admin"].includes(currentUser?.role);
   const darfShoptext = darfFreigeben();
@@ -751,6 +812,8 @@ async function artikelDetail(productId) {
       : `<p class="muted">Noch kein Shoptext vorhanden. Er entsteht automatisch nach der Erkennung.</p>
          ${darfShoptext ? '<button class="btn" type="button" id="shoptext-neu">Jetzt von der KI schreiben lassen</button> <span id="shoptext-meldung"></span>' : ""}`}
     </section>
+
+    ${kiKostenArtikel(kiKosten)}
 
     <section class="card"><h3>Bestand</h3>
       <p>Bestand <strong>${product.stock_quantity}</strong> · reserviert ${product.reserved_quantity}

@@ -169,8 +169,9 @@ def reprice(product_id: str, db: Session = Depends(get_db),
             user: User = Depends(get_current_user)):
     """„Marktpreise aktualisieren“: neuer Recherche-Lauf im Hintergrund."""
     product = _get_product(db, product_id)
-    queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
-                  payload={"product_id": product.id}, product_id=product.id)
+    if not queue.wartet(db, product_id=product.id, job_type=JobType.RESEARCH_PRICES.value):
+        queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
+                      payload={"product_id": product.id, "frisch": True}, product_id=product.id)
     db.commit()
     return {"detail": "Preisrecherche gestartet"}
 
@@ -254,3 +255,12 @@ def reject_image(product_id: str, image_id: str, db: Session = Depends(get_db),
     db.commit()
     db.refresh(product)
     return product_out(product)
+
+
+@router.get("/{product_id}/ki-kosten")
+def ki_kosten(product_id: str, db: Session = Depends(get_db),
+              user: User = Depends(get_current_user)):
+    """KI-Läufe des Artikels mit Tokens, Websuchen und Kosten (US-Dollar)."""
+    from app.services import ki_verbrauch
+    _get_product(db, product_id)
+    return ki_verbrauch.laeufe_fuer_artikel(db, product_id)
