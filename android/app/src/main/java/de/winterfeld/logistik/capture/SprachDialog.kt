@@ -64,7 +64,7 @@ class SprachDialog(
     /** Aktuelle Frage auslassen (Knopf „Überspringen“). */
     fun ueberspringen() {
         if (!aktiv) return
-        aufraeumen()
+        aufraeumen(zerstoeren = false)
         naechste()
     }
 
@@ -78,13 +78,22 @@ class SprachDialog(
 
     fun freigeben() = stop()
 
-    private fun aufraeumen() {
+    /**
+     * Ansage und Aufnahme anhalten. Die Spracherkennung bleibt für die nächste
+     * Frage bestehen ([zerstoeren] = false) – sie für jede Frage neu anzulegen,
+     * lässt die Verbindung zum Erkennungsdienst abreißen (Fehler 11).
+     */
+    private fun aufraeumen(zerstoeren: Boolean = true) {
         haupt.removeCallbacksAndMessages(null)
         spieler?.release()
         spieler = null
+        if (zerstoeren) erkennerWeg() else erkenner?.cancel()
+        onHoeren(false)
+    }
+
+    private fun erkennerWeg() {
         erkenner?.destroy()
         erkenner = null
-        onHoeren(false)
     }
 
     private fun fragen(ansage: String? = null) {
@@ -127,42 +136,52 @@ class SprachDialog(
 
     private fun aufnehmen() {
         if (!aktiv) return
-        erkenner?.destroy()
-        erkenner = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(object : RecognitionListener {
-                override fun onResults(results: Bundle) {
-                    val text = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull().orEmpty()
-                    haupt.post { onHoeren(false); verarbeiten(text) }
-                }
+        erkennerHolen().startListening(
+            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            },
+        )
+    }
 
-                override fun onPartialResults(partialResults: Bundle) {
-                    partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()?.let { haupt.post { onZwischenstand(it) } }
-                }
+    /** Eine Spracherkennung für die ganze Abfrage; neu nur nach einem Abriss. */
+    private fun erkennerHolen(): SpeechRecognizer {
+        erkenner?.let { return it }
+        val neu = SpeechRecognizer.createSpeechRecognizer(context)
+        neu.setRecognitionListener(object : RecognitionListener {
+            // Rückrufe einer inzwischen ersetzten Erkennung zählen nicht mehr.
+            private fun aktuell() = erkenner === neu
 
-                override fun onError(error: Int) {
-                    haupt.post { onHoeren(false); fehler(error) }
-                }
+            override fun onResults(results: Bundle) {
+                val text = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull().orEmpty()
+                haupt.post { if (aktuell()) { onHoeren(false); verarbeiten(text) } }
+            }
 
-                override fun onReadyForSpeech(params: Bundle?) { haupt.post { onHoeren(true) } }
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            startListening(
-                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                    putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                },
-            )
-        }
+            override fun onPartialResults(partialResults: Bundle) {
+                partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()?.let { haupt.post { if (aktuell()) onZwischenstand(it) } }
+            }
+
+            override fun onError(error: Int) {
+                haupt.post { if (aktuell()) { onHoeren(false); fehler(error) } }
+            }
+
+            override fun onReadyForSpeech(params: Bundle?) {
+                haupt.post { if (aktuell()) onHoeren(true) }
+            }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        erkenner = neu
+        return neu
     }
 
     private fun fehler(code: Int) {
@@ -170,12 +189,16 @@ class SprachDialog(
         when (code) {
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> nichtVerstanden(SprachAbfrage.ANSAGE_NICHT_VERSTANDEN)
-            // Erkennung noch belegt (z. B. von der vorigen Frage): kurz warten, neu starten.
+            // Verbindung zum Erkennungsdienst abgerissen (11), Dienst belegt (8),
+            // zu viele Anfragen (10) oder Client-Fehler (5): Erkennung neu anlegen
+            // und dieselbe Frage noch einmal aufnehmen – ohne erneute Ansage.
+            ERROR_VERBINDUNG_WEG, ERROR_ZU_VIELE_ANFRAGEN,
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-            SpeechRecognizer.ERROR_CLIENT -> if (neustarts++ < 2) {
-                erkenner?.destroy(); erkenner = null
-                haupt.postDelayed({ aufnehmen() }, 600)
-            } else abbrechen("Die Spracherkennung reagiert nicht (Code $code). Bitte erneut starten.")
+            SpeechRecognizer.ERROR_CLIENT -> if (neustarts++ < 3) {
+                erkennerWeg()
+                haupt.postDelayed({ tonUndAufnehmen() }, 700L * neustarts)
+            } else abbrechen("Die Spracherkennung des Handys antwortet nicht (Code $code). " +
+                             "Bitte „Angaben per Sprache“ noch einmal tippen.")
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
                 abbrechen("Die App darf das Mikrofon nicht benutzen. Bitte in den Android-" +
                           "Einstellungen → Apps → Winterfeld Lager → Berechtigungen das Mikrofon erlauben.")
@@ -217,10 +240,12 @@ class SprachDialog(
         if (index < schritte.size) fragen() else beenden()
     }
 
+    /** Nach einem Neustart der Erkennung: nur Signalton, dann aufnehmen. */
+    private fun tonUndAufnehmen() = abspielen(listOf("signalton")) { aufnehmen() }
+
     private fun beenden() {
         if (!aktiv) return
-        erkenner?.destroy()
-        erkenner = null
+        erkennerWeg()
         onHoeren(false)
         onFrage(null)
         // Abschluss ansagen, danach ist die Abfrage vorbei.
@@ -229,6 +254,8 @@ class SprachDialog(
 
     companion object {
         // Erst ab Android 12/13 als Konstanten vorhanden.
+        private const val ERROR_ZU_VIELE_ANFRAGEN = 10
+        private const val ERROR_VERBINDUNG_WEG = 11
         private const val ERROR_SPRACHE_FEHLT = 12
         private const val ERROR_SPRACHE_NICHT_VERFUEGBAR = 13
 
