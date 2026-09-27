@@ -1,5 +1,5 @@
 -- Lebensmittel & Getränke: Füllmenge (Grundpreis), Pfand, Kennzeichnung.
--- IF NOT EXISTS: dieselben Befehle führt auch src/db/schema-ergaenzen.ts beim Build aus.
+-- IF NOT EXISTS: dieselben Befehle führt auch scripts/schema-ergaenzen.mjs beim Build aus.
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "net_content_amount" integer;--> statement-breakpoint
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "net_content_unit" varchar(4);--> statement-breakpoint
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "units_per_pack" integer;--> statement-breakpoint
