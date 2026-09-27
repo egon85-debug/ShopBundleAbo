@@ -85,6 +85,19 @@ def _letzter_lauf(db: Session, *, kind: str, input_ref: str, gueltig: timedelta)
     ).order_by(AiRun.created_at.desc()).limit(1))
 
 
+def _ueber_budget(db: Session, product: Product, kind: str) -> bool:
+    """Harte Bremse: True, wenn das KI-Budget des Artikels den Schritt nicht
+    mehr hergibt. Der ausgelassene Schritt steht sichtbar im KI-Protokoll."""
+    grund = ki_verbrauch.budget_pruefen(db, product.id, kind)
+    if grund is None:
+        return False
+    log.info("KI-Schritt %s für %s ausgelassen: %s", kind, product.id, grund)
+    db.add(AiRun(product_id=product.id, kind=kind, provider="budget",
+                 raw_output={}, validated_output={}, confidence={},
+                 status="budget", error=grund))
+    return True
+
+
 def _einplanen(db: Session, product: Product, job_type: str, **payload) -> None:
     """Auftrag nur anlegen, wenn nicht schon einer für den Artikel wartet."""
     if not queue.wartet(db, product_id=product.id, job_type=job_type):
@@ -154,6 +167,13 @@ def handle_recognize_product(db: Session, job: Job) -> None:
     bilder = [VisionImage(storage.get(f.storage_key), f.content_type, f.role)
               for f in fotos]
     vorher = _merkmale(product)
+    if _ueber_budget(db, product, "vision"):
+        _refresh_questions(db, product, [])
+        queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
+                      payload={"product_id": product.id}, product_id=product.id)
+        _shoptext_einplanen(db, product)
+        db.commit()
+        return
     vision_name = "vision"
     with ki_verbrauch.messen() as verbrauch:
         try:
@@ -225,6 +245,10 @@ def handle_research_product(db: Session, job: Job) -> None:
                        raw={"count": len(candidates), "quelle": frueher.id},
                        validated={"items": [c.model_dump(mode="json") for c in candidates]},
                        confidence={}, started=started)
+    elif _ueber_budget(db, product, "product_research"):
+        _shoptext_einplanen(db, product)
+        db.commit()
+        return
     else:
         research_name = "research"
         with ki_verbrauch.messen() as verbrauch:
@@ -314,7 +338,7 @@ def handle_research_prices(db: Session, job: Job) -> None:
                        raw={"count": len(offers), "quelle": frueher.id},
                        validated={"items": [o.model_dump(mode="json") for o in offers]},
                        confidence={}, started=started)
-    elif product.ean or query:
+    elif (product.ean or query) and not _ueber_budget(db, product, "price_research"):
         research_name = "research"
         with ki_verbrauch.messen() as verbrauch:
             try:
@@ -408,6 +432,11 @@ def handle_extract_voice_data(db: Session, job: Job) -> None:
             if product.voice_transcript else transcript_note
         )
     started = time.monotonic()
+    if _ueber_budget(db, product, "extraction"):
+        # Das Gesagte bleibt am Artikel lesbar (voice_transcript), nur ohne Auswertung.
+        recording.status = "transcribed"
+        db.commit()
+        return
     llm_name = "llm"
     with ki_verbrauch.messen() as verbrauch:
         try:
@@ -495,6 +524,11 @@ def handle_optimize_images(db: Session, job: Job) -> None:
 def handle_generate_shoptext(db: Session, job: Job) -> None:
     product = db.get(Product, job.payload["product_id"])
     if product is None:
+        return
+    if _ueber_budget(db, product, "shoptext"):
+        product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
+        _refresh_questions(db, product, [])
+        db.commit()
         return
     product.processing_status = ProcessingStatus.SHOPTEXT_GENERATING.value
     db.commit()

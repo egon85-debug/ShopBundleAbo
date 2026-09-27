@@ -55,12 +55,16 @@ class _ZaehlendeRecherche(FakeResearch):
 
     def identify_product(self, *, ean, mpn, query):
         self.suchen += 1
-        ki_verbrauch.erfassen(_antwort(ein=30000, aus=3000, suchen=3), "claude-opus-5")
+        # Sonnet 5: 20.000 × 2 $ + 2.000 × 10 $ je Mio. + 2 Suchen = 0,08 $
+        ki_verbrauch.erfassen(_antwort("claude-sonnet-5", ein=20000, aus=2000, suchen=2),
+                              "claude-sonnet-5")
         return self.candidates
 
     def find_offers(self, *, ean, query, condition):
         self.preise += 1
-        ki_verbrauch.erfassen(_antwort(ein=20000, aus=2000, suchen=2), "claude-opus-5")
+        # 15.000 × 2 $ + 1.500 × 10 $ je Mio. + 2 Suchen = 0,065 $
+        ki_verbrauch.erfassen(_antwort("claude-sonnet-5", ein=15000, aus=1500, suchen=2),
+                              "claude-sonnet-5")
         return self.offers
 
 
@@ -92,9 +96,9 @@ def test_verbrauch_landet_am_artikel_und_gleiche_ean_wird_wiederverwendet(client
 
     erster = _artikel(client, headers, 1)
     laeufe = {r.kind: r for r in db.query(AiRun).filter(AiRun.product_id == erster)}
-    assert laeufe["product_research"].cost_usd == Decimal("0.255000")
-    assert laeufe["product_research"].web_searches == 3
-    assert laeufe["price_research"].cost_usd == Decimal("0.170000")
+    assert laeufe["product_research"].cost_usd == Decimal("0.080000")
+    assert laeufe["product_research"].web_searches == 2
+    assert laeufe["price_research"].cost_usd == Decimal("0.065000")
     # Shoptext genau einmal – nach der Recherche, nicht zusätzlich davor
     assert text.texte == 1
 
@@ -124,12 +128,65 @@ def test_kosten_je_artikel_und_uebersicht_ueber_die_api(client, db, employee):
     produkt = _artikel(client, headers, 4)
 
     je_artikel = client.get(f"/api/v1/products/{produkt}/ki-kosten", headers=headers).json()
-    assert je_artikel["summe_usd"] == "0.4250"  # 0,255 + 0,17
+    assert je_artikel["summe_usd"] == "0.1450"  # 0,08 + 0,065
     arten = {l["kind"] for l in je_artikel["laeufe"]}
     assert {"product_research", "price_research", "vision", "shoptext"} <= arten
 
     uebersicht = client.get("/api/v1/ki-kosten?tage=30", headers=headers).json()
-    assert uebersicht["zeitraum"]["gesamt_usd"] == "0.4250"
+    assert uebersicht["zeitraum"]["gesamt_usd"] == "0.1450"
     assert uebersicht["zeitraum"]["artikel"] == 1
-    assert uebersicht["zeitraum"]["nach_zweck"]["product_research"]["usd"] == "0.2550"
-    assert uebersicht["zeitraum"]["websuchen"] == 5
+    assert uebersicht["zeitraum"]["nach_zweck"]["product_research"]["usd"] == "0.0800"
+    assert uebersicht["zeitraum"]["websuchen"] == 4
+
+
+class _TeureRecherche(_ZaehlendeRecherche):
+    """Eine Recherche, die allein fast das ganze Budget verbraucht."""
+
+    def identify_product(self, *, ean, mpn, query):
+        self.suchen += 1
+        ki_verbrauch.erfassen(_antwort("claude-sonnet-5", ein=100000, aus=8000, suchen=2),
+                              "claude-sonnet-5")  # 0,20 + 0,08 + 0,02 = 0,30 $
+        return self.candidates
+
+
+def test_budget_bremst_weitere_schritte(client, db, employee):
+    recherche, text = _TeureRecherche(), _ZaehlenderText()
+    registry.set_override(ProductResearchProvider, recherche)
+    registry.set_override(LlmExtractor, text)
+    headers = auth_headers(client)
+    produkt = _artikel(client, headers, 5)
+
+    # Nach 0,30 $ reicht der Rest (0,05 $) weder für Preise noch für den Shoptext.
+    assert recherche.preise == 0 and text.texte == 0
+    gebremst = db.query(AiRun).filter(AiRun.product_id == produkt, AiRun.status == "budget").all()
+    assert {r.kind for r in gebremst} == {"price_research", "shoptext"}
+    assert "0.35" in gebremst[0].error
+    assert ki_verbrauch.verbraucht_usd(db, produkt) <= Decimal("0.35")
+    # Der Artikel hängt nicht, er wartet auf die Prüfung von Hand.
+    assert db.get(Product, produkt).processing_status == "review_required"
+
+
+def test_recherche_haelt_platz_fuer_den_shoptext_frei(db):
+    from app.models import AiRun as Lauf
+    produkt = Product(internal_sku="WL-BUDGET-1")
+    db.add(produkt)
+    db.flush()
+    # 0,20 $ verbraucht: Rest 0,15 $ – Recherche (0,10) + Reserve Shoptext (0,06) passt nicht
+    db.add(Lauf(product_id=produkt.id, kind="vision", provider="x", raw_output={},
+                validated_output={}, confidence={}, status="ok", cost_usd=Decimal("0.20")))
+    db.flush()
+    assert ki_verbrauch.budget_pruefen(db, produkt.id, "product_research") is not None
+    assert ki_verbrauch.budget_pruefen(db, produkt.id, "shoptext") is None
+
+
+def test_knoepfe_melden_aufgebrauchtes_budget(client, db, employee, admin):
+    registry.set_override(ProductResearchProvider, _TeureRecherche())
+    headers = auth_headers(client)
+    produkt = _artikel(client, headers, 6)
+    admin_headers = auth_headers(client, email="admin@example.com")
+    preise = client.post(f"/api/v1/products/{produkt}/reprice", headers=admin_headers)
+    assert preise.status_code == 409 and "Budget" in preise.json()["detail"]
+    kosten = client.get("/api/v1/ki-kosten", headers=headers).json()
+    assert kosten["budget_je_artikel_usd"] == "0.35" and kosten["modell"]
+    je_artikel = client.get(f"/api/v1/products/{produkt}/ki-kosten", headers=headers).json()
+    assert je_artikel["budget_usd"] == "0.3500" and je_artikel["rest_usd"] == "0.0500"

@@ -115,6 +115,10 @@ def regenerate_listing(product_id: str, db: Session = Depends(get_db),
                        user: User = Depends(require_role(*_PUBLISHER))):
     if db.get(Product, product_id) is None:
         raise HTTPException(404, "Artikel nicht gefunden")
+    from app.services import ki_verbrauch
+    grund = ki_verbrauch.budget_pruefen(db, product_id, "shoptext")
+    if grund:
+        raise HTTPException(409, grund)
     queue.enqueue(db, job_type=JobType.GENERATE_SHOPTEXT.value,
                   payload={"product_id": product_id}, product_id=product_id)
     db.commit()

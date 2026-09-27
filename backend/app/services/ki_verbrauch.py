@@ -124,9 +124,11 @@ def laeufe_fuer_artikel(db, product_id: str) -> dict:
     from app.models import AiRun
     laeufe = db.scalars(select(AiRun).where(AiRun.product_id == product_id)
                         .order_by(AiRun.created_at.desc())).all()
+    verbraucht = sum((Decimal(r.cost_usd) for r in laeufe if r.cost_usd is not None), Decimal(0))
     return {
-        "summe_usd": _geld(sum((Decimal(r.cost_usd) for r in laeufe if r.cost_usd is not None),
-                               Decimal(0))),
+        "summe_usd": _geld(verbraucht),
+        "budget_usd": _geld(budget_usd()),
+        "rest_usd": _geld(max(budget_usd() - verbraucht, Decimal(0))),
         "ungemessen": sum(1 for r in laeufe if r.cost_usd is None
                           and r.provider != "wiederverwendet"),
         "laeufe": [{
@@ -134,7 +136,7 @@ def laeufe_fuer_artikel(db, product_id: str) -> dict:
             "status": r.status, "created_at": r.created_at,
             "input_tokens": r.input_tokens, "output_tokens": r.output_tokens,
             "cache_read_tokens": r.cache_read_tokens, "web_searches": r.web_searches,
-            "api_calls": r.api_calls, "duration_ms": r.duration_ms,
+            "api_calls": r.api_calls, "duration_ms": r.duration_ms, "error": r.error,
             "cost_usd": _geld(r.cost_usd) if r.cost_usd is not None else None,
         } for r in laeufe],
     }
@@ -172,3 +174,53 @@ def uebersicht(db, seit) -> dict:
 def _geld(wert) -> str:
     """Als Text mit 4 Nachkommastellen – Cent-Bruchteile sind hier üblich."""
     return str(Decimal(wert).quantize(Decimal("0.0001")))
+
+
+# ── Budget je Artikel ────────────────────────────────────────────────────────
+
+# So viel muss je Schritt mindestens übrig sein, damit er startet – großzügig
+# nach oben geschätzt (Sonnet 5, 2 Websuchen, gekürzte Seiten), damit ein
+# gestarteter Schritt das Budget nicht mehr sprengt.
+MINDESTENS = {
+    "vision": Decimal("0.08"),
+    "product_research": Decimal("0.10"),
+    "price_research": Decimal("0.10"),
+    "shoptext": Decimal("0.06"),
+    "extraction": Decimal("0.02"),
+}
+# Der Shoptext ist für den Shop unverzichtbar: Solange es keinen gibt, halten
+# Recherchen so viel für ihn frei.
+SHOPTEXT_RESERVE = MINDESTENS["shoptext"]
+
+
+def budget_usd() -> Decimal:
+    from app.config import get_settings
+    return Decimal(str(get_settings().ki_budget_je_artikel_usd))
+
+
+def verbraucht_usd(db, product_id: str) -> Decimal:
+    from sqlalchemy import func, select
+
+    from app.models import AiRun
+    summe_ = db.scalar(select(func.sum(AiRun.cost_usd)).where(AiRun.product_id == product_id))
+    return Decimal(summe_ or 0)
+
+
+def budget_pruefen(db, product_id: str, kind: str) -> str | None:
+    """None, wenn der Schritt laufen darf – sonst der Grund, warum nicht."""
+    from sqlalchemy import select
+
+    from app.models import AiRun
+    rest = budget_usd() - verbraucht_usd(db, product_id)
+    noetig = MINDESTENS.get(kind, Decimal("0.02"))
+    if kind in ("product_research", "price_research"):
+        hat_text = db.scalar(select(AiRun.id).where(
+            AiRun.product_id == product_id, AiRun.kind == "shoptext",
+            AiRun.status == "ok").limit(1))
+        if not hat_text:
+            noetig += SHOPTEXT_RESERVE
+    if rest >= noetig:
+        return None
+    return (f"KI-Budget je Artikel ({_geld(budget_usd())} $) reicht nicht mehr: "
+            f"noch {_geld(max(rest, Decimal(0)))} $ übrig, dieser Schritt braucht bis zu "
+            f"{_geld(noetig)} $")

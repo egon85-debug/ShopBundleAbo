@@ -245,7 +245,8 @@ class AnthropicClient:
             {"type": suche, "name": "web_search", "max_uses": anzahl,
              "user_location": {"type": "approximate", "country": "DE",
                                "timezone": "Europe/Berlin"}},
-            {"type": abruf, "name": "web_fetch", "max_uses": anzahl},
+            {"type": abruf, "name": "web_fetch", "max_uses": anzahl,
+             "max_content_tokens": get_settings().research_max_fetch_tokens},
         ]
 
 

@@ -185,7 +185,7 @@ def _jpeg():
 def recherche(monkeypatch):
     """Einstellungen + Attrappe fuer Anbieter, die ihren Client selbst bauen."""
     einstellungen = SimpleNamespace(anthropic_api_key="sk-test", anthropic_model="claude-sonnet-5",
-                                    research_max_searches=3)
+                                    research_max_searches=3, research_max_fetch_tokens=6000)
     monkeypatch.setattr(ap, "get_settings", lambda: einstellungen)
     attrappe = _Attrappe()
     monkeypatch.setattr(ap.anthropic, "Anthropic", lambda **kw: attrappe)
