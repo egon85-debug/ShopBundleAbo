@@ -138,3 +138,8 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; font-variant-numeric:
 .ki-balken { width: 45%; }
 .ki-balken span { display: block; height: 10px; border-radius: 4px; background: #2a78d6; min-width: 2px; }
 @media (max-width: 640px) { .ki-balken, .ki-laeufe { display: none; } }
+
+/* „Angemeldet bleiben“ auf der Anmeldeseite */
+.login-card label.merken { display: flex; flex-direction: row; align-items: center; gap: 8px;
+  font-weight: 500; cursor: pointer; }
+.login-card label.merken input { width: auto; margin: 0; }

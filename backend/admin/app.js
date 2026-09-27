@@ -2,8 +2,22 @@
 "use strict";
 
 const API = "/api/v1";
-let accessToken = sessionStorage.getItem("wf_access") || null;
-let refreshToken = sessionStorage.getItem("wf_refresh") || null;
+
+// „Angemeldet bleiben“: Anmeldung im dauerhaften Speicher (bleibt nach dem
+// Schließen des Browsers), sonst nur für diesen Tab. Der Erneuerungsschlüssel
+// gilt 14 Tage und wird bei jeder Nutzung verlängert.
+const MERKEN = "wf_merken";
+function merkeAnmeldung() {
+  try { return localStorage.getItem(MERKEN) === "1"; } catch (_) { return false; }
+}
+function speicher() {
+  try { return merkeAnmeldung() ? localStorage : sessionStorage; } catch (_) { return sessionStorage; }
+}
+function lesen(schluessel) {
+  try { return speicher().getItem(schluessel); } catch (_) { return null; }
+}
+let accessToken = lesen("wf_access") || null;
+let refreshToken = lesen("wf_refresh") || null;
 let currentUser = null;
 
 // ── API-Helfer ───────────────────────────────────────────────────────────────
@@ -45,7 +59,30 @@ function fehlertext(detail) {
   return String(detail);
 }
 
+/**
+ * Anmeldung erneuern. Mit „Angemeldet bleiben“ teilen sich alle Tabs die
+ * Schlüssel: Erneuern zwei Tabs gleichzeitig, benutzt einer einen schon
+ * verbrauchten Schlüssel – der Server widerruft dann aus Sicherheitsgründen
+ * alle Anmeldungen (auch die der App). Daher erneuert immer nur ein Tab,
+ * und wer danach kommt, übernimmt dessen neue Schlüssel.
+ */
 async function tryRefresh() {
+  const verbraucht = refreshToken;
+  const erneuern = async () => {
+    const aktuell = lesen("wf_refresh");
+    if (aktuell && aktuell !== verbraucht) {
+      accessToken = lesen("wf_access"); refreshToken = aktuell;
+      return true;
+    }
+    return anmeldungErneuern();
+  };
+  if (navigator.locks && merkeAnmeldung()) {
+    return navigator.locks.request("wf-anmeldung-erneuern", erneuern);
+  }
+  return erneuern();
+}
+
+async function anmeldungErneuern() {
   try {
     const res = await fetch(API + "/auth/refresh", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -60,14 +97,17 @@ async function tryRefresh() {
 
 function setTokens(access, refresh) {
   accessToken = access; refreshToken = refresh;
-  sessionStorage.setItem("wf_access", access);
-  sessionStorage.setItem("wf_refresh", refresh);
+  try {
+    speicher().setItem("wf_access", access);
+    speicher().setItem("wf_refresh", refresh);
+  } catch (_) { /* ohne Speicher gilt die Anmeldung nur bis zum Neuladen */ }
 }
 
 function clearTokens() {
   accessToken = refreshToken = null;
-  sessionStorage.removeItem("wf_access");
-  sessionStorage.removeItem("wf_refresh");
+  for (const ablage of [sessionStorage, localStorage]) {
+    try { ablage.removeItem("wf_access"); ablage.removeItem("wf_refresh"); } catch (_) {}
+  }
 }
 
 // ── Views ────────────────────────────────────────────────────────────────────
@@ -958,6 +998,8 @@ async function artikelDetail(productId) {
 
 function showLogin() {
   clearTokens();
+  const merken = document.getElementById("login-merken");
+  if (merken) merken.checked = merkeAnmeldung();
   document.getElementById("app-view").hidden = true;
   document.getElementById("login-view").hidden = false;
 }
@@ -995,6 +1037,12 @@ document.getElementById("login-form").onsubmit = async (e) => {
       email: document.getElementById("login-email").value,
       password: document.getElementById("login-password").value,
     } }, false);
+    // Erst nach erfolgreicher Anmeldung festlegen, wo sie gespeichert wird.
+    clearTokens();
+    try {
+      if (document.getElementById("login-merken").checked) localStorage.setItem(MERKEN, "1");
+      else localStorage.removeItem(MERKEN);
+    } catch (_) {}
     setTokens(body.access_token, body.refresh_token);
     await showApp();
   } catch (err) {
