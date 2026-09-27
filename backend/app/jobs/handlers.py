@@ -30,8 +30,14 @@ from app.providers.registry import (
     get_stt,
     get_vision,
 )
-from app.schemas.ai import ResearchCandidate
-from app.services import listing_service, merge_service, pricing_service, publish_service
+from app.schemas.ai import PriceOffer, ResearchCandidate
+from app.services import (
+    ki_verbrauch,
+    listing_service,
+    merge_service,
+    pricing_service,
+    publish_service,
+)
 from app.jobs import queue
 
 log = logging.getLogger("winterfeld.jobs")
@@ -39,12 +45,55 @@ log = logging.getLogger("winterfeld.jobs")
 
 def _record_ai_run(db: Session, *, product_id: str | None, kind: str, provider: str,
                    input_ref: str | None, raw: dict, validated: dict,
-                   confidence: dict, started: float) -> None:
+                   confidence: dict, started: float,
+                   verbrauch: list | None = None, status: str = "ok",
+                   error: str | None = None) -> None:
+    werte = ki_verbrauch.summe(verbrauch) if verbrauch else {}
     db.add(AiRun(
         product_id=product_id, kind=kind, provider=provider, input_ref=input_ref,
         raw_output=raw, validated_output=validated, confidence=confidence,
-        status="ok", duration_ms=int((time.monotonic() - started) * 1000),
+        status=status, error=error, duration_ms=int((time.monotonic() - started) * 1000),
+        **werte,
     ))
+
+
+def _kosten_trotz_fehler(db: Session, *, product_id: str | None, kind: str,
+                         provider: str, verbrauch: list, exc: Exception,
+                         started: float) -> None:
+    """Auch ein gescheiterter Aufruf kostet, wenn die API schon geantwortet hat
+    (z. B. unlesbare Antwort). Sofort sichern – ein Retry rollt sonst zurück."""
+    if not verbrauch:
+        return
+    _record_ai_run(db, product_id=product_id, kind=kind, provider=provider,
+                   input_ref=None, raw={}, validated={}, confidence={},
+                   started=started, verbrauch=verbrauch, status="error",
+                   error=f"{type(exc).__name__}: {exc}"[:2000])
+    db.commit()
+
+
+# Ergebnisse einer Recherche zur selben EAN werden so lange wiederverwendet –
+# gleiche Anfrage, gleiches Ergebnis, keine zweite Websuche. Mehrere Stück
+# desselben Artikels hintereinander zu erfassen ist im Lager der Normalfall.
+PRODUKTRECHERCHE_GUELTIG = timedelta(days=7)
+PREISRECHERCHE_GUELTIG = timedelta(hours=24)
+
+
+def _letzter_lauf(db: Session, *, kind: str, input_ref: str, gueltig: timedelta) -> AiRun | None:
+    return db.scalar(select(AiRun).where(
+        AiRun.kind == kind, AiRun.input_ref == input_ref, AiRun.status == "ok",
+        AiRun.created_at >= utcnow() - gueltig,
+    ).order_by(AiRun.created_at.desc()).limit(1))
+
+
+def _einplanen(db: Session, product: Product, job_type: str, **payload) -> None:
+    """Auftrag nur anlegen, wenn nicht schon einer für den Artikel wartet."""
+    if not queue.wartet(db, product_id=product.id, job_type=job_type):
+        queue.enqueue(db, job_type=job_type, payload={"product_id": product.id, **payload},
+                      product_id=product.id)
+
+
+def _shoptext_einplanen(db: Session, product: Product) -> None:
+    _einplanen(db, product, JobType.GENERATE_SHOPTEXT.value)
 
 
 def _aufgeben(job: Job, exc: Exception, schritt: str) -> bool:
@@ -105,26 +154,32 @@ def handle_recognize_product(db: Session, job: Job) -> None:
     bilder = [VisionImage(storage.get(f.storage_key), f.content_type, f.role)
               for f in fotos]
     vorher = _merkmale(product)
-    try:
-        vision = get_vision()
-        analysis = vision.analyze_product_images(bilder)
-    except Exception as exc:
-        if not _aufgeben(job, exc, "Erkennung"):
-            raise
-        # Ohne Erkennung ist der Artikel nicht verloren: die Angaben kommen im
-        # Kontrollbildschirm von Hand, und die Bilder brauchen keine KI.
-        _refresh_questions(db, product, [])
-        queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
-                      payload={"product_id": product.id}, product_id=product.id)
-        db.commit()
-        return
+    vision_name = "vision"
+    with ki_verbrauch.messen() as verbrauch:
+        try:
+            vision = get_vision()
+            vision_name = vision.name
+            analysis = vision.analyze_product_images(bilder)
+        except Exception as exc:
+            _kosten_trotz_fehler(db, product_id=product.id, kind="vision", provider=vision_name,
+                                 verbrauch=verbrauch, exc=exc, started=started)
+            if not _aufgeben(job, exc, "Erkennung"):
+                raise
+            # Ohne Erkennung ist der Artikel nicht verloren: die Angaben kommen im
+            # Kontrollbildschirm von Hand, und die Bilder brauchen keine KI.
+            _refresh_questions(db, product, [])
+            queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
+                          payload={"product_id": product.id}, product_id=product.id)
+            _shoptext_einplanen(db, product)
+            db.commit()
+            return
     conflicts = merge_service.merge_vision(product, analysis)
     _record_ai_run(db, product_id=product.id, kind="vision", provider=vision.name,
                    # Bild-IDs statt Pfaden: sechs Pfade sprengen die 500 Zeichen
                    input_ref=",".join(f.id for f in fotos)[:500],
                    raw=analysis.model_dump(mode="json"),
                    validated=analysis.model_dump(mode="json"),
-                   confidence=analysis.confidence, started=started)
+                   confidence=analysis.confidence, started=started, verbrauch=verbrauch)
 
     product.processing_status = ProcessingStatus.PRODUCT_IDENTIFIED.value
     _refresh_questions(db, product, conflicts)
@@ -134,10 +189,18 @@ def handle_recognize_product(db: Session, job: Job) -> None:
     # Jede Recherche kostet Websuchen.
     schon_recherchiert = db.scalar(select(AiRun.id).where(
         AiRun.product_id == product.id, AiRun.kind == "product_research").limit(1))
-    if (product.ean or product.mpn or product.product_name) and \
-            (not schon_recherchiert or _merkmale(product) != vorher):
-        queue.enqueue(db, job_type=JobType.RESEARCH_PRODUCT.value,
-                      payload={"product_id": product.id}, product_id=product.id)
+    recherche = bool(product.ean or product.mpn or product.product_name) and \
+        (not schon_recherchiert or _merkmale(product) != vorher)
+    if recherche:
+        # Der Shoptext folgt erst nach der Recherche – mit ihren Angaben und
+        # nur einmal statt vorher und nachher.
+        _einplanen(db, product, JobType.RESEARCH_PRODUCT.value)
+    else:
+        schon_text = db.scalar(select(AiRun.id).where(
+            AiRun.product_id == product.id, AiRun.kind == "shoptext",
+            AiRun.status == "ok").limit(1))
+        if not schon_text or _merkmale(product) != vorher:
+            _shoptext_einplanen(db, product)
     queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
                   payload={"product_id": product.id}, product_id=product.id)
     db.commit()
@@ -150,23 +213,41 @@ def handle_research_product(db: Session, job: Job) -> None:
     if product is None:
         return
     started = time.monotonic()
-    try:
-        research = get_research()
-        candidates = research.identify_product(
-            ean=product.ean, mpn=product.mpn,
-            query=" ".join(filter(None, [product.manufacturer, product.product_name,
-                                         product.model])) or None,
-        )
-    except Exception as exc:
-        if not _aufgeben(job, exc, "Produktrecherche"):
-            raise
-        # Recherche ist eine Ergaenzung — ohne sie bleibt es bei Foto und Eingabe.
-        return
-    _record_ai_run(db, product_id=product.id, kind="product_research", provider=research.name,
-                   input_ref=product.ean or product.mpn,
-                   raw={"count": len(candidates)},
-                   validated={"items": [c.model_dump(mode="json") for c in candidates]},
-                   confidence={}, started=started)
+    query = " ".join(filter(None, [product.manufacturer, product.product_name,
+                                   product.model])) or None
+    frueher = (_letzter_lauf(db, kind="product_research", input_ref=product.ean,
+                             gueltig=PRODUKTRECHERCHE_GUELTIG) if product.ean else None)
+    if frueher is not None:
+        # Dieselbe EAN wurde gerade erst recherchiert: Ergebnis übernehmen.
+        candidates = _gueltige_kandidaten(frueher.validated_output.get("items"))
+        _record_ai_run(db, product_id=product.id, kind="product_research",
+                       provider="wiederverwendet", input_ref=product.ean,
+                       raw={"count": len(candidates), "quelle": frueher.id},
+                       validated={"items": [c.model_dump(mode="json") for c in candidates]},
+                       confidence={}, started=started)
+    else:
+        research_name = "research"
+        with ki_verbrauch.messen() as verbrauch:
+            try:
+                research = get_research()
+                research_name = research.name
+                candidates = research.identify_product(ean=product.ean, mpn=product.mpn,
+                                                       query=query)
+            except Exception as exc:
+                _kosten_trotz_fehler(db, product_id=product.id, kind="product_research",
+                                     provider=research_name, verbrauch=verbrauch, exc=exc,
+                                     started=started)
+                if not _aufgeben(job, exc, "Produktrecherche"):
+                    raise
+                # Recherche ist eine Ergaenzung — ohne sie bleibt es bei Foto und Eingabe.
+                _shoptext_einplanen(db, product)
+                db.commit()
+                return
+        _record_ai_run(db, product_id=product.id, kind="product_research",
+                       provider=research_name, input_ref=product.ean or product.mpn,
+                       raw={"count": len(candidates)},
+                       validated={"items": [c.model_dump(mode="json") for c in candidates]},
+                       confidence={}, started=started, verbrauch=verbrauch)
 
     conflicts: list[str] = []
     eindeutig = _eindeutiger_treffer(candidates)
@@ -178,9 +259,19 @@ def handle_research_product(db: Session, job: Job) -> None:
         product.research_candidates = [c.model_dump(mode="json") for c in candidates[:5]]
     _refresh_questions(db, product, conflicts)
 
-    queue.enqueue(db, job_type=JobType.RESEARCH_PRICES.value,
-                  payload={"product_id": product.id}, product_id=product.id)
+    _einplanen(db, product, JobType.RESEARCH_PRICES.value)
+    _shoptext_einplanen(db, product)
     db.commit()
+
+
+def _gueltige_kandidaten(eintraege) -> list[ResearchCandidate]:
+    ergebnis = []
+    for eintrag in eintraege or []:
+        try:
+            ergebnis.append(ResearchCandidate.model_validate(eintrag))
+        except Exception:
+            continue
+    return ergebnis
 
 
 # Ab dieser Sicherheit wird ein Recherche-Treffer ohne Rueckfrage uebernommen
@@ -208,20 +299,55 @@ def handle_research_prices(db: Session, job: Job) -> None:
     product.processing_status = ProcessingStatus.PRICE_RESEARCH_RUNNING.value
     db.commit()
 
+    started = time.monotonic()
     query = " ".join(filter(None, [product.manufacturer, product.product_name, product.model]))
-    if product.ean or query:
-        try:
-            research = get_research()
-            offers = research.find_offers(ean=product.ean, query=query,
-                                          condition=product.condition)
-            pricing_service.evaluate_offers(db, product=product, offers=offers)
-        except Exception as exc:
-            if not _aufgeben(job, exc, "Preisrecherche"):
-                raise
+    schluessel = f"{product.ean}|{product.condition or ''}" if product.ean else None
+    frueher = (_letzter_lauf(db, kind="price_research", input_ref=schluessel,
+                             gueltig=PREISRECHERCHE_GUELTIG)
+               # „Marktpreise aktualisieren“ will ausdrücklich frische Preise.
+               if schluessel and not job.payload.get("frisch") else None)
+    if frueher is not None:
+        offers = _gueltige_angebote(frueher.validated_output.get("items"))
+        pricing_service.evaluate_offers(db, product=product, offers=offers)
+        _record_ai_run(db, product_id=product.id, kind="price_research",
+                       provider="wiederverwendet", input_ref=schluessel,
+                       raw={"count": len(offers), "quelle": frueher.id},
+                       validated={"items": [o.model_dump(mode="json") for o in offers]},
+                       confidence={}, started=started)
+    elif product.ean or query:
+        research_name = "research"
+        with ki_verbrauch.messen() as verbrauch:
+            try:
+                research = get_research()
+                research_name = research.name
+                offers = research.find_offers(ean=product.ean, query=query,
+                                              condition=product.condition)
+                pricing_service.evaluate_offers(db, product=product, offers=offers)
+                _record_ai_run(db, product_id=product.id, kind="price_research",
+                               provider=research_name, input_ref=schluessel or query[:500],
+                               raw={"count": len(offers)},
+                               validated={"items": [o.model_dump(mode="json") for o in offers]},
+                               confidence={}, started=started, verbrauch=verbrauch)
+            except Exception as exc:
+                _kosten_trotz_fehler(db, product_id=product.id, kind="price_research",
+                                     provider=research_name, verbrauch=verbrauch, exc=exc,
+                                     started=started)
+                if not _aufgeben(job, exc, "Preisrecherche"):
+                    raise
     # Auch ohne Recherche weiter zur Pruefung — sonst haengt der Artikel.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
     _refresh_questions(db, product, [])
     db.commit()
+
+
+def _gueltige_angebote(eintraege) -> list[PriceOffer]:
+    ergebnis = []
+    for eintrag in eintraege or []:
+        try:
+            ergebnis.append(PriceOffer.model_validate(eintrag))
+        except Exception:
+            continue
+    return ergebnis
 
 
 # ── Sprache ──────────────────────────────────────────────────────────────────
@@ -281,21 +407,26 @@ def handle_extract_voice_data(db: Session, job: Job) -> None:
             (product.voice_transcript + "\n" + transcript_note)
             if product.voice_transcript else transcript_note
         )
-    try:
-        llm = get_llm()
-        started = time.monotonic()
-        extraction = llm.extract_voice_data(recording.transcript)
-    except Exception as exc:
-        if not _aufgeben(job, exc, "Sprachauswertung"):
-            raise
-        recording.status = "transcribed"
-        db.commit()
-        return
+    started = time.monotonic()
+    llm_name = "llm"
+    with ki_verbrauch.messen() as verbrauch:
+        try:
+            llm = get_llm()
+            llm_name = llm.name
+            extraction = llm.extract_voice_data(recording.transcript)
+        except Exception as exc:
+            _kosten_trotz_fehler(db, product_id=product.id, kind="extraction", provider=llm_name,
+                                 verbrauch=verbrauch, exc=exc, started=started)
+            if not _aufgeben(job, exc, "Sprachauswertung"):
+                raise
+            recording.status = "transcribed"
+            db.commit()
+            return
     conflicts = merge_service.merge_voice(db, product, extraction)
     _record_ai_run(db, product_id=product.id, kind="extraction", provider=llm.name,
                    input_ref=recording.id, raw=extraction.model_dump(mode="json"),
                    validated=extraction.model_dump(mode="json"),
-                   confidence=extraction.confidence, started=started)
+                   confidence=extraction.confidence, started=started, verbrauch=verbrauch)
     recording.status = "extracted"
     _refresh_questions(db, product, conflicts)
     db.commit()
@@ -354,8 +485,8 @@ def handle_optimize_images(db: Session, job: Job) -> None:
         if optimized.is_primary:
             has_primary = True
         db.add(optimized)
-    queue.enqueue(db, job_type=JobType.GENERATE_SHOPTEXT.value,
-                  payload={"product_id": product.id}, product_id=product.id)
+    # Der Shoptext wird nach Erkennung bzw. Recherche eingeplant, nicht hier:
+    # er braucht die Bilder nicht, aber deren Angaben.
     db.commit()
 
 
@@ -368,14 +499,17 @@ def handle_generate_shoptext(db: Session, job: Job) -> None:
     product.processing_status = ProcessingStatus.SHOPTEXT_GENERATING.value
     db.commit()
     started = time.monotonic()
-    try:
-        listing = listing_service.generate(db, product)
-        _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
-                       input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
-                       confidence={}, started=started)
-    except Exception as exc:
-        if not _aufgeben(job, exc, "Shoptext"):
-            raise
+    with ki_verbrauch.messen() as verbrauch:
+        try:
+            listing = listing_service.generate(db, product)
+            _record_ai_run(db, product_id=product.id, kind="shoptext", provider=get_llm().name,
+                           input_ref=None, raw={}, validated={"seo_title": listing.seo_title},
+                           confidence={}, started=started, verbrauch=verbrauch)
+        except Exception as exc:
+            _kosten_trotz_fehler(db, product_id=product.id, kind="shoptext",
+                                 provider="llm", verbrauch=verbrauch, exc=exc, started=started)
+            if not _aufgeben(job, exc, "Shoptext"):
+                raise
         # Texte lassen sich spaeter schreiben oder neu erzeugen — der Artikel
         # darf deswegen nicht in "Shoptext wird erstellt" haengen bleiben.
     product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value

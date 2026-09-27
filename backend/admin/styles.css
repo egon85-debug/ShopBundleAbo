@@ -130,3 +130,11 @@ textarea { resize: vertical; }
 .kandidaten { display: flex; gap: 8px; flex-wrap: wrap; }
 .marktpreis { margin: 12px 0 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .card + .card, section.card { margin-bottom: 14px; }
+
+/* KI-Kosten: Anteile je Zweck als schlichte Balken */
+td.zahl, th.zahl { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ki-anteile { width: 100%; }
+.ki-anteile td { padding: 6px 8px; }
+.ki-balken { width: 45%; }
+.ki-balken span { display: block; height: 10px; border-radius: 4px; background: #2a78d6; min-width: 2px; }
+@media (max-width: 640px) { .ki-balken, .ki-laeufe { display: none; } }

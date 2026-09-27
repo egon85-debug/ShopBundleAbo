@@ -31,6 +31,23 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
     return DashboardOut(**counts, pending_jobs=pending, failed_jobs=failed)
 
 
+@router.get("/ki-kosten")
+def ki_kosten(tage: int = 30, db: Session = Depends(get_db),
+              user: User = Depends(get_current_user)):
+    """KI-Kosten der letzten Tage und des laufenden Monats (US-Dollar)."""
+    from datetime import timedelta
+
+    from app.models.base import utcnow
+    from app.services import ki_verbrauch
+    jetzt = utcnow()
+    tage = max(1, min(tage, 366))
+    return {
+        "zeitraum": ki_verbrauch.uebersicht(db, jetzt - timedelta(days=tage)),
+        "monat": ki_verbrauch.uebersicht(
+            db, jetzt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)),
+    }
+
+
 # ── Benutzerverwaltung (Admin) ──────────────────────────────────────────────
 
 @router.get("/users", response_model=list[UserOut])

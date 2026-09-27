@@ -18,6 +18,7 @@ from app.providers.base import (
     VisionImage,
     VisionProvider,
 )
+from app.services import ki_verbrauch
 from app.schemas.ai import (
     PriceOffer,
     ResearchCandidate,
@@ -202,6 +203,8 @@ class AnthropicClient:
         messages: list[dict] = [{"role": "user", "content": content}]
         for _ in range(max_fortsetzungen + 1):
             response = self._senden(messages, max_tokens, tools)
+            # Jede Runde kostet – auch eine, deren Ergebnis danach verworfen wird.
+            ki_verbrauch.erfassen(response, self.model)
             if response.stop_reason != "pause_turn":
                 break
             messages = [{"role": "user", "content": content},
