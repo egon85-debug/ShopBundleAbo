@@ -20,6 +20,7 @@ import {
 import { KATEGORIE_TAG } from "@/services/navigation";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import { beschreibungAusFeld } from "@/lib/beschreibung-text";
 import { lagerAenderungen, meldeProduktAenderung, meldungsHinweis } from "@/lib/lager-meldung";
 import { parseToCents } from "@/lib/money";
 import { categorySchema, productSchema, slugify } from "@/lib/validation";
@@ -101,6 +102,8 @@ export async function saveProductAction(
   const [vorher] = productId
     ? await db.select().from(products).where(eq(products.id, productId)).limit(1)
     : [];
+  // Im Eingabefeld steht lesbarer Text; war die Beschreibung HTML, bleibt sie es.
+  values.description = beschreibungAusFeld(values.description, vorher?.description);
 
   try {
     const id = await db.transaction(async (tx) => {

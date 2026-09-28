@@ -18,3 +18,4 @@ export function beschreibungHtml(text: string | null | undefined): string | null
     disallowedTagsMode: "discard",
   }).trim();
 }
+

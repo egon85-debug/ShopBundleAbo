@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { saveProductAction, type CatalogActionState } from "@/app/actions/admin-catalog";
+import { htmlZuText } from "@/lib/beschreibung-text";
 import { slugify } from "@/lib/validation";
 
 type CategoryOption = { id: string; name: string; parentId: string | null };
@@ -98,7 +99,7 @@ export function ProductForm({
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="description" className="label">Beschreibung</label>
-            <textarea id="description" name="description" rows={7} defaultValue={product?.description ?? ""} className="field" />
+            <textarea id="description" name="description" rows={7} defaultValue={htmlZuText(product?.description)} className="field" />
           </div>
         </div>
       </section>
