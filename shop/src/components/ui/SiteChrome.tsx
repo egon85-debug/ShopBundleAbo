@@ -137,7 +137,11 @@ export async function SiteFooter() {
       <div className="border-t border-nebel">
         <div className="seite flex flex-col gap-2 py-6 text-caption text-schiefer sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Winterfeld Logistik</p>
-          <p>Versand mit DHL &amp; DHL Express · Zahlung über Stripe</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <p>Versand mit DHL &amp; DHL Express · Zahlung über Stripe</p>
+            {/* Zugang zum Backoffice; ohne Anmeldung führt er auf die Anmeldeseite. */}
+            <Link href="/admin" rel="nofollow" className="knopf-klein">Admin-Bereich</Link>
+          </div>
         </div>
       </div>
     </footer>
