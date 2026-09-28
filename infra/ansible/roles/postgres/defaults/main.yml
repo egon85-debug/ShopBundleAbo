@@ -1,0 +1,5 @@
+postgres_datenverzeichnis: /var/lib/postgresql
+postgres_pgbackrest_stanza: main
+# Vollsicherung sonntags, Differenz täglich; WAL laufend (Wiederherstellung
+# auf jede Minute). Zwei Vollsicherungen bleiben (≈ 2 Wochen Rückblick).
+postgres_vollsicherungen_behalten: 2

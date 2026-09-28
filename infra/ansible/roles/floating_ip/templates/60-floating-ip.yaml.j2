@@ -1,0 +1,11 @@
+# Von Ansible verwaltet (Rolle floating_ip).
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - {{ floating_ipv4 }}/32
+{% if floating_ipv6 | length > 0 %}
+        # Hetzner vergibt ein /64; der Server nimmt die erste Adresse daraus.
+        - {{ floating_ipv6.split('/')[0] }}1/64
+{% endif %}

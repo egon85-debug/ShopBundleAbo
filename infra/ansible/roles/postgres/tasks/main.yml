@@ -1,0 +1,159 @@
+# PostgreSQL auf eigenem Datenträger, drei Rollen, verschlüsselte Sicherung
+# in den Object Storage (pgBackRest).
+
+- name: Datenträger für die Datenbank einhängen (vor der Installation!)
+  ansible.posix.mount:
+    path: "{{ postgres_datenverzeichnis }}"
+    src: "{{ db_volume_linux_device }}"
+    fstype: ext4
+    opts: defaults,nofail,discard
+    state: mounted
+
+- name: Schlüssel der PostgreSQL-Paketquelle
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /etc/apt/keyrings/postgresql.asc
+    mode: "0644"
+
+- name: Paketquelle PostgreSQL (PGDG)
+  ansible.builtin.deb822_repository:
+    name: pgdg
+    types: deb
+    uris: https://apt.postgresql.org/pub/repos/apt
+    suites: "{{ ansible_distribution_release }}-pgdg"
+    components: main
+    signed_by: /etc/apt/keyrings/postgresql.asc
+
+- name: PostgreSQL und pgBackRest installieren
+  ansible.builtin.apt:
+    name: ["postgresql-{{ postgres_version }}", pgbackrest]
+    update_cache: true
+    state: present
+
+- name: Einhängepunkt gehört postgres (Heimatverzeichnis des Dienstkontos)
+  ansible.builtin.file:
+    path: "{{ postgres_datenverzeichnis }}"
+    owner: postgres
+    group: postgres
+    mode: "0755"
+
+- name: Nur im privaten Netz lauschen, WAL für Wiederherstellung auf jede Minute
+  ansible.builtin.template:
+    src: plattform.conf.j2
+    dest: "/etc/postgresql/{{ postgres_version }}/main/conf.d/plattform.conf"
+    owner: postgres
+    mode: "0644"
+  notify: PostgreSQL neu starten
+
+- name: Zugriffsregeln (nur Anwendungsserver, nur mit Kennwort)
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+    owner: postgres
+    mode: "0640"
+  notify: PostgreSQL neu laden
+
+- name: Konfiguration von pgBackRest (enthält Zugangsdaten, nur für postgres lesbar)
+  ansible.builtin.template:
+    src: pgbackrest.conf.j2
+    dest: /etc/pgbackrest.conf
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  no_log: true
+
+- name: Änderungen jetzt übernehmen
+  ansible.builtin.meta: flush_handlers
+
+- name: Rollen anlegen
+  community.postgresql.postgresql_user:
+    name: "{{ item.name }}"
+    password: "{{ item.kennwort }}"
+    role_attr_flags: "{{ item.flags }}"
+  become: true
+  become_user: postgres
+  no_log: true
+  loop:
+    - name: "{{ db_rolle_eigentuemer }}"
+      kennwort: "{{ db_kennwort_eigentuemer }}"
+      flags: LOGIN,NOSUPERUSER,NOCREATEROLE,NOCREATEDB,NOBYPASSRLS
+    - name: "{{ db_rolle_app }}"
+      kennwort: "{{ db_kennwort_app }}"
+      flags: LOGIN,NOSUPERUSER,NOCREATEROLE,NOCREATEDB,NOBYPASSRLS
+    # Nur die Plattform-Rolle darf Row Level Security umgehen.
+    - name: "{{ db_rolle_plattform }}"
+      kennwort: "{{ db_kennwort_plattform }}"
+      flags: LOGIN,NOSUPERUSER,NOCREATEROLE,NOCREATEDB,BYPASSRLS
+
+- name: Datenbank gehört dem Eigentümer
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_rolle_eigentuemer }}"
+  become: true
+  become_user: postgres
+
+- name: Schema public gehört dem Eigentümer
+  community.postgresql.postgresql_query:
+    login_db: "{{ db_name }}"
+    query: "ALTER SCHEMA public OWNER TO {{ db_rolle_eigentuemer }}"
+  become: true
+  become_user: postgres
+  changed_when: false
+
+# Dieselben Rechte wie backend/deploy/datenbank-rechte.sql. Die Standard-
+# rechte gelten für Tabellen, die der Eigentümer später per Migration anlegt.
+- name: Rechte der Anwendungs- und Plattform-Rolle
+  community.postgresql.postgresql_query:
+    login_db: "{{ db_name }}"
+    login_user: postgres
+    query: "{{ item }}"
+  become: true
+  become_user: postgres
+  changed_when: false
+  loop:
+    - "GRANT USAGE ON SCHEMA public TO {{ db_rolle_app }}, {{ db_rolle_plattform }}"
+    - "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {{ db_rolle_app }}, {{ db_rolle_plattform }}"
+    - "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {{ db_rolle_app }}, {{ db_rolle_plattform }}"
+    - >-
+      ALTER DEFAULT PRIVILEGES FOR ROLE {{ db_rolle_eigentuemer }} IN SCHEMA public
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {{ db_rolle_app }}, {{ db_rolle_plattform }}
+    - >-
+      ALTER DEFAULT PRIVILEGES FOR ROLE {{ db_rolle_eigentuemer }} IN SCHEMA public
+      GRANT USAGE, SELECT ON SEQUENCES TO {{ db_rolle_app }}, {{ db_rolle_plattform }}
+    - >-
+      DO $$ BEGIN IF to_regclass('public.alembic_version') IS NOT NULL THEN
+      REVOKE INSERT, UPDATE, DELETE ON alembic_version FROM {{ db_rolle_app }}, {{ db_rolle_plattform }};
+      END IF; END $$
+
+- name: Sicherungsablage anlegen (einmalig, wiederholbar)
+  ansible.builtin.command: pgbackrest --stanza={{ postgres_pgbackrest_stanza }} stanza-create
+  become: true
+  become_user: postgres
+  register: postgres_stanza
+  changed_when: "'already exists' not in postgres_stanza.stderr + postgres_stanza.stdout"
+
+- name: Sicherung prüfen (WAL-Archiv erreichbar)
+  ansible.builtin.command: pgbackrest --stanza={{ postgres_pgbackrest_stanza }} check
+  become: true
+  become_user: postgres
+  changed_when: false
+
+- name: Zeitpläne für die Sicherung
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - pgbackrest-voll.service
+    - pgbackrest-voll.timer
+    - pgbackrest-diff.service
+    - pgbackrest-diff.timer
+  notify: Systemd neu laden
+
+- name: Zeitpläne aktivieren
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: [pgbackrest-voll.timer, pgbackrest-diff.timer]

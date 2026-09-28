@@ -1,0 +1,45 @@
+# Von Ansible verwaltet (Rolle app). Umgebung: {{ umgebung }}
+services:
+  api:
+    image: {{ backend_image }}
+    command: ["api"]
+    restart: unless-stopped
+    env_file: .env
+    networks: [intern]
+
+  worker:
+    image: {{ backend_image }}
+    command: ["worker"]
+    restart: unless-stopped
+    env_file: .env
+    networks: [intern]
+
+  # Einmaliger Lauf bei jedem Update: Migrationen als Eigentümer der Tabellen.
+  migrate:
+    image: {{ backend_image }}
+    command: ["migrate"]
+    profiles: ["einmalig"]
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL_EIGENTUEMER}
+    networks: [intern]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_daten:/data
+      - caddy_konfig:/config
+    networks: [intern]
+
+networks:
+  intern:
+
+volumes:
+  caddy_daten:
+  caddy_konfig:

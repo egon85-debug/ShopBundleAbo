@@ -1,0 +1,91 @@
+name: Infrastruktur anwenden
+
+# Richtet Server bei Hetzner ein oder aktualisiert sie — nur von Hand gestartet.
+# Erst „planen“ ausführen und das Ergebnis lesen, dann „anwenden“.
+#
+# Geheimnisse liegen in der GitHub-Umgebung (Settings → Environments →
+# staging / produktion → Environment secrets), nie im Code. Liste und
+# Bedeutung: docs/saas/infrastruktur.md.
+on:
+  workflow_dispatch:
+    inputs:
+      umgebung:
+        description: Umgebung
+        type: choice
+        options: [staging, produktion]
+        default: staging
+      schritt:
+        description: "planen = nur zeigen, anwenden = ausführen"
+        type: choice
+        options: [planen, anwenden]
+        default: planen
+      image_tag:
+        description: "Backend-Image (Standard: latest)"
+        type: string
+        default: latest
+
+concurrency:
+  group: infra-${{ inputs.umgebung }}
+  cancel-in-progress: false
+
+jobs:
+  infrastruktur:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.umgebung }}
+    env:
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      # Zustand von Terraform im Object Storage (gleicher Zugang wie Medien).
+      AWS_ACCESS_KEY_ID: ${{ secrets.WF_S3_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.WF_S3_SECRET_KEY }}
+      TF_VAR_ssh_schluessel: ${{ secrets.SSH_OEFFENTLICHE_SCHLUESSEL }}
+    defaults:
+      run:
+        working-directory: infra/terraform/umgebungen/${{ inputs.umgebung }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+          terraform_wrapper: false
+
+      # SSH ist nur aus festgelegten Netzen erlaubt; der Runner bekommt für
+      # diesen Lauf seine eigene Adresse dazu.
+      - name: Erlaubte Admin-Netze
+        run: |
+          ip=$(curl -fsS https://api.ipify.org)
+          extra='${{ vars.ADMIN_NETZE }}'
+          echo "TF_VAR_admin_netze=$(python3 -c "import json,sys; n=[sys.argv[1]+'/32']+[x.strip() for x in sys.argv[2].split(',') if x.strip()]; print(json.dumps(n))" "$ip" "$extra")" >> "$GITHUB_ENV"
+
+      - name: Init
+        run: terraform init -input=false
+      - name: Plan
+        run: terraform plan -input=false -out=plan.tfplan
+      - name: Anwenden
+        if: inputs.schritt == 'anwenden'
+        run: terraform apply -input=false plan.tfplan
+
+      - uses: actions/setup-python@v5
+        if: inputs.schritt == 'anwenden'
+        with:
+          python-version: "3.12"
+      - name: Server einrichten (Ansible)
+        if: inputs.schritt == 'anwenden'
+        working-directory: infra/ansible
+        env:
+          ANSIBLE_SSH_ARGS: "-o StrictHostKeyChecking=accept-new"
+          WF_S3_ACCESS_KEY: ${{ secrets.WF_S3_ACCESS_KEY }}
+          WF_S3_SECRET_KEY: ${{ secrets.WF_S3_SECRET_KEY }}
+          WF_SICHERUNG_PASSPHRASE: ${{ secrets.WF_SICHERUNG_PASSPHRASE }}
+          WF_JWT_SECRET: ${{ secrets.WF_JWT_SECRET }}
+          WF_CREDENTIALS_KEY: ${{ secrets.WF_CREDENTIALS_KEY }}
+          WF_ANTHROPIC_API_KEY: ${{ secrets.WF_ANTHROPIC_API_KEY }}
+          WF_IMAGE_TAG: ${{ inputs.image_tag }}
+          WF_GHCR_TOKEN: ${{ secrets.WF_GHCR_TOKEN }}
+          SSH_SCHLUESSEL: ${{ secrets.SSH_PRIVATER_SCHLUESSEL }}
+        run: |
+          pip install "ansible-core>=2.17,<2.18"
+          ansible-galaxy collection install -r requirements.yml -p collections
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_SCHLUESSEL" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ansible-playbook -i inventar/${{ inputs.umgebung }}.yml site.yml

@@ -1,0 +1,5 @@
+- name: Anwendung neu starten
+  ansible.builtin.command: docker compose up -d --force-recreate --remove-orphans
+  args:
+    chdir: "{{ app_verzeichnis }}"
+  changed_when: true

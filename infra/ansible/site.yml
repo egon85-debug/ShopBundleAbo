@@ -1,0 +1,37 @@
+# Richtet eine Umgebung ein (wiederholbar). Aufruf: docs/saas/infrastruktur.md
+#
+#   ansible-playbook -i inventar/staging.yml site.yml
+#
+# Geheimnisse (Speicherzugang, Sicherungs-Passphrase, App-Schlüssel) kommen
+# aus Umgebungsvariablen WF_* — siehe group_vars/all.yml. Ohne sie bricht
+# der Lauf vor jeder Änderung ab.
+
+- name: Grundeinrichtung aller Server
+  hosts: all
+  # Fehlt ein Geheimnis, bricht der ganze Lauf ab, bevor irgendetwas geändert wird.
+  any_errors_fatal: true
+  # Fakten erst nach der Prüfung (die Rolle braucht sie nicht).
+  gather_facts: false
+  pre_tasks:
+    - name: Pflicht-Geheimnisse sind gesetzt
+      ansible.builtin.assert:
+        that: lookup('ansible.builtin.env', item) | length > 0
+        fail_msg: "Umgebungsvariable {{ item }} fehlt (Werte nie in Dateien oder Chats)."
+        quiet: true
+      loop: "{{ pflicht_geheimnisse }}"
+      run_once: true # noqa: run-once[task]
+      delegate_to: localhost
+  roles:
+    - basis
+
+- name: Datenbankserver
+  hosts: db
+  roles:
+    - postgres
+
+- name: Anwendungsserver
+  hosts: app
+  roles:
+    - floating_ip
+    - docker
+    - app

@@ -1,0 +1,65 @@
+- name: Firewall – Web
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "80", proto: tcp }
+    - { port: "443", proto: tcp }
+    - { port: "443", proto: udp }
+
+- name: Verzeichnis der Anwendung
+  ansible.builtin.file:
+    path: "{{ app_verzeichnis }}"
+    state: directory
+    mode: "0750"
+
+- name: Einstellungen der Anwendung (enthält Geheimnisse, nur root lesbar)
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_verzeichnis }}/.env"
+    mode: "0600"
+  no_log: true
+  notify: Anwendung neu starten
+
+- name: Dienste und Reverse Proxy
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ app_verzeichnis }}/{{ item }}"
+    mode: "0644"
+  loop: [compose.yml, Caddyfile]
+  notify: Anwendung neu starten
+
+# Das Image liegt in der (privaten) GitHub Container Registry. Zugang über
+# ein Token nur mit „read:packages“ — nie mit Schreibrechten.
+- name: Anmeldung an der Container Registry
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s' "$WF_GHCR_TOKEN" | docker login ghcr.io -u token --password-stdin
+  args:
+    executable: /bin/bash
+  environment:
+    WF_GHCR_TOKEN: "{{ lookup('ansible.builtin.env', 'WF_GHCR_TOKEN') }}"
+  when: lookup('ansible.builtin.env', 'WF_GHCR_TOKEN') | length > 0
+  changed_when: false
+  no_log: true
+
+- name: Neueste Images holen
+  ansible.builtin.command: docker compose pull
+  args:
+    chdir: "{{ app_verzeichnis }}"
+  changed_when: false
+
+- name: Migrationen einspielen (als Eigentümer der Tabellen)
+  ansible.builtin.command: docker compose run --rm migrate
+  args:
+    chdir: "{{ app_verzeichnis }}"
+  register: app_migration
+  changed_when: "'Running upgrade' in app_migration.stdout + app_migration.stderr"
+
+- name: Dienste starten
+  ansible.builtin.command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ app_verzeichnis }}"
+  register: app_start
+  changed_when: "'Started' in app_start.stderr or 'Recreated' in app_start.stderr"

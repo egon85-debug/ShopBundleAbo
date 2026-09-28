@@ -35,6 +35,8 @@ Stand: 28.09.2026. Alle Beträge **netto (ohne USt.)**. Dollar-Preise umgerechne
 
 ## 3. Fixkosten der Plattform je Monat
 
+(Staging seit Schritt 3 mit zwei Servern wie die Produktion — siehe `infrastruktur.md`.)
+
 Server-Größen wachsen mit der Kundenzahl. Der Anwendungsserver erledigt anfangs auch
 die Bildfreistellung (CPU-lastig); ab ca. 50 Kunden bekommt der Job-Worker einen eigenen
 Server.
@@ -48,12 +50,12 @@ Server.
 | Floating IPv4 (feste Adresse für Kunden-Domains) | 3,00 | 3,00 | 3,00 | 3,00 |
 | Object Storage (Bilder + Datenbank-Sicherung) | 13,87 | 13,87 | 16,00 | 26,40 |
 | Storage Box (zweite Kopie) | 4,00 | 4,00 | 4,00 | 8,00 |
-| Staging (ein kleiner Server) | CX23 5,99 | 5,99 | CX33 8,99 | CX33 8,99 |
+| Staging (2 × CX23, gleicher Aufbau wie Produktion) | 12,98 | 12,98 | 12,98 | 12,98 |
 | Mail-Dienst | 10,00 | 10,00 | 25,00 | 60,00 |
 | Produktdomain | 1,25 | 1,25 | 1,25 | 1,25 |
 | Überwachung / Fehlerverfolgung (selbst betrieben auf Staging bzw. Gratis-Stufe) | 0 | 0 | 0 | 20,00 |
-| **Summe Fixkosten** | **≈ 59 €** | **≈ 59 €** | **≈ 107 €** | **≈ 237 €** |
-| **Fixkosten je Kunde** | 59 € | 5,90 € | 2,14 € | 1,19 € |
+| **Summe Fixkosten** | **≈ 66 €** | **≈ 66 €** | **≈ 111 €** | **≈ 241 €** |
+| **Fixkosten je Kunde** | 66 € | 6,60 € | 2,22 € | 1,21 € |
 
 ## 4. Variable Kosten je Kunde und Monat
 
@@ -118,10 +120,10 @@ Variable Kosten typisch: 0,3 × 4,40 + 0,3 × 12,50 + 0,4 × 18,90 = **12,60 €
 | | 1 Kunde | 10 Kunden | 50 Kunden | 200 Kunden |
 |---|---:|---:|---:|---:|
 | Einnahmen | 132 € | 1.320 € | 6.600 € | 26.400 € |
-| Fixkosten | 59 € | 59 € | 107 € | 237 € |
+| Fixkosten | 66 € | 66 € | 111 € | 241 € |
 | Variable Kosten | 13 € | 126 € | 630 € | 2.520 € |
-| **Deckungsbeitrag / Monat** | **≈ 60 €** | **≈ 1.135 €** | **≈ 5.863 €** | **≈ 23.643 €** |
-| Marge | 46 % | 86 % | 89 % | 90 % |
+| **Deckungsbeitrag / Monat** | **≈ 53 €** | **≈ 1.128 €** | **≈ 5.859 €** | **≈ 23.639 €** |
+| Marge | 40 % | 85 % | 89 % | 90 % |
 
 **Mit Gründerpreis** (alle Kunden 30 % Rabatt): Mischpreis 92,40 €; bei 10 Kunden
 ca. 740 € Deckungsbeitrag im Monat — weiterhin deutlich im Plus.

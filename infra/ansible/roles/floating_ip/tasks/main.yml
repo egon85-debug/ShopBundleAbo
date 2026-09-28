@@ -1,0 +1,9 @@
+# Die feste Adresse muss der Server selbst kennen, sonst kommen Pakete an
+# ihr zwar an, werden aber verworfen.
+- name: Feste IP-Adressen auf der Netzwerkschnittstelle
+  ansible.builtin.template:
+    src: 60-floating-ip.yaml.j2
+    dest: /etc/netplan/60-floating-ip.yaml
+    mode: "0600"
+  when: floating_ipv4 | length > 0
+  notify: Netplan anwenden

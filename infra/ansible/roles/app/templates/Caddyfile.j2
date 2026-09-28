@@ -1,0 +1,25 @@
+# Von Ansible verwaltet (Rolle app). Umgebung: {{ umgebung }}
+#
+# Kunden-Domains (On-Demand-TLS mit ask-Endpunkt) kommen mit dem Umzug des
+# Shops auf die Plattform hinzu; bis dahin nur die Verwaltung.
+
+{{ app_domain }} {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+{% if umgebung != 'produktion' %}
+		# Staging nie in Suchmaschinen
+		X-Robots-Tag "noindex, nofollow"
+{% endif %}
+	}
+
+	@gesperrt path /docs* /redoc* /openapi.json
+	respond @gesperrt 404
+
+	reverse_proxy api:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+}

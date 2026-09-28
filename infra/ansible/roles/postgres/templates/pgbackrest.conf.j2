@@ -1,0 +1,21 @@
+# Von Ansible verwaltet (Rolle postgres). Enthält Zugangsdaten: Modus 0600.
+[global]
+repo1-type=s3
+repo1-s3-endpoint={{ s3_endpunkt }}
+repo1-s3-region={{ s3_region }}
+repo1-s3-bucket={{ s3_bucket_sicherung }}
+repo1-s3-uri-style=path
+repo1-s3-key={{ geheim.s3_access_key }}
+repo1-s3-key-secret={{ geheim.s3_secret_key }}
+repo1-path=/pgbackrest
+# Sicherungen verschlüsselt ablegen — ohne Passphrase sind sie wertlos.
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass={{ geheim.sicherung_passphrase }}
+repo1-retention-full={{ postgres_vollsicherungen_behalten }}
+compress-type=zst
+process-max=2
+start-fast=y
+log-level-console=info
+
+[{{ postgres_pgbackrest_stanza }}]
+pg1-path={{ postgres_datenverzeichnis }}/{{ postgres_version }}/main

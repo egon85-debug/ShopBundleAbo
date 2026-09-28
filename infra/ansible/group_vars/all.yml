@@ -1,0 +1,37 @@
+# Gemeinsame Einstellungen. Umgebungsabhängiges steht unten per Bedingung,
+# Geheimnisse ausschließlich in Umgebungsvariablen.
+
+produktdomain: eg-dynamics.de
+plattform_domain: "{{ produktdomain if umgebung == 'produktion' else 'staging.' + produktdomain }}"
+app_domain: "app.{{ plattform_domain }}"
+
+postgres_version: 17
+db_name: plattform
+db_rolle_eigentuemer: wf_eigentuemer
+db_rolle_app: wf_app
+db_rolle_plattform: wf_plattform
+
+# Hetzner Object Storage (S3-kompatibel)
+s3_endpunkt: fsn1.your-objectstorage.com
+s3_region: fsn1
+s3_bucket_medien: "eg-dynamics-medien-{{ umgebung }}"
+s3_bucket_sicherung: "eg-dynamics-sicherung-{{ umgebung }}"
+
+# Image der Anwendung (baut die Update-Pipeline, nächster Schritt).
+backend_image: "ghcr.io/egon85-debug/winterfeld-backend:{{ lookup('ansible.builtin.env', 'WF_IMAGE_TAG') | default('latest', true) }}"
+
+pflicht_geheimnisse:
+  - WF_S3_ACCESS_KEY        # Object Storage: Medien und Sicherung
+  - WF_S3_SECRET_KEY
+  - WF_SICHERUNG_PASSPHRASE # verschlüsselt die Datenbanksicherung (aufbewahren!)
+  - WF_JWT_SECRET
+  - WF_CREDENTIALS_KEY
+  - WF_ANTHROPIC_API_KEY
+
+geheim:
+  s3_access_key: "{{ lookup('ansible.builtin.env', 'WF_S3_ACCESS_KEY') }}"
+  s3_secret_key: "{{ lookup('ansible.builtin.env', 'WF_S3_SECRET_KEY') }}"
+  sicherung_passphrase: "{{ lookup('ansible.builtin.env', 'WF_SICHERUNG_PASSPHRASE') }}"
+  jwt_secret: "{{ lookup('ansible.builtin.env', 'WF_JWT_SECRET') }}"
+  credentials_key: "{{ lookup('ansible.builtin.env', 'WF_CREDENTIALS_KEY') }}"
+  anthropic_api_key: "{{ lookup('ansible.builtin.env', 'WF_ANTHROPIC_API_KEY') }}"
