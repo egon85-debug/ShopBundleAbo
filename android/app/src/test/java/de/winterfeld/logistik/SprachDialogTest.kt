@@ -155,6 +155,8 @@ class SprachDialogTest {
         weiter()
         sagtImFenster("12,50 €")
         weiter()
+        sagtImFenster("24,90 €")
+        weiter()
         sagtImFenster("Karton beschädigt")
         weiter()
 
@@ -165,7 +167,7 @@ class SprachDialogTest {
         antworten.clear()
         val vorher = ShadowSpeechRecognizer.getLatestSpeechRecognizer()
         dialog.start()
-        for (antwort in listOf("B 02", "drei", "neu", "drei Euro", "nein")) {
+        for (antwort in listOf("B 02", "drei", "neu", "drei Euro", "neun Euro", "nein")) {
             weiter()
             sagtImFenster(antwort)
         }

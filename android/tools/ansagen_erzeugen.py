@@ -8,7 +8,8 @@ Aufruf (einmalig, Ergebnis wird eingecheckt):
     pip install piper-tts imageio-ffmpeg
     # Stimme laden: de_DE-thorsten-medium.onnx und .onnx.json von
     # https://huggingface.co/rhasspy/piper-voices/tree/main/de/de_DE/thorsten/medium
-    python tools/ansagen_erzeugen.py <ordner-mit-stimme>
+    python tools/ansagen_erzeugen.py <ordner-mit-stimme> [name ...]
+    # mit Namen nur diese Ansagen neu, z. B. ansage_verkaufspreis (ohne Signalton)
 """
 import subprocess
 import sys
@@ -23,6 +24,7 @@ ANSAGEN = {
     "ansage_bestand": "Bestand? Wie viele Stück?",
     "ansage_zustand": "Zustand? Neu, geöffnet, gebraucht oder defekt?",
     "ansage_einkaufspreis": "Einkaufspreis netto?",
+    "ansage_verkaufspreis": "Verkaufspreis im Shop?",
     "ansage_weitere": "Weitere Angaben? Oder sagen Sie: fertig.",
     "ansage_nicht_verstanden": "Nicht verstanden. Bitte noch einmal.",
     "ansage_bitte_zahl": "Bitte eine Zahl sagen.",
@@ -34,12 +36,14 @@ ANSAGEN = {
 ZIEL = Path(__file__).resolve().parents[1] / "app/src/main/res/raw"
 
 
-def main(stimme_ordner: str) -> None:
+def main(stimme_ordner: str, nur: list[str] | None = None) -> None:
     modell = Path(stimme_ordner) / "de_DE-thorsten-medium.onnx"
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     ZIEL.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         for name, text in ANSAGEN.items():
+            if nur and name not in nur:
+                continue
             wav = Path(tmp) / f"{name}.wav"
             subprocess.run([sys.executable, "-m", "piper", "-m", str(modell), "-f", str(wav)],
                            input=text.encode(), check=True, capture_output=True)
@@ -48,6 +52,8 @@ def main(stimme_ordner: str) -> None:
                             "-af", "apad=pad_dur=0.15,loudnorm=I=-16:TP=-1.5",
                             "-ac", "1", "-ar", "22050", "-c:a", "libvorbis", "-q:a", "4",
                             str(ZIEL / f"{name}.ogg")], check=True)
+    if nur:
+        return
     # Signalton: zwei kurze Töne aufwärts (880 → 1320 Hz), weich ein- und ausgeblendet.
     subprocess.run([ffmpeg, "-y", "-loglevel", "error",
                     "-f", "lavfi", "-i", "sine=frequency=880:duration=0.09",
@@ -62,4 +68,4 @@ def main(stimme_ordner: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else ".")
+    main(sys.argv[1] if len(sys.argv) > 1 else ".", sys.argv[2:] or None)

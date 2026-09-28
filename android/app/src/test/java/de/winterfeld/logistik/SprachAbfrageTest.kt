@@ -47,6 +47,16 @@ class SprachAbfrageTest {
     }
 
     @Test
+    fun `Verkaufspreis wird nach dem Einkaufspreis abgefragt und als Betrag gelesen`() {
+        val titel = SprachAbfrage.SCHRITTE.map { it.titel }
+        assertEquals(titel.indexOf("Einkaufspreis netto") + 1, titel.indexOf("Verkaufspreis"))
+        assertEquals("24.90", wert("sale_price", "24,90 €"))
+        assertEquals("15.00", wert("sale_price", "fünfzehn Euro"))
+        val unklar = SprachAbfrage.lesen(schritt("sale_price"), "teuer")
+        assertEquals(SprachAbfrage.Ergebnis.Unklar("Bitte einen Betrag sagen", "ansage_bitte_betrag"), unklar)
+    }
+
+    @Test
     fun `Lagerplatz geht roh an den Server`() {
         assertEquals("H2 A B4", wert("storage_location_spoken", "H2 A B4"))
     }

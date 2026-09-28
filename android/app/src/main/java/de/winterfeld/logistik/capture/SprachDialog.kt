@@ -314,6 +314,7 @@ class SprachDialog(
             "ansage_bestand" to R.raw.ansage_bestand,
             "ansage_zustand" to R.raw.ansage_zustand,
             "ansage_einkaufspreis" to R.raw.ansage_einkaufspreis,
+            "ansage_verkaufspreis" to R.raw.ansage_verkaufspreis,
             "ansage_weitere" to R.raw.ansage_weitere,
             "ansage_nicht_verstanden" to R.raw.ansage_nicht_verstanden,
             "ansage_bitte_zahl" to R.raw.ansage_bitte_zahl,

@@ -22,6 +22,8 @@ object SprachAbfrage {
         Schritt("stock_quantity", "Bestand", "ansage_bestand"),
         Schritt("condition", "Zustand", "ansage_zustand"),
         Schritt("purchase_price_net", "Einkaufspreis netto", "ansage_einkaufspreis"),
+        // Brutto, wie er im Shop steht. Eigene Angabe – hat Vorrang vor der Preisempfehlung.
+        Schritt("sale_price", "Verkaufspreis", "ansage_verkaufspreis"),
         Schritt(null, "Weitere Angaben", "ansage_weitere"),
     )
 
@@ -63,7 +65,7 @@ object SprachAbfrage {
             "condition" -> zustand(klein)?.let {
                 Ergebnis.Antwort(AnswerDto(field = feld, value = it), Labels.zustand(it))
             } ?: Ergebnis.Unklar("Neu, geöffnet, gebraucht oder defekt", "ansage_bitte_zustand")
-            "purchase_price_net" -> preis(klein)?.let {
+            "purchase_price_net", "sale_price" -> preis(klein)?.let {
                 Ergebnis.Antwort(AnswerDto(field = feld, value = it), Labels.preis(it))
             } ?: Ergebnis.Unklar("Bitte einen Betrag sagen", "ansage_bitte_betrag")
             else -> Ergebnis.Antwort(AnswerDto(field = feld, value = text), text)

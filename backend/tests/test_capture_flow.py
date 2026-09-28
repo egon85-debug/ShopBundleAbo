@@ -194,3 +194,15 @@ class TestSprachabfrageLagerplatz:
         body = response.json()
         assert body["storage_location_code"] == "H2/A/B4"
         assert not [q for q in body["open_questions"] if q["field"] == "storage_location_spoken"]
+
+
+def test_gesprochene_preise_sind_eigene_angaben(client, db, employee):
+    """Sprachabfrage der App: Einkaufspreis netto und Verkaufspreis wie gesagt."""
+    headers = auth_headers(client)
+    capture = start_capture(client, headers, "cap-sprache-preise")
+    body = client.post(f"/api/v1/captures/{capture['id']}/answers", headers=headers,
+                       json={"answers": [{"field": "purchase_price_net", "value": "12.50"},
+                                         {"field": "sale_price", "value": "24.90"}]}).json()
+    assert body["purchase_price_net"] == "12.50"
+    assert body["sale_price"] == "24.90"
+    assert body["field_sources"]["sale_price"] == "user"
