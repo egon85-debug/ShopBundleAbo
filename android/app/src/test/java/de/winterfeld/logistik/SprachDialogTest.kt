@@ -128,6 +128,54 @@ class SprachDialogTest {
                        .getBoolean("systemfenster", false))
     }
 
+    /** Das Google-Sprachfenster beantwortet die offene Frage mit [text]. */
+    private fun sagtImFenster(text: String) {
+        val (_, fertig) = checkNotNull(systemFenster) { "Google-Sprachfenster nicht gestartet" }
+        systemFenster = null
+        fertig(listOf(text))
+        weiter(0)
+    }
+
+    @Test
+    fun alleFragenTrotzFehler11UndErneutVersuchenOhneFehler() {
+        val dialog = dialog()
+        dialog.start()
+        weiter()
+        sagt(erkenner(), "A 01 03")
+
+        // Ab der zweiten Frage reißt jede Verbindung in der App ab.
+        weiter()
+        shadow(erkenner()).triggerOnError(11)
+        weiter()
+        shadow(erkenner()).triggerOnError(11)
+        weiter(0)
+        sagtImFenster("acht")
+        weiter()
+        sagtImFenster("gebraucht")
+        weiter()
+        sagtImFenster("12,50 €")
+        weiter()
+        sagtImFenster("Karton beschädigt")
+        weiter()
+
+        assertEquals(SprachAbfrage.SCHRITTE.map { it.titel }, antworten.map { it.first })
+        assertTrue("kein Abbruch", fehler.isEmpty())
+
+        // „Erneut versuchen“: sofort im Google-Fenster, ohne erneuten Fehler 11.
+        antworten.clear()
+        val vorher = ShadowSpeechRecognizer.getLatestSpeechRecognizer()
+        dialog.start()
+        for (antwort in listOf("B 02", "drei", "neu", "drei Euro", "nein")) {
+            weiter()
+            sagtImFenster(antwort)
+        }
+        weiter()
+
+        assertEquals(SprachAbfrage.SCHRITTE.dropLast(1).map { it.titel }, antworten.map { it.first })
+        assertTrue("keine neue Verbindung in der App", ShadowSpeechRecognizer.getLatestSpeechRecognizer() === vorher)
+        assertTrue("kein Abbruch", fehler.isEmpty())
+    }
+
     @Test
     fun ohneGoogleFensterSichtbarerFehlerStattStillemAbbruch() {
         dialog(mitSystemFenster = false).start()
