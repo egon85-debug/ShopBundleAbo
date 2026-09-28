@@ -3,7 +3,7 @@ from enum import StrEnum
 from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
 class ImageKind(StrEnum):
@@ -23,7 +23,7 @@ class ImageRole(StrEnum):
     OTHER = "other"
 
 
-class ProductImage(Base, IdMixin, TimestampMixin):
+class ProductImage(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "product_images"
 
     product_id: Mapped[str] = mapped_column(

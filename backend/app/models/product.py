@@ -4,6 +4,7 @@ from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
+    UniqueConstraint,
     CheckConstraint,
     Date,
     DateTime,
@@ -16,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
 class Condition(StrEnum):
@@ -50,18 +51,20 @@ class PublicationStatus(StrEnum):
     PUBLISH_FAILED = "publish_failed"
 
 
-class Product(Base, IdMixin, TimestampMixin):
+class Product(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "products"
     __table_args__ = (
         CheckConstraint("stock_quantity >= 0", name="ck_stock_nonnegative"),
         CheckConstraint("reserved_quantity >= 0", name="ck_reserved_nonnegative"),
         CheckConstraint("reserved_quantity <= stock_quantity", name="ck_reserved_lte_stock"),
         Index("ix_products_manufacturer_model", "manufacturer", "model"),
+        UniqueConstraint("tenant_id", "internal_sku", name="uq_products_tenant_internal_sku"),
+        UniqueConstraint("tenant_id", "client_capture_id", name="uq_products_tenant_client_capture_id"),
     )
 
-    internal_sku: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    internal_sku: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     # Idempotenz für Offline-Sync: vom Tablet generierte UUID der Erfassung.
-    client_capture_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    client_capture_id: Mapped[str | None] = mapped_column(String(64), index=True)
 
     ean: Mapped[str | None] = mapped_column(String(14), index=True)
     gtin: Mapped[str | None] = mapped_column(String(14), index=True)

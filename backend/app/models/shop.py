@@ -2,16 +2,17 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class ShopConnection(Base, IdMixin, TimestampMixin):
+class ShopConnection(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "shop_connections"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_shop_connections_tenant_name"),)
 
-    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     connector_type: Mapped[str] = mapped_column(String(64), nullable=False)  # z. B. "woocommerce"
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
     # Fernet-verschlüsseltes JSON ({"consumer_key": …, "consumer_secret": …}); nie im API-Response.
@@ -27,7 +28,7 @@ class PublicationStatusEnum(StrEnum):
     DELISTED = "delisted"
 
 
-class ShopPublication(Base, IdMixin, TimestampMixin):
+class ShopPublication(Base, IdMixin, TenantMixin, TimestampMixin):
     """Protokoll jeder Veröffentlichung (Anforderung 38.14)."""
 
     __tablename__ = "shop_publications"
@@ -46,7 +47,7 @@ class ShopPublication(Base, IdMixin, TimestampMixin):
     published_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
-class ShopListing(Base, IdMixin, TimestampMixin):
+class ShopListing(Base, IdMixin, TenantMixin, TimestampMixin):
     """Generierte, vor Veröffentlichung editierbare Shoptexte."""
 
     __tablename__ = "shop_listings"

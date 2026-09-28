@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     # Datenbank
     database_url: str = "postgresql+psycopg2://winterfeld:winterfeld@localhost:5432/winterfeld"
+    # Verbindung für Aufgaben über alle Mandanten (Warteschlange, Webhook-
+    # Zuordnung). In Produktion eine eigene Rolle mit BYPASSRLS; leer = wie oben.
+    database_url_plattform: str = ""
 
     # Sicherheit
     jwt_secret: str = "dev-only-insecure-secret"
@@ -88,6 +91,9 @@ class Settings(BaseSettings):
     # Bei mehreren API-Prozessen liefe er mehrfach – dann besser als eigener
     # Dienst betreiben ("worker" als Startbefehl des Containers).
     run_worker_in_process: bool = False
+    # Faire Warteschlange: höchstens so viele Aufträge eines Mandanten laufen
+    # gleichzeitig, damit ein Händler mit vielen Fotos niemanden ausbremst.
+    job_max_parallel_je_mandant: int = 2
 
     # Rate Limiting
     rate_limit_auth_per_minute: int = 10

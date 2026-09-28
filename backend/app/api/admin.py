@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_role
 from app.db import get_db
 from app.jobs import queue
-from app.models import AuditLog, Job, JobStatus, Role, User
+from app.models import AuditLog, Job, JobStatus, Membership, Role, User
 from app.providers.registry import get_storage
 from app.schemas.auth import UserCreate, UserOut, UserUpdate
 from app.schemas.misc import AuditLogOut, DashboardOut, JobOut
@@ -53,10 +53,23 @@ def ki_kosten(tage: int = 30, db: Session = Depends(get_db),
 
 # ── Benutzerverwaltung (Admin) ──────────────────────────────────────────────
 
+def _mitglieder(db: Session, tenant_id: str):
+    return select(User, Membership).join(Membership, Membership.user_id == User.id).where(
+        Membership.tenant_id == tenant_id)
+
+
+def _user_out(user: User, mitgliedschaft: Membership) -> UserOut:
+    return UserOut(id=user.id, email=user.email, display_name=user.display_name,
+                   role=mitgliedschaft.role,
+                   is_active=user.is_active and mitgliedschaft.is_active)
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db),
                user: User = Depends(require_role(Role.ADMIN.value))):
-    return db.scalars(select(User).order_by(User.email)).all()
+    """Nur die Konten der eigenen Firma."""
+    zeilen = db.execute(_mitglieder(db, user.tenant_id).order_by(User.email)).all()
+    return [_user_out(u, m) for u, m in zeilen]
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
@@ -75,25 +88,37 @@ def create_user(body: UserCreate, db: Session = Depends(get_db),
 @router.patch("/users/{user_id}", response_model=UserOut)
 def update_user(user_id: str, body: UserUpdate, db: Session = Depends(get_db),
                 user: User = Depends(require_role(Role.ADMIN.value))):
-    target = db.get(User, user_id)
-    if target is None:
+    zeile = db.execute(_mitglieder(db, user.tenant_id).where(User.id == user_id)).first()
+    if zeile is None:
         raise HTTPException(404, "Benutzer nicht gefunden")
+    target, mitgliedschaft = zeile
     changes = body.model_dump(exclude_unset=True)
     password = changes.pop("password", None)
     if password:
+        # Ein Konto kann zu mehreren Firmen gehören. Dessen Kennwort darf der
+        # Admin einer dieser Firmen nicht ändern — sonst käme er in die anderen.
+        andere = db.scalar(select(func.count()).select_from(Membership).where(
+            Membership.user_id == target.id, Membership.tenant_id != user.tenant_id))
+        if andere:
+            raise HTTPException(409, "Das Konto gehört auch zu einer anderen Firma. "
+                                     "Das Kennwort kann nur die Person selbst ändern.")
         if len(password) < 10:
             raise HTTPException(422, "Passwort muss mindestens 10 Zeichen haben")
         target.password_hash = hash_password(password)
         audit_service.log(db, user=user, entity_type="user", entity_id=target.id,
                           action="update", field="password")
+    if "role" in changes and changes["role"] not in [r.value for r in Role]:
+        raise HTTPException(422, f"Unbekannte Rolle: {changes['role']}")
     for field, value in changes.items():
-        old = getattr(target, field)
+        # Rolle und Sperre gelten je Firma, der Anzeigename für das ganze Konto.
+        ziel = mitgliedschaft if field in ("role", "is_active") else target
+        old = getattr(ziel, field)
         if old != value:
-            setattr(target, field, value)
+            setattr(ziel, field, value)
             audit_service.log(db, user=user, entity_type="user", entity_id=target.id,
                               action="update", field=field, old_value=old, new_value=value)
     db.commit()
-    return target
+    return _user_out(target, mitgliedschaft)
 
 
 # ── Jobs / Synchronisationsfehler ───────────────────────────────────────────

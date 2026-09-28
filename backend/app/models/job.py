@@ -4,7 +4,7 @@ from enum import StrEnum
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin, utcnow
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin, utcnow
 
 
 class JobStatus(StrEnum):
@@ -28,7 +28,7 @@ class JobType(StrEnum):
     CLEANUP_VOICE = "cleanup_voice"
 
 
-class Job(Base, IdMixin, TimestampMixin):
+class Job(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "jobs"
     __table_args__ = (Index("ix_jobs_status_run_at", "status", "run_at"),)
 

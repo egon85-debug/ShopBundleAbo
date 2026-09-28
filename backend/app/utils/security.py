@@ -38,12 +38,15 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str, role: str) -> str:
+def create_access_token(user_id: str, role: str, tenant_id: str) -> str:
     s = get_settings()
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
         "role": role,
+        # Firma, für die das Token gilt. Die Rolle wird trotzdem bei jeder
+        # Anfrage frisch aus der Mitgliedschaft gelesen (Entzug wirkt sofort).
+        "tid": tenant_id,
         "type": "access",
         "iat": now,
         "exp": now + timedelta(minutes=s.access_token_minutes),

@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Counter, Product, ProcessingStatus, User
+from app.models import Counter, Product, ProcessingStatus, Tenant, User
 from app.services import audit_service
+from app.tenancy import aktueller_mandant
 
 # Felder, die per PATCH/Benutzereingabe geändert werden dürfen (auditiert).
 EDITABLE_FIELDS = {
@@ -31,7 +32,9 @@ def next_internal_sku(db: Session) -> str:
         db.add(counter)
         db.flush()
     counter.value += 1
-    return f"WL-{counter.value:06d}"
+    tenant = db.get(Tenant, aktueller_mandant(db))
+    praefix = tenant.sku_praefix if tenant else "ART"
+    return f"{praefix}-{counter.value:06d}"
 
 
 def create_draft(db: Session, *, client_capture_id: str, user: User) -> Product:

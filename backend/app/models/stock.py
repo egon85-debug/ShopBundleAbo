@@ -3,7 +3,7 @@ from enum import StrEnum
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
 class MovementType(StrEnum):
@@ -17,7 +17,7 @@ class MovementType(StrEnum):
     INVENTORY_CORRECTION = "inventory_correction"
 
 
-class StockMovement(Base, IdMixin, TimestampMixin):
+class StockMovement(Base, IdMixin, TenantMixin, TimestampMixin):
     """Keine Bestandsänderung ohne Historieneintrag (Anforderung 17/32)."""
 
     __tablename__ = "stock_movements"

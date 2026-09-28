@@ -6,6 +6,8 @@ from app.schemas.common import ApiModel
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    # Nur nötig, wenn das Konto zu mehreren Firmen gehört: ID oder Kurzname.
+    mandant: str | None = None
 
 
 class TokenResponse(BaseModel):
