@@ -75,7 +75,8 @@ export async function getOrCreateCart(): Promise<string> {
   return cart.id;
 }
 
-export async function addToCart(productId: string, variantId: string | null, quantity: number): Promise<void> {
+/** Hinzufügen; liefert die neue Gesamtzahl der Artikel im Warenkorb. */
+export async function addToCart(productId: string, variantId: string | null, quantity: number): Promise<number> {
   if (quantity < 1) throw new Error("Menge muss mindestens 1 sein");
   const cartId = await getOrCreateCart();
 
@@ -99,6 +100,17 @@ export async function addToCart(productId: string, variantId: string | null, qua
   } else {
     await db.insert(cartItems).values({ cartId, productId, variantId, quantity });
   }
+  return cartItemCount(cartId);
+}
+
+/** Anzahl der Artikel – dieselbe Zählung wie summarize() (nur Positionen mit Produkt). */
+export async function cartItemCount(cartId: string): Promise<number> {
+  const [row] = await db
+    .select({ anzahl: sql<number>`coalesce(sum(${cartItems.quantity}), 0)::int` })
+    .from(cartItems)
+    .innerJoin(products, eq(cartItems.productId, products.id))
+    .where(eq(cartItems.cartId, cartId));
+  return Number(row?.anzahl ?? 0);
 }
 
 export async function updateCartItem(itemId: string, quantity: number): Promise<void> {
