@@ -793,6 +793,7 @@ function feldWert(product, key, art) {
   if (art === "geld") return Number(v).toFixed(2).replace(".", ",");
   if (art === "menge") return String(Number(v)).replace(".", ",");
   if (art === "datum") return String(v).slice(0, 10);
+  if (art === "lang") return htmlZuText(String(v));  // keine Tags im Eingabefeld
   return String(v);
 }
 
@@ -917,7 +918,7 @@ async function artikelDetail(productId) {
       ${listing ? `<form id="shoptext-form" class="form-grid">
           <label class="breit"><span>SEO-Titel (max. 200 Zeichen)</span><input name="seo_title" maxlength="200" value="${esc(listing.seo_title || "")}"></label>
           <label class="breit"><span>Kurzbeschreibung</span><textarea name="short_description" rows="3">${esc(listing.short_description || "")}</textarea></label>
-          <label class="breit"><span>Beschreibung</span><textarea name="long_description" rows="8">${esc(listing.long_description || "")}</textarea></label>
+          <label class="breit"><span>Beschreibung</span><textarea name="long_description" rows="8">${esc(htmlZuText(listing.long_description || ""))}</textarea></label>
           <label class="breit"><span>Stichpunkte (eine Zeile je Punkt)</span><textarea name="bullet_points" rows="5">${esc((listing.bullet_points || []).join("\n"))}</textarea></label>
           <label><span>Lieferumfang</span><input name="scope_of_delivery" value="${esc(listing.scope_of_delivery || "")}"></label>
           <label><span>Hinweis zum Zustand</span><input name="condition_note" value="${esc(listing.condition_note || "")}"></label>
@@ -993,7 +994,8 @@ async function artikelDetail(productId) {
       for (const [key, , art = "text"] of felder) {
         const neu = form.elements[key].value.trim();
         if (neu === feldWert(product, key, art)) continue;
-        aenderungen[key] = neu === "" ? null : neu;
+        aenderungen[key] = neu === "" ? null
+          : art === "lang" ? beschreibungSpeichern(neu, product[key]) : neu;
       }
     }
     for (const name of ["attributes", "technical_data"]) {
@@ -1046,6 +1048,11 @@ async function artikelDetail(productId) {
       for (const key of ["seo_title", "short_description", "long_description", "scope_of_delivery",
                          "condition_note", "meta_title", "meta_description", "url_slug"]) {
         const neu = f[key].value.trim();
+        if (key === "long_description") {
+          // Im Feld steht Text, gespeichert wird HTML für den Shop.
+          if (neu !== htmlZuText(listing[key] || "")) body[key] = neu ? textZuHtml(neu) : null;
+          continue;
+        }
         if (neu !== (listing[key] || "")) body[key] = neu || null;
       }
       const punkte = liste(f.bullet_points.value, "\n");
