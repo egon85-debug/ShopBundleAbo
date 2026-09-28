@@ -167,6 +167,14 @@ def publish(product_id: str, connection_id: str, db: Session = Depends(get_db),
 
 # ── Bestell-Webhook (Bestandsabbuchung) ─────────────────────────────────────
 
+def _signatur_pruefen(connection: ShopConnection, body: bytes, request: Request) -> None:
+    if connection.webhook_secret:
+        signature = request.headers.get("X-Webhook-Signature", "")
+        expected = hmac.new(connection.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise HTTPException(401, "Ungültige Signatur")
+
+
 @router.post("/webhooks/{connection_id}/order")
 async def order_webhook(connection_id: str, request: Request,
                         db: Session = Depends(get_db)):
@@ -175,11 +183,7 @@ async def order_webhook(connection_id: str, request: Request,
     if connection is None or not connection.is_active:
         raise HTTPException(404, "Unbekannte Verbindung")
     body = await request.body()
-    if connection.webhook_secret:
-        signature = request.headers.get("X-Webhook-Signature", "")
-        expected = hmac.new(connection.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            raise HTTPException(401, "Ungültige Signatur")
+    _signatur_pruefen(connection, body, request)
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
@@ -208,3 +212,42 @@ async def order_webhook(connection_id: str, request: Request,
             results.append({"sku": sku, "status": "error", "detail": str(exc)})
     db.commit()
     return {"order_id": order_ref, "results": results}
+
+
+# ── Produkt-Webhook (Änderungen im Shop-Admin) ──────────────────────────────
+
+@router.post("/webhooks/{connection_id}/product")
+async def product_webhook(connection_id: str, request: Request,
+                          db: Session = Depends(get_db)):
+    """Änderung im Shop-Admin → Lager. HMAC-signiert wie der Bestell-Webhook.
+
+    Das Lager bleibt die Quelle der Artikeldaten; was im Shop geändert wird,
+    muss deshalb hier ankommen – sonst überschreibt die nächste
+    Veröffentlichung die Änderung wieder. Artikel, die es im Lager nicht gibt
+    (z. B. Musterartikel des Shops), werden mit „unknown_sku“ quittiert.
+    """
+    from app.services import shop_abgleich
+    connection = db.get(ShopConnection, connection_id)
+    if connection is None or not connection.is_active:
+        raise HTTPException(404, "Unbekannte Verbindung")
+    body = await request.body()
+    _signatur_pruefen(connection, body, request)
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Ungültiges JSON")
+    sku = str(payload.get("sku") or "")
+    aktion = str(payload.get("action") or "")
+    if not sku or aktion not in shop_abgleich.AKTIONEN:
+        raise HTTPException(422, "sku und action (update|activate|deactivate|delete) nötig")
+    product = db.scalar(select(Product).where(Product.internal_sku == sku))
+    if product is None:
+        return {"sku": sku, "status": "unknown_sku"}
+    try:
+        uebernommen = shop_abgleich.anwenden(
+            db, product=product, connection=connection, aktion=aktion,
+            aenderungen=payload.get("changes") or {})
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    db.commit()
+    return {"sku": sku, "status": "ok", "uebernommen": uebernommen}

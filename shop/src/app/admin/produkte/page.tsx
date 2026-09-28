@@ -3,6 +3,7 @@ import Link from "next/link";
 import { asc, eq, sql } from "drizzle-orm";
 
 import { deleteProductAction, duplicateProductAction, toggleProductActiveAction } from "@/app/actions/admin-catalog";
+import { ConfirmSubmit } from "@/components/admin/ConfirmSubmit";
 import { db } from "@/db";
 import { inventory, productImages, products } from "@/db/schema";
 import { formatCents } from "@/lib/money";
@@ -33,6 +34,10 @@ export default async function AdminProductsPage() {
           <p className="eyebrow">Backoffice</p>
           <h1 className="mt-2 font-display text-display-md font-extrabold">Produkte</h1>
           <p className="mt-1 text-mist-700">{rows.length} Artikel im Katalog</p>
+          <p className="mt-1 max-w-2xl text-sm text-mist-500">
+            Änderungen an Artikeln aus der Lagererfassung (Name, Preis, Texte, Sichtbarkeit,
+            Löschen) werden automatisch ans Lager gemeldet. Den Bestand führt das Lager.
+          </p>
         </div>
         <Link href="/admin/produkte/neu" className="btn-primary py-2.5">＋ Produkt anlegen</Link>
       </div>
@@ -105,7 +110,12 @@ export default async function AdminProductsPage() {
                     </form>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="productId" value={product.id} />
-                      <button type="submit" className="text-red-600 hover:underline">Löschen</button>
+                      <ConfirmSubmit
+                        frage={`„${product.name}“ endgültig löschen?`}
+                        className="text-red-600 hover:underline"
+                      >
+                        Löschen
+                      </ConfirmSubmit>
                     </form>
                   </div>
                 </td>

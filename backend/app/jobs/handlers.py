@@ -577,6 +577,8 @@ def handle_sync_stock(db: Session, job: Job) -> None:
     publication = db.get(ShopPublication, job.payload["publication_id"])
     if publication is None or not publication.external_id:
         return
+    if publication.status == "delisted":
+        return  # im Shop ausgeblendet oder gelöscht – dort gibt es nichts abzugleichen
     product = db.get(Product, publication.product_id)
     connection = db.get(ShopConnection, publication.connection_id)
     if product is None or connection is None or not connection.is_active:

@@ -2,7 +2,15 @@ import { createHmac } from "node:crypto";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { meldeVerkauf, meldungKonfiguriert, signiereMeldung } from "@/lib/lager-meldung";
+import {
+  lagerAenderungen,
+  meldeProduktAenderung,
+  meldeVerkauf,
+  meldungKonfiguriert,
+  meldungsHinweis,
+  produktAdresse,
+  signiereMeldung,
+} from "@/lib/lager-meldung";
 
 const URL_ALT = process.env.LAGER_WEBHOOK_URL;
 const SECRET_ALT = process.env.LAGER_WEBHOOK_SECRET;
@@ -77,5 +85,69 @@ describe("Verkaufsmeldung an die Lagererfassung", () => {
       gemeldet: false,
       grund: "http_401",
     });
+  });
+});
+
+describe("Änderungen aus dem Shop-Admin ans Lager", () => {
+  it("leitet die Produktadresse von der Bestelladresse ab", () => {
+    expect(produktAdresse("https://lager.example.de/api/v1/shop/webhooks/abc/order")).toBe(
+      "https://lager.example.de/api/v1/shop/webhooks/abc/product",
+    );
+    expect(produktAdresse("https://lager.example.de/hook")).toBeNull();
+  });
+
+  it("meldet nur geänderte Lagerfelder", () => {
+    expect(
+      lagerAenderungen(
+        { name: "Alt", priceCents: 1000, description: null, seoTitle: "T" },
+        { name: "Neu", priceCents: 1000, description: null, seoTitle: null },
+      ),
+    ).toEqual({ name: "Neu", seoTitle: null });
+  });
+
+  it("sendet signiert und erkennt Artikel, die das Lager nicht kennt", async () => {
+    process.env.LAGER_WEBHOOK_URL = "https://lager.example.de/shop/webhooks/abc/order";
+    process.env.LAGER_WEBHOOK_SECRET = "s".repeat(40);
+    const fetchMock = vi.fn(async () => Response.json({ sku: "WL-TAP-48", status: "unknown_sku" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ergebnis = await meldeProduktAenderung("WL-TAP-48", "delete");
+    expect(ergebnis).toEqual({ gemeldet: true, lagerartikel: false });
+    expect(meldungsHinweis(ergebnis)).toBe("");
+
+    const [url, optionen] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://lager.example.de/shop/webhooks/abc/product");
+    const koerper = optionen.body as string;
+    expect(JSON.parse(koerper)).toEqual({ sku: "WL-TAP-48", action: "delete", changes: {} });
+    expect((optionen.headers as Record<string, string>)["X-Webhook-Signature"]).toBe(
+      signiereMeldung(koerper, "s".repeat(40)),
+    );
+  });
+
+  it("meldet übernommene Änderungen und schweigt bei leerer Änderung", async () => {
+    process.env.LAGER_WEBHOOK_URL = "https://lager.example.de/shop/webhooks/abc/order";
+    process.env.LAGER_WEBHOOK_SECRET = "s".repeat(40);
+    const fetchMock = vi.fn(async () => Response.json({ sku: "L-1", status: "ok", uebernommen: ["sale_price"] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(meldeProduktAenderung("L-1", "update", {})).resolves.toEqual({
+      gemeldet: false,
+      grund: "keine_aenderung",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const ergebnis = await meldeProduktAenderung("L-1", "update", { priceCents: 1299 });
+    expect(ergebnis).toEqual({ gemeldet: true, lagerartikel: true });
+    expect(meldungsHinweis(ergebnis)).toContain("Lager übernommen");
+  });
+
+  it("warnt, wenn das Lager nicht erreichbar ist", async () => {
+    process.env.LAGER_WEBHOOK_URL = "https://lager.example.de/shop/webhooks/abc/order";
+    process.env.LAGER_WEBHOOK_SECRET = "s".repeat(40);
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED"); }));
+
+    const ergebnis = await meldeProduktAenderung("L-1", "deactivate");
+    expect(ergebnis).toEqual({ gemeldet: false, grund: "nicht_erreichbar" });
+    expect(meldungsHinweis(ergebnis)).toContain("nicht benachrichtigt");
   });
 });
