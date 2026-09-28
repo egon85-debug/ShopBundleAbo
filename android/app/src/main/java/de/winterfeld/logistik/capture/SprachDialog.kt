@@ -23,6 +23,15 @@ import de.winterfeld.logistik.capture.SprachAbfrage.Ergebnis
  * Sprachbefehle bei jeder Frage: „weiter“ (überspringen), „zurück“, „fertig“.
  * Wird zweimal nichts verstanden, geht es mit der nächsten Frage weiter.
  * Fehler, die sich nicht von selbst lösen, landen sichtbar in [onFehler].
+ *
+ * Zwei Wege zur Erkennung:
+ * - **In der App** ([SpeechRecognizer]): für jede Frage eine frische Verbindung,
+ *   die nach der Antwort sofort geschlossen wird. Manche Handys trennen die
+ *   Verbindung nach jeder Antwort; eine weiterverwendete Verbindung scheitert
+ *   dann ab der zweiten Frage mit Fehler 11.
+ * - **Google-Sprachfenster** ([systemErkennung]): Reißt die Verbindung auch
+ *   nach einem Neuversuch ab, übernimmt die Spracheingabe von Google in ihrem
+ *   eigenen Fenster (mit eigenem Signalton). Das Handy merkt sich das.
  */
 class SprachDialog(
     private val context: Context,
@@ -34,7 +43,16 @@ class SprachDialog(
     private val onZwischenstand: (String) -> Unit,
     private val onErgebnis: (SprachAbfrage.Schritt, Ergebnis) -> Unit,
     private val onFehler: (String) -> Unit,
+    /**
+     * Startet das Google-Sprachfenster mit [Intent] und liefert die erkannten
+     * Texte (null = abgebrochen bzw. nichts verstanden). null = nicht verfügbar.
+     */
+    private val systemErkennung: ((Intent, (List<String>?) -> Unit) -> Unit)? = null,
 ) {
+    private val einstellungen = context.getSharedPreferences("sprachabfrage", Context.MODE_PRIVATE)
+    /** true = dieses Handy nutzt das Google-Sprachfenster statt der Erkennung in der App. */
+    private var imSystemFenster = einstellungen.getBoolean(SYSTEMFENSTER, false)
+    private var wartetAufSystemFenster = false
     private val haupt = Handler(Looper.getMainLooper())
     private var spieler: MediaPlayer? = null
     private var erkenner: SpeechRecognizer? = null
@@ -46,7 +64,7 @@ class SprachDialog(
 
     /** Beginnt die Abfrage von vorn. */
     fun start(schritte: List<SprachAbfrage.Schritt> = SprachAbfrage.SCHRITTE) {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+        if (!imSystemFenster && !SpeechRecognizer.isRecognitionAvailable(context)) {
             onFehler("Keine Spracherkennung auf diesem Gerät. Bitte die App „Google“ " +
                      "installieren bzw. aktualisieren und unter Einstellungen → " +
                      "Spracheingabe „Google“ wählen.")
@@ -64,7 +82,7 @@ class SprachDialog(
     /** Aktuelle Frage auslassen (Knopf „Überspringen“). */
     fun ueberspringen() {
         if (!aktiv) return
-        aufraeumen(zerstoeren = false)
+        aufraeumen()
         naechste()
     }
 
@@ -78,21 +96,18 @@ class SprachDialog(
 
     fun freigeben() = stop()
 
-    /**
-     * Ansage und Aufnahme anhalten. Die Spracherkennung bleibt für die nächste
-     * Frage bestehen ([zerstoeren] = false) – sie für jede Frage neu anzulegen,
-     * lässt die Verbindung zum Erkennungsdienst abreißen (Fehler 11).
-     */
-    private fun aufraeumen(zerstoeren: Boolean = true) {
+    /** Ansage und Aufnahme anhalten, Verbindung zur Erkennung schließen. */
+    private fun aufraeumen() {
         haupt.removeCallbacksAndMessages(null)
         spieler?.release()
         spieler = null
-        if (zerstoeren) erkennerWeg() else erkenner?.cancel()
+        erkennerWeg()
+        wartetAufSystemFenster = false
         onHoeren(false)
     }
 
     private fun erkennerWeg() {
-        erkenner?.destroy()
+        erkenner?.let { runCatching { it.cancel(); it.destroy() } }
         erkenner = null
     }
 
@@ -103,7 +118,9 @@ class SprachDialog(
         onZwischenstand("")
         neustarts = 0
         val folge = listOfNotNull(ansage, schritt.ansage)
-        abspielen(folge) { abspielen(listOf("signalton")) { aufnehmen() } }
+        // Das Google-Sprachfenster gibt selbst einen Signalton.
+        if (imSystemFenster) abspielen(folge) { aufnehmen() }
+        else abspielen(folge) { abspielen(listOf("signalton")) { aufnehmen() } }
     }
 
     /** Spielt die Audiodateien nacheinander ab und ruft danach [weiter] auf. */
@@ -134,23 +151,49 @@ class SprachDialog(
         player.start()
     }
 
-    private fun aufnehmen() {
-        if (!aktiv) return
-        erkennerHolen().startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                         RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            },
-        )
+    private fun erkennungsIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "de-DE")
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
     }
 
-    /** Eine Spracherkennung für die ganze Abfrage; neu nur nach einem Abriss. */
-    private fun erkennerHolen(): SpeechRecognizer {
-        erkenner?.let { return it }
+    private fun aufnehmen() {
+        if (!aktiv) return
+        if (imSystemFenster) return imSystemFensterAufnehmen()
+        // Für jede Frage eine frische Verbindung (siehe Klassenbeschreibung).
+        erkennerWeg()
+        erkennerNeu().startListening(erkennungsIntent())
+    }
+
+    private fun imSystemFensterAufnehmen() {
+        val starten = systemErkennung ?: return abbrechen(
+            "Die Spracherkennung des Handys antwortet nicht. Bitte die App „Google“ aktualisieren.")
+        val schritt = schritte.getOrNull(index) ?: return beenden()
+        wartetAufSystemFenster = true
+        val intent = erkennungsIntent().apply {
+            putExtra(RecognizerIntent.EXTRA_PROMPT, schritt.titel)
+        }
+        runCatching {
+            starten(intent) { texte ->
+                haupt.post {
+                    if (!aktiv || !wartetAufSystemFenster) return@post
+                    wartetAufSystemFenster = false
+                    val text = texte?.firstOrNull().orEmpty()
+                    if (text.isBlank()) nichtVerstanden(SprachAbfrage.ANSAGE_NICHT_VERSTANDEN)
+                    else verarbeiten(text)
+                }
+            }
+        }.onFailure {
+            wartetAufSystemFenster = false
+            abbrechen("Das Google-Sprachfenster lässt sich nicht öffnen. Bitte die App " +
+                      "„Google“ installieren bzw. aktualisieren.")
+        }
+    }
+
+    /** Frische Spracherkennung; ihre Rückrufe zählen nur, solange sie die aktuelle ist. */
+    private fun erkennerNeu(): SpeechRecognizer {
         val neu = SpeechRecognizer.createSpeechRecognizer(context)
         neu.setRecognitionListener(object : RecognitionListener {
             // Rückrufe einer inzwischen ersetzten Erkennung zählen nicht mehr.
@@ -159,7 +202,7 @@ class SprachDialog(
             override fun onResults(results: Bundle) {
                 val text = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull().orEmpty()
-                haupt.post { if (aktuell()) { onHoeren(false); verarbeiten(text) } }
+                haupt.post { if (aktuell()) { onHoeren(false); erkennerWeg(); verarbeiten(text) } }
             }
 
             override fun onPartialResults(partialResults: Bundle) {
@@ -168,7 +211,7 @@ class SprachDialog(
             }
 
             override fun onError(error: Int) {
-                haupt.post { if (aktuell()) { onHoeren(false); fehler(error) } }
+                haupt.post { if (aktuell()) { onHoeren(false); erkennerWeg(); fehler(error) } }
             }
 
             override fun onReadyForSpeech(params: Bundle?) {
@@ -190,15 +233,21 @@ class SprachDialog(
             SpeechRecognizer.ERROR_NO_MATCH,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> nichtVerstanden(SprachAbfrage.ANSAGE_NICHT_VERSTANDEN)
             // Verbindung zum Erkennungsdienst abgerissen (11), Dienst belegt (8),
-            // zu viele Anfragen (10) oder Client-Fehler (5): Erkennung neu anlegen
-            // und dieselbe Frage noch einmal aufnehmen – ohne erneute Ansage.
+            // zu viele Anfragen (10) oder Client-Fehler (5): einmal mit frischer
+            // Verbindung nach kurzer Pause, danach das Google-Sprachfenster –
+            // dieselbe Frage, ohne erneute Ansage.
             ERROR_VERBINDUNG_WEG, ERROR_ZU_VIELE_ANFRAGEN,
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-            SpeechRecognizer.ERROR_CLIENT -> if (neustarts++ < 3) {
-                erkennerWeg()
-                haupt.postDelayed({ tonUndAufnehmen() }, 700L * neustarts)
-            } else abbrechen("Die Spracherkennung des Handys antwortet nicht (Code $code). " +
-                             "Bitte „Angaben per Sprache“ noch einmal tippen.")
+            SpeechRecognizer.ERROR_CLIENT -> when {
+                neustarts++ < 1 -> haupt.postDelayed({ tonUndAufnehmen() }, 1500L)
+                systemErkennung != null -> {
+                    imSystemFenster = true
+                    einstellungen.edit().putBoolean(SYSTEMFENSTER, true).apply()
+                    aufnehmen()
+                }
+                else -> abbrechen("Die Spracherkennung des Handys antwortet nicht (Code $code). " +
+                                  "Bitte „Angaben per Sprache“ noch einmal tippen.")
+            }
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
                 abbrechen("Die App darf das Mikrofon nicht benutzen. Bitte in den Android-" +
                           "Einstellungen → Apps → Winterfeld Lager → Berechtigungen das Mikrofon erlauben.")
@@ -258,6 +307,7 @@ class SprachDialog(
         private const val ERROR_VERBINDUNG_WEG = 11
         private const val ERROR_SPRACHE_FEHLT = 12
         private const val ERROR_SPRACHE_NICHT_VERFUEGBAR = 13
+        private const val SYSTEMFENSTER = "systemfenster"
 
         private val AUDIO = mapOf(
             "ansage_lagerplatz" to R.raw.ansage_lagerplatz,
