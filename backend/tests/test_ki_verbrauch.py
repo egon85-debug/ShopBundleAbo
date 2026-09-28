@@ -88,7 +88,7 @@ def _artikel(client, headers, nr):
     return capture["id"]
 
 
-def test_verbrauch_landet_am_artikel_und_gleiche_ean_wird_wiederverwendet(client, db, employee):
+def test_verbrauch_landet_am_artikel_und_gleiche_ean_wird_wiederverwendet(client, db, employee, preise_automatisch):
     recherche, text = _ZaehlendeRecherche(), _ZaehlenderText()
     registry.set_override(ProductResearchProvider, recherche)
     registry.set_override(LlmExtractor, text)
@@ -110,7 +110,7 @@ def test_verbrauch_landet_am_artikel_und_gleiche_ean_wird_wiederverwendet(client
     assert db.get(Product, zweiter).recommended_sale_price is not None
 
 
-def test_marktpreise_aktualisieren_sucht_frisch(client, db, employee, admin):
+def test_marktpreise_aktualisieren_sucht_frisch(client, db, employee, admin, preise_automatisch):
     recherche = _ZaehlendeRecherche()
     registry.set_override(ProductResearchProvider, recherche)
     headers = auth_headers(client)
@@ -122,7 +122,7 @@ def test_marktpreise_aktualisieren_sucht_frisch(client, db, employee, admin):
     assert recherche.preise == 2
 
 
-def test_kosten_je_artikel_und_uebersicht_ueber_die_api(client, db, employee):
+def test_kosten_je_artikel_und_uebersicht_ueber_die_api(client, db, employee, preise_automatisch):
     registry.set_override(ProductResearchProvider, _ZaehlendeRecherche())
     headers = auth_headers(client)
     produkt = _artikel(client, headers, 4)
@@ -149,7 +149,7 @@ class _TeureRecherche(_ZaehlendeRecherche):
         return self.candidates
 
 
-def test_budget_bremst_weitere_schritte(client, db, employee):
+def test_budget_bremst_weitere_schritte(client, db, employee, preise_automatisch):
     recherche, text = _TeureRecherche(), _ZaehlenderText()
     registry.set_override(ProductResearchProvider, recherche)
     registry.set_override(LlmExtractor, text)

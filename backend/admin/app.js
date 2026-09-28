@@ -175,7 +175,8 @@ function kiKostenUebersicht(k) {
       <div class="stat-grid">
         ${[["Dieser Monat", fmtUsd(m.gesamt_usd)], ["Artikel diesen Monat", fmtZahl(m.artikel)],
            ["Schnitt je Artikel", fmtUsd(m.schnitt_je_artikel_usd)],
-           ["Recherchen wiederverwendet", fmtZahl(m.wiederverwendet)]]
+           ["Recherchen wiederverwendet", fmtZahl(m.wiederverwendet)],
+           ["Aus Produktdatenbanken (kostenlos)", fmtZahl(m.produktdatenbank)]]
           .map(([label, wert]) => `<div class="stat"><div class="num">${wert}</div>
              <div class="muted">${label}</div></div>`).join("")}
       </div>
@@ -186,9 +187,17 @@ function kiKostenUebersicht(k) {
           <td class="zahl">${fmtUsd(usd)}</td>
           <td class="zahl muted">${gesamt ? Math.round(usd / gesamt * 100) : 0} %<span class="ki-laeufe"> · ${n} ${n === 1 ? "Lauf" : "Läufe"}</span></td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Noch keine gemessenen KI-Läufe.</p>'}
-      <p style="margin-top:10px">Modell <strong>${esc(k.modell || "–")}</strong> ·
-        Budget je Artikel <strong>${fmtUsd(k.budget_je_artikel_usd)}</strong>
-        <span class="muted">(Einstellung ANTHROPIC_MODEL bzw. KI_BUDGET_JE_ARTIKEL_USD in der .env)</span></p>
+      <p style="margin-top:10px">${k.modelle
+        ? `Bilderkennung <strong>${esc(k.modelle.erkennung)}</strong> ·
+           Recherche <strong>${esc(k.modelle.recherche)}</strong> ·
+           Texte <strong>${esc(k.modelle.text)}</strong>`
+        : `Modell <strong>${esc(k.modell || "–")}</strong>`} ·
+        Budget je Artikel <strong>${fmtUsd(k.budget_je_artikel_usd)}</strong></p>
+      <p class="muted" style="margin-top:6px">Artikel mit EAN werden ${k.produktdatenbanken === false ? "<strong>nicht</strong> " : ""}zuerst
+        kostenlos in Open Food Facts &amp; Co. nachgeschlagen. Preisrecherche ${k.preisrecherche_automatisch
+        ? "läuft automatisch" : "nur per Knopf „Marktpreise aktualisieren“ am Artikel"}.
+        Einstellungen: ANTHROPIC_MODEL, KI_MODELL_RECHERCHE, KI_MODELL_TEXT,
+        PRODUKTDATENBANKEN, PREISRECHERCHE_AUTOMATISCH, KI_BUDGET_JE_ARTIKEL_USD in der .env.</p>
       <p class="muted" style="margin-top:6px">${fmtZahl(z.eingabe_tokens)} Eingabe- und
         ${fmtZahl(z.ausgabe_tokens)} Ausgabe-Tokens, ${fmtZahl(z.websuchen)} Websuchen.
         Listenpreise der Anthropic-API in US-Dollar; gemessen wird seit dem Update, ältere Läufe fehlen.</p>
@@ -198,7 +207,7 @@ function kiKostenUebersicht(k) {
 function kiKostenArtikel(k) {
   if (!k) return "";
   const laeufe = k.laeufe || [];
-  const ohneKosten = ["wiederverwendet", "budget", "freigabe"];
+  const ohneKosten = ["wiederverwendet", "budget", "freigabe", "produktdatenbank"];
   return `
     <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}
         <span class="muted" style="font-weight:400">von ${fmtUsd(k.budget_usd)} Budget</span></h3>
@@ -211,6 +220,7 @@ function kiKostenArtikel(k) {
             : l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
           <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)"
             : l.provider === "freigabe" ? "von Hand freigegeben"
+            : l.provider === "produktdatenbank" ? "Produktdatenbank (kostenlos)"
             : l.status === "budget" ? "–" : esc(l.model || l.provider || "–")}</td>
           <td class="zahl">${fmtZahl(l.input_tokens)}</td><td class="zahl">${fmtZahl(l.output_tokens)}</td>
           <td class="zahl">${fmtZahl(l.web_searches)}</td>
@@ -885,6 +895,11 @@ async function artikelDetail(productId) {
             <p class="muted marktpreis">Marktpreis ${fmtMoney(product.lowest_market_price)} – ${fmtMoney(product.highest_market_price)}
               ${product.recommended_sale_price ? ` · empfohlen <strong>${fmtMoney(product.recommended_sale_price)}</strong>
                 <button type="button" class="btn small" id="empfehlung">Als Verkaufspreis übernehmen</button>` : ""}</p>` : ""}
+          ${titel === "Preise" ? `<p class="muted marktpreis">
+            <button type="button" class="btn small" id="marktpreise">${product.lowest_market_price
+              ? "Marktpreise neu recherchieren" : "Marktpreise recherchieren"}</button>
+            Die KI sucht aktuelle Angebote im Internet (kostet einige Cent).
+            <span id="marktpreise-meldung"></span></p>` : ""}
         </section>`).join("")}
       <section class="card"><h3>Merkmale</h3>
         <p class="muted">Erscheinen im Shop als Eigenschaftsliste, z. B. Farbe, Maße, Material.</p>
@@ -1045,6 +1060,15 @@ async function artikelDetail(productId) {
       } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
     };
   }
+  const marktpreise = document.getElementById("marktpreise");
+  if (marktpreise) marktpreise.onclick = async () => {
+    marktpreise.disabled = true;
+    try {
+      await api(`/products/${productId}/reprice`, { method: "POST" });
+      melden("marktpreise-meldung", "✓ Recherche läuft – in etwa einer Minute neu laden.");
+    } catch (err) { marktpreise.disabled = false; melden("marktpreise-meldung", "Fehler: " + err.message, true); }
+  };
+
   const kiFreigabe = document.getElementById("ki-budget-freigeben");
   if (kiFreigabe) kiFreigabe.onclick = async () => {
     if (!confirm("Für diesen Artikel weiteres KI-Budget freigeben? Die fehlenden KI-Schritte laufen dann weiter.")) return;

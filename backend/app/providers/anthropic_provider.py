@@ -125,6 +125,10 @@ WEBSUCHE_NEU = ("web_search_20260209", "web_fetch_20260209")
 WEBSUCHE_ALT = ("web_search_20250305", "web_fetch_20250910")
 MODELLE_NUR_ALTE_WEBSUCHE = ("claude-haiku", "claude-sonnet-4-5", "claude-opus-4-5",
                              "claude-opus-4-1", "claude-sonnet-4-")
+# Ohne Einstellung der Denktiefe (effort) – eine Angabe lehnt die API ab.
+# Diese Modelle denken ohne thinking-Angabe gar nicht vorab.
+MODELLE_OHNE_EFFORT = ("claude-haiku", "claude-sonnet-4-5", "claude-opus-4-1",
+                       "claude-sonnet-4-0", "claude-opus-4-0", "claude-3")
 
 RECHERCHE_REGELN = """
 Regeln:
@@ -178,12 +182,17 @@ JSON-Format:
 Nichts gefunden: {{"offers": []}}"""
 
 
+def _modell(schritt: str) -> str | None:
+    """Eigenes Modell für einen Schritt (Settings.ki_modell_*), sonst das Hauptmodell."""
+    return getattr(get_settings(), schritt, None) or None
+
+
 class AnthropicClient:
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None) -> None:
         s = get_settings()
         if not s.anthropic_api_key:
             raise ProviderNotConfigured("ANTHROPIC_API_KEY ist nicht gesetzt")
-        self.model = s.anthropic_model
+        self.model = model or s.anthropic_model
         # Voruebergehende Fehler (429, 5xx, Verbindung) wiederholt das SDK selbst;
         # was dann noch scheitert, wiederholt die Job-Queue.
         self._client = anthropic.Anthropic(api_key=s.anthropic_api_key,
@@ -227,7 +236,7 @@ class AnthropicClient:
         # Denktiefe: ohne Angabe denken die aktuellen Modelle auf „high“, und das
         # Nachdenken zählt als (teure) Ausgabe. Siehe Settings.ki_effort.
         effort = effort or getattr(get_settings(), "ki_effort", None)
-        if effort:
+        if effort and not self.model.startswith(MODELLE_OHNE_EFFORT):
             request["output_config"] = {"effort": effort}
         try:
             if self.model in MODELLE_MIT_FALLBACK:
@@ -356,7 +365,7 @@ class AnthropicWebResearchProvider(ProductResearchProvider):
                          query: str | None) -> list[ResearchCandidate]:
         if not (ean or mpn or query):
             return []
-        client = AnthropicClient()
+        client = AnthropicClient(_modell("ki_modell_recherche"))
         prompt = IDENTIFY_PROMPT.format(
             bekannt=_bekannt(EAN=ean, Herstellernummer=mpn, Bezeichnung=query))
         raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche(),
@@ -367,7 +376,7 @@ class AnthropicWebResearchProvider(ProductResearchProvider):
     def find_offers(self, *, ean: str | None, query: str, condition: str) -> list[PriceOffer]:
         if not (ean or query):
             return []
-        client = AnthropicClient()
+        client = AnthropicClient(_modell("ki_modell_recherche"))
         prompt = OFFERS_PROMPT.format(bekannt=_bekannt(EAN=ean, Bezeichnung=query),
                                       zustand=condition or "unbekannt")
         raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche(),
@@ -380,12 +389,12 @@ class AnthropicLlmExtractor(LlmExtractor):
     name = "anthropic-llm"
 
     def extract_voice_data(self, transcript: str) -> VoiceExtraction:
-        client = AnthropicClient()
+        client = AnthropicClient(_modell("ki_modell_text"))
         raw = client.complete([{"type": "text", "text": VOICE_PROMPT + transcript}])
         return VoiceExtraction.model_validate(_parse_json_block(raw))
 
     def generate_shop_text(self, verified_fields: dict, unverified_fields: dict) -> ShopTextGeneration:
-        client = AnthropicClient()
+        client = AnthropicClient(_modell("ki_modell_text"))
         payload = json.dumps(
             {"verifiziert": verified_fields, "unverifiziert": unverified_fields},
             ensure_ascii=False,
