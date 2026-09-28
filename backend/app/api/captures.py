@@ -32,7 +32,7 @@ from app.schemas.capture import (
     VoicePayload,
 )
 from app.schemas.product import ProductOut
-from app.services import dedup_service, product_service, stock_service
+from app.services import dedup_service, medien, product_service, stock_service
 from app.services.merge_service import low_confidence_fields
 from app.utils.ean import is_valid_gtin, normalize_gtin
 from app.utils.money import parse_money
@@ -96,7 +96,8 @@ def upload_image(
             return product_out(product)
 
     ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[file.content_type]
-    key = f"products/{product.id}/original/{client_image_id or uuid.uuid4().hex}.{ext}"
+    key = medien.schluessel_original(product.tenant_id, product.id,
+                                     client_image_id or uuid.uuid4().hex, ext)
     # Erst Storage, dann DB + Job in einer Transaktion (kein Bild ohne Datensatz).
     get_storage().put(key, data, file.content_type)
     is_first = not any(i.kind == ImageKind.ORIGINAL.value for i in product.images)
@@ -145,7 +146,7 @@ def upload_voice(
         data = file.file.read(MAX_AUDIO_BYTES + 1)
         if len(data) > MAX_AUDIO_BYTES:
             raise HTTPException(413, "Audio zu groß (max. 50 MB)")
-        key = f"products/{product.id}/voice/{uuid.uuid4().hex}"
+        key = medien.schluessel_sprache(product.tenant_id, product.id, uuid.uuid4().hex)
         get_storage().put(key, data, file.content_type)
         recording.storage_key = key
         content_type = file.content_type

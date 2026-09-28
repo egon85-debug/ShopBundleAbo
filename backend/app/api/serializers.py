@@ -1,12 +1,13 @@
 """Aufbereitung von ORM-Objekten für die API-Ausgabe."""
 from app.models import Product, ProductImage
-from app.providers.registry import get_storage
+from app.services import medien
 from app.schemas.product import ImageOut, ProductOut
 
 
 def image_url(image: ProductImage) -> str:
-    public = get_storage().public_url(image.storage_key)
-    return public or f"/api/v1/media/{image.storage_key}"
+    # Signiert: nur wer diese Antwort bekommt (angemeldet, eigene Firma),
+    # kann das Bild laden — auch Originale, die nie öffentlich sind.
+    return medien.signierte_url(image.storage_key)
 
 
 def image_out(image: ProductImage) -> ImageOut:

@@ -14,7 +14,7 @@ class VoiceRecording(Base, IdMixin, TenantMixin, TimestampMixin):
     product_id: Mapped[str] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    storage_key: Mapped[str | None] = mapped_column(String(500))  # None, wenn Client-Transkript
+    storage_key: Mapped[str | None] = mapped_column(String(500), index=True)  # None, wenn Client-Transkript
     transcript: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
     retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

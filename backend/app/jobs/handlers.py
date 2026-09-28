@@ -34,6 +34,7 @@ from app.schemas.ai import PriceOffer, ResearchCandidate
 from app.services import (
     ki_verbrauch,
     listing_service,
+    medien,
     merge_service,
     pricing_service,
     publish_service,
@@ -502,7 +503,7 @@ def handle_optimize_images(db: Session, job: Job) -> None:
         data = storage.get(original.storage_key)
         preserve = original.role == ImageRole.DAMAGE.value
         result = optimizer.optimize(data, preserve_condition=preserve)
-        key = original.storage_key.rsplit(".", 1)[0] + ".shop.jpg"
+        key = medien.schluessel_shopbild(original.storage_key)
         storage.put(key, result.data, result.content_type)
         optimized = ProductImage(
             product_id=product.id, kind=ImageKind.OPTIMIZED.value, role=original.role,
