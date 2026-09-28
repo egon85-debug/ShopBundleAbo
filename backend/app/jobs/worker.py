@@ -10,7 +10,9 @@ import time
 from app.db import get_sessionmaker
 from app.jobs import queue
 from app.jobs.handlers import HANDLERS
+from app.models import Job
 from app.providers.base import ProviderNotConfigured, ProviderUnavailable
+from app.tenancy import mandant_setzen, plattform_sitzung
 
 log = logging.getLogger("winterfeld.worker")
 
@@ -27,9 +29,17 @@ class Worker:
 
     def process_one(self) -> bool:
         """Verarbeitet höchstens einen Job. True, wenn einer verarbeitet wurde."""
+        with plattform_sitzung() as plattform:
+            uebernommen = queue.claim_next(plattform, self.worker_id)
+            if uebernommen is None:
+                return False
+            job_id, tenant_id = uebernommen.id, uebernommen.tenant_id
+        # Ausgeführt wird in einer normalen Sitzung mit dem Mandanten des Jobs:
+        # der Handler sieht nur dessen Daten.
         session = get_sessionmaker()()
+        mandant_setzen(session, tenant_id)
         try:
-            job = queue.claim_next(session, self.worker_id)
+            job = session.get(Job, job_id)
             if job is None:
                 return False
             handler = HANDLERS.get(job.job_type)

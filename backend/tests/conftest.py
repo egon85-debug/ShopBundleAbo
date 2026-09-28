@@ -24,7 +24,7 @@ from sqlalchemy.pool import StaticPool
 
 from app import db as app_db
 from app.main import app
-from app.models import Base, Role
+from app.models import Base, Role, Tenant
 from app.providers import registry
 from app.providers.base import (
     ImageOptimizer,
@@ -43,6 +43,7 @@ from app.schemas.ai import (
     VoiceExtraction,
 )
 from app.services import auth_service
+from app.tenancy import mandant_setzen
 
 
 # ── Test-Doubles ─────────────────────────────────────────────────────────────
@@ -140,19 +141,41 @@ class FakeOptimizer(ImageOptimizer):
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+# Mandant, in dem die Tests arbeiten. Weitere Mandanten legt `neuer_mandant` an.
+TEST_MANDANT = "10000000-0000-4000-8000-000000000001"
+
+
+def neuer_mandant(db, *, tenant_id=None, kurzname="test", name="Testfirma",
+                  sku_praefix="WL") -> Tenant:
+    tenant = Tenant(id=tenant_id, name=name, kurzname=kurzname, sku_praefix=sku_praefix,
+                    status="aktiv")
+    db.add(tenant)
+    db.commit()
+    return tenant
+
+
 @pytest.fixture()
 def engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
                            poolclass=StaticPool)
     Base.metadata.create_all(engine)
     app_db.set_engine(engine)
+    with app_db.get_sessionmaker()() as session:
+        neuer_mandant(session, tenant_id=TEST_MANDANT)
     yield engine
     engine.dispose()
 
 
+def sitzung(tenant_id=TEST_MANDANT):
+    """Neue Datenbank-Sitzung für einen Mandanten (wie eine Anfrage sie hätte)."""
+    session = app_db.get_sessionmaker()()
+    mandant_setzen(session, tenant_id)
+    return session
+
+
 @pytest.fixture()
 def db(engine):
-    session = app_db.get_sessionmaker()()
+    session = sitzung()
     yield session
     session.close()
 

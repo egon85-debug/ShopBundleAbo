@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.schemas.misc import ListingOut, ListingUpdate, ShopConnectionIn, ShopConnectionOut
 from app.services import audit_service, quality_service, stock_service
+from app.tenancy import mandant_setzen, mandant_von
 from app.utils.security import encrypt_credentials
 
 router = APIRouter(prefix="/shop", tags=["shop"])
@@ -167,6 +168,16 @@ def publish(product_id: str, connection_id: str, db: Session = Depends(get_db),
 
 # ── Bestell-Webhook (Bestandsabbuchung) ─────────────────────────────────────
 
+def _verbindung_fuer_webhook(db: Session, connection_id: str) -> ShopConnection:
+    """Webhooks kommen ohne Anmeldung; die Firma ergibt sich aus der Verbindung."""
+    tenant_id = mandant_von(ShopConnection, connection_id)
+    mandant_setzen(db, tenant_id)
+    connection = db.get(ShopConnection, connection_id) if tenant_id else None
+    if connection is None or not connection.is_active:
+        raise HTTPException(404, "Unbekannte Verbindung")
+    return connection
+
+
 def _signatur_pruefen(connection: ShopConnection, body: bytes, request: Request) -> None:
     if connection.webhook_secret:
         signature = request.headers.get("X-Webhook-Signature", "")
@@ -179,9 +190,7 @@ def _signatur_pruefen(connection: ShopConnection, body: bytes, request: Request)
 async def order_webhook(connection_id: str, request: Request,
                         db: Session = Depends(get_db)):
     """Verkauf im Shop → Movement 'sale'. HMAC-signiert (webhook_secret)."""
-    connection = db.get(ShopConnection, connection_id)
-    if connection is None or not connection.is_active:
-        raise HTTPException(404, "Unbekannte Verbindung")
+    connection = _verbindung_fuer_webhook(db, connection_id)
     body = await request.body()
     _signatur_pruefen(connection, body, request)
     try:
@@ -227,9 +236,7 @@ async def product_webhook(connection_id: str, request: Request,
     (z. B. Musterartikel des Shops), werden mit „unknown_sku“ quittiert.
     """
     from app.services import shop_abgleich
-    connection = db.get(ShopConnection, connection_id)
-    if connection is None or not connection.is_active:
-        raise HTTPException(404, "Unbekannte Verbindung")
+    connection = _verbindung_fuer_webhook(db, connection_id)
     body = await request.body()
     _signatur_pruefen(connection, body, request)
     try:

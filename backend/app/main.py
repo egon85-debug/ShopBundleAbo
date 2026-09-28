@@ -28,6 +28,12 @@ async def lifespan(app: FastAPI):
     also unbedenklich, aber unnötig. Als Daemon-Thread beendet er sich mit dem
     Prozess; SIGTERM des Hosters greift damit auch hier.
     """
+    from app.tenancy import konfiguration_pruefen
+    try:
+        for hinweis in konfiguration_pruefen():
+            log.warning("Mandantentrennung: %s", hinweis)
+    except Exception:  # Datenbank beim Start nicht erreichbar: nicht am Start hindern
+        log.exception("Prüfung der Datenbankrollen nicht möglich")
     worker = None
     if get_settings().run_worker_in_process:
         from app.jobs.worker import Worker

@@ -1,10 +1,10 @@
 from sqlalchemy import JSON, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class AiRun(Base, IdMixin, TimestampMixin):
+class AiRun(Base, IdMixin, TenantMixin, TimestampMixin):
     """Protokoll jedes KI-/Provider-Aufrufs — Rohdaten getrennt von Fachdaten."""
 
     __tablename__ = "ai_runs"

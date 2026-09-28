@@ -19,9 +19,14 @@ def _token_response(access: str, refresh: str) -> TokenResponse:
 @router.post("/login", response_model=TokenResponse, dependencies=[Depends(auth_rate_limit)])
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     try:
-        _, access, refresh = auth_service.login(db, email=body.email, password=body.password)
+        _, access, refresh = auth_service.login(db, email=body.email, password=body.password,
+                                                mandant=body.mandant)
         db.commit()
         return _token_response(access, refresh)
+    except auth_service.MandantWaehlen as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            {"detail": str(exc), "mandanten": exc.mandanten})
     except auth_service.AuthError as exc:
         db.commit()  # login_failed-Audit trotzdem persistieren
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc))

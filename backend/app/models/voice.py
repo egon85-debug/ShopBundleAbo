@@ -3,10 +3,10 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class VoiceRecording(Base, IdMixin, TimestampMixin):
+class VoiceRecording(Base, IdMixin, TenantMixin, TimestampMixin):
     """Sprachaufnahme; Audio wird nach Transkription gemäß Konfiguration gelöscht (DSGVO)."""
 
     __tablename__ = "voice_recordings"

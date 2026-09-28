@@ -1,17 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, JSON, String
+from sqlalchemy import DateTime, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class IdempotencyKey(Base, IdMixin, TimestampMixin):
+class IdempotencyKey(Base, IdMixin, TenantMixin, TimestampMixin):
     """Gespeicherte Antworten für wiederholte Offline-Replays (7 Tage)."""
 
     __tablename__ = "idempotency_keys"
+    __table_args__ = (UniqueConstraint("tenant_id", "key", name="uq_idempotency_keys_tenant_key"),)
 
-    key: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    key: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
     method: Mapped[str] = mapped_column(String(8), nullable=False)
     path: Mapped[str] = mapped_column(String(500), nullable=False)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
