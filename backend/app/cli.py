@@ -1,6 +1,7 @@
 """Verwaltungs-CLI.
 
-    python -m app.cli create-admin   --email admin@example.com
+    python -m app.cli mandant-anlegen --name "Muster GmbH" --kurzname muster
+    python -m app.cli create-admin   --email admin@example.com [--mandant muster]
     python -m app.cli list-users
     python -m app.cli reset-password --email admin@example.com
     python -m app.cli check-ai
@@ -14,8 +15,54 @@ import sys
 from sqlalchemy import select
 
 from app.db import get_sessionmaker
-from app.models import Role, User
+from app.models import Membership, Role, Tenant, User
 from app.services import auth_service
+from app.tenancy import mandant_setzen
+
+
+def _mandant(db, angabe: str | None) -> Tenant:
+    """Firma per Kurzname oder ID; ohne Angabe die einzige vorhandene."""
+    if angabe:
+        tenant = db.scalar(select(Tenant).where(
+            (Tenant.kurzname == angabe) | (Tenant.id == angabe)))
+        if tenant is None:
+            print(f"Fehler: Keine Firma „{angabe}“. Vorhandene zeigt list-mandanten.",
+                  file=sys.stderr)
+            sys.exit(1)
+        return tenant
+    alle = db.scalars(select(Tenant).order_by(Tenant.kurzname)).all()
+    if len(alle) == 1:
+        return alle[0]
+    if not alle:
+        print("Fehler: Noch keine Firma angelegt. Zuerst: mandant-anlegen", file=sys.stderr)
+    else:
+        namen = ", ".join(t.kurzname for t in alle)
+        print(f"Fehler: Mehrere Firmen vorhanden ({namen}). Bitte --mandant angeben.",
+              file=sys.stderr)
+    sys.exit(1)
+
+
+def mandant_anlegen(name: str, kurzname: str, sku_praefix: str) -> None:
+    import re
+    kurzname = kurzname.strip().lower()
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", kurzname):
+        print("Fehler: Kurzname nur aus a–z, 0–9 und Bindestrich (wird Teil der Adresse).",
+              file=sys.stderr)
+        sys.exit(1)
+    with get_sessionmaker()() as db:
+        if db.scalar(select(Tenant).where(Tenant.kurzname == kurzname)):
+            print(f"Fehler: Kurzname „{kurzname}“ ist vergeben.", file=sys.stderr)
+            sys.exit(1)
+        tenant = Tenant(name=name, kurzname=kurzname, sku_praefix=sku_praefix.upper())
+        db.add(tenant)
+        db.commit()
+        print(f"Firma angelegt: {tenant.name} ({tenant.kurzname}, {tenant.id})")
+
+
+def list_mandanten() -> None:
+    with get_sessionmaker()() as db:
+        for t in db.scalars(select(Tenant).order_by(Tenant.kurzname)):
+            print(f"{t.kurzname:<24}  {t.status:<12}  {t.name}")
 
 
 def _kennwort_abfragen() -> str:
@@ -28,16 +75,19 @@ def _kennwort_abfragen() -> str:
     return erstes
 
 
-def create_admin(email: str, display_name: str, password: str | None) -> None:
-    if not password:
-        password = _kennwort_abfragen()
+def create_admin(email: str, display_name: str, password: str | None,
+                 mandant: str | None = None) -> None:
     db = get_sessionmaker()()
     try:
+        tenant = _mandant(db, mandant)
+        mandant_setzen(db, tenant.id)
+        if not password:
+            password = _kennwort_abfragen()
         user = auth_service.create_user(
             db, email=email, password=password,
             display_name=display_name, role=Role.ADMIN.value)
         db.commit()
-        print(f"Admin angelegt: {user.email} ({user.id})")
+        print(f"Admin angelegt: {user.email} ({user.id}) für {tenant.name}")
     except auth_service.AuthError as exc:
         db.rollback()
         print(f"Fehler: {exc}", file=sys.stderr)
@@ -47,17 +97,22 @@ def create_admin(email: str, display_name: str, password: str | None) -> None:
 
 
 def list_users() -> None:
-    """Anmeldenamen, Rolle und Zustand — nie Kennwoerter oder deren Pruefsummen."""
+    """Anmeldenamen, Firma, Rolle und Zustand — nie Kennwoerter oder deren Pruefsummen."""
     db = get_sessionmaker()()
     try:
-        users = db.scalars(select(User).order_by(User.created_at)).all()
-        if not users:
+        zeilen = db.execute(
+            select(User, Membership, Tenant)
+            .join(Membership, Membership.user_id == User.id)
+            .join(Tenant, Tenant.id == Membership.tenant_id)
+            .order_by(Tenant.kurzname, User.email)).all()
+        if not zeilen:
             print("Noch keine Konten angelegt.")
             return
-        breite = max(len(u.email) for u in users)
-        for u in users:
-            zustand = "aktiv" if u.is_active else "gesperrt"
-            print(f"{u.email:<{breite}}  {u.role:<18}  {zustand:<8}  {u.display_name}")
+        breite = max(len(u.email) for u, _, _ in zeilen)
+        for u, m, t in zeilen:
+            zustand = "aktiv" if u.is_active and m.is_active else "gesperrt"
+            print(f"{t.kurzname:<16}  {u.email:<{breite}}  {m.role:<18}  {zustand:<8}  "
+                  f"{u.display_name}")
     finally:
         db.close()
 
@@ -162,7 +217,7 @@ def check_recherche(ean: str | None, suche: str | None) -> None:
         print("Keine vergleichbaren Angebote gefunden.")
 
 
-def shop_verbinden(url: str, name: str) -> None:
+def shop_verbinden(url: str, name: str, mandant: str | None = None) -> None:
     """Verbindung zum eigenen Shop anlegen (oder neu verschluesseln) und die
     Werte ausgeben, die im Shop (Vercel) einzutragen sind.
 
@@ -189,6 +244,7 @@ def shop_verbinden(url: str, name: str) -> None:
     api_key = secrets.token_hex(32)
     webhook_secret = secrets.token_hex(32)
     with get_sessionmaker()() as db:
+        mandant_setzen(db, _mandant(db, mandant).id)
         verbindung = db.scalar(select(ShopConnection).where(
             ShopConnection.connector_type == "winterfeld"))
         neu = verbindung is None
@@ -214,10 +270,11 @@ def shop_verbinden(url: str, name: str) -> None:
     print("\nDiese Werte nirgends sonst hineinkopieren (auch nicht in einen Chat).")
 
 
-def shop_testen() -> None:
+def shop_testen(mandant: str | None = None) -> None:
     from app.connectors.registry import build_connector
     from app.models import ShopConnection
     with get_sessionmaker()() as db:
+        mandant_setzen(db, _mandant(db, mandant).id)
         verbindungen = db.scalars(select(ShopConnection).where(
             ShopConnection.is_active.is_(True))).all()
         if not verbindungen:
@@ -252,7 +309,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="winterfeld")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    mandant_parser = sub.add_parser("mandant-anlegen", help="Neue Firma (Mandant) anlegen")
+    mandant_parser.add_argument("--name", required=True)
+    mandant_parser.add_argument("--kurzname", required=True, help="z. B. muster (Teil der Adresse)")
+    mandant_parser.add_argument("--sku-praefix", default="ART")
+    sub.add_parser("list-mandanten", help="Vorhandene Firmen anzeigen")
+
     admin_parser = sub.add_parser("create-admin", help="Ersten Admin-Benutzer anlegen")
+    admin_parser.add_argument("--mandant", default=None, help="Kurzname der Firma")
     admin_parser.add_argument("--email", required=True)
     admin_parser.add_argument("--name", default="Administrator")
     admin_parser.add_argument("--password", default=None,
@@ -274,12 +338,18 @@ def main() -> None:
     shop_parser.add_argument("--url", required=True,
                              help="z. B. https://winterfeld-logistik-shop.vercel.app")
     shop_parser.add_argument("--name", default="Winterfeld Shop")
-    sub.add_parser("shop-testen", help="Shop-Verbindungen pruefen")
+    shop_parser.add_argument("--mandant", default=None, help="Kurzname der Firma")
+    shop_test_parser = sub.add_parser("shop-testen", help="Shop-Verbindungen pruefen")
+    shop_test_parser.add_argument("--mandant", default=None, help="Kurzname der Firma")
     sub.add_parser("app-holen", help="Neueste Android-App von GitHub unter /app bereitstellen")
 
     args = parser.parse_args()
-    if args.command == "create-admin":
-        create_admin(args.email, args.name, args.password)
+    if args.command == "mandant-anlegen":
+        mandant_anlegen(args.name, args.kurzname, args.sku_praefix)
+    elif args.command == "list-mandanten":
+        list_mandanten()
+    elif args.command == "create-admin":
+        create_admin(args.email, args.name, args.password, args.mandant)
     elif args.command == "list-users":
         list_users()
     elif args.command == "reset-password":
@@ -291,9 +361,9 @@ def main() -> None:
             parser.error("--ean oder --suche angeben")
         check_recherche(args.ean, args.suche)
     elif args.command == "shop-verbinden":
-        shop_verbinden(args.url, args.name)
+        shop_verbinden(args.url, args.name, args.mandant)
     elif args.command == "shop-testen":
-        shop_testen()
+        shop_testen(args.mandant)
     elif args.command == "app-holen":
         app_holen()
 

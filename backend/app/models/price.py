@@ -1,21 +1,22 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin, utcnow
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin, utcnow
 
 
-class PriceSource(Base, IdMixin, TimestampMixin):
+class PriceSource(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "price_sources"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_price_sources_tenant_name"),)
 
-    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     base_url: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
-class PriceResearchRun(Base, IdMixin, TimestampMixin):
+class PriceResearchRun(Base, IdMixin, TenantMixin, TimestampMixin):
     """Ein Eintrag je Recherche-Lauf → Preis-Historie (Anforderung 27)."""
 
     __tablename__ = "price_research_runs"
@@ -32,7 +33,7 @@ class PriceResearchRun(Base, IdMixin, TimestampMixin):
     researched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class PriceQuote(Base, IdMixin, TimestampMixin):
+class PriceQuote(Base, IdMixin, TenantMixin, TimestampMixin):
     """Einzelnes gefundenes Angebot inkl. Quelle und Vergleichbarkeits-Flags."""
 
     __tablename__ = "price_quotes"

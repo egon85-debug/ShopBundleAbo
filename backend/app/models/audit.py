@@ -1,10 +1,10 @@
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class AuditLog(Base, IdMixin, TimestampMixin):
+class AuditLog(Base, IdMixin, TenantMixin, TimestampMixin):
     """Append-only Änderungsprotokoll (Anforderung 32).
     user_id bewusst ohne FK, damit Einträge Benutzerlöschungen überdauern."""
 

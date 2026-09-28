@@ -1,13 +1,14 @@
-from sqlalchemy import String, Text
+from sqlalchemy import String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, IdMixin, TimestampMixin
+from app.models.base import Base, IdMixin, TenantMixin, TimestampMixin
 
 
-class Supplier(Base, IdMixin, TimestampMixin):
+class Supplier(Base, IdMixin, TenantMixin, TimestampMixin):
     __tablename__ = "suppliers"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_suppliers_tenant_name"),)
 
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     contact_person: Mapped[str | None] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(64))
     email: Mapped[str | None] = mapped_column(String(255))

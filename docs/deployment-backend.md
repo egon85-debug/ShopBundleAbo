@@ -132,7 +132,10 @@ Mehrere Worker sind unbedenklich: Aufträge werden mit
 
 ## Nach dem ersten Start
 
-1. **Erstes Konto anlegen** — `python -m app.cli` im Container.
+1. **Erstes Konto anlegen** — `python -m app.cli create-admin --email …` im Container.
+   Nach der Mandanten-Migration gehört es automatisch zur einzigen Firma; gibt es
+   mehrere, mit `--mandant <kurzname>` (Firmen anlegen: `mandant-anlegen`, siehe
+   `docs/saas/mandantentrennung.md`).
 2. **Shop-Verbindung einrichten** — siehe `shop-integration.md`.
 3. **Prüfen**: `/health` antwortet, `/docs` ist in Produktion nicht erreichbar,
    ein Testauftrag wird vom Worker abgearbeitet.

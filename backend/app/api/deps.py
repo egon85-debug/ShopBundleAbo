@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import Role, User
+from app.services.auth_service import mitgliedschaft_laden
+from app.tenancy import mandant_setzen
 from app.utils.ratelimit import rate_limiter
 from app.utils.security import decode_access_token
 
@@ -31,8 +33,15 @@ def get_current_user(
         payload = decode_access_token(credentials.credentials)
     except pyjwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token ungültig oder abgelaufen")
+    tenant_id = payload.get("tid")
+    if not tenant_id:
+        # Token aus der Zeit vor der Mandantenfähigkeit: neu anmelden.
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token ungültig oder abgelaufen")
     user = db.get(User, payload["sub"])
     if user is None or not user.is_active:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Benutzer inaktiv")
+    mandant_setzen(db, tenant_id)
+    if mitgliedschaft_laden(db, user, tenant_id) is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Benutzer inaktiv")
     return user
 

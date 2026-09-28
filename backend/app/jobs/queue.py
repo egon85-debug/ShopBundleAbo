@@ -3,11 +3,11 @@ FOR UPDATE SKIP LOCKED, Retry mit Exponential-Backoff + Jitter (Anforderung 20/3
 import random
 from datetime import timedelta
 
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session, aliased
 
 from app.config import get_settings
-from app.models import Job, JobStatus
+from app.models import Job, JobStatus, Tenant
 from app.models.base import utcnow
 
 
@@ -60,17 +60,33 @@ def haengende_freigeben(db: Session) -> int:
 
 
 def claim_next(db: Session, worker_id: str) -> Job | None:
-    """Nächsten fälligen Job exklusiv übernehmen."""
+    """Nächsten fälligen Job exklusiv übernehmen — reihum je Mandant.
+
+    Läuft in einer Plattform-Sitzung (sieht alle Mandanten). Reihenfolge:
+    der Mandant, der am längsten keinen Auftrag bekommen hat, zuerst; darin der
+    älteste fällige Auftrag. Mandanten, bei denen schon
+    `job_max_parallel_je_mandant` Aufträge laufen, sind übersprungen. So legt
+    ein Händler mit tausend Fotos die Erkennung für die anderen nicht lahm.
+    Der Aufrufer setzt vor der Ausführung den Mandanten des Jobs.
+    """
     haengende_freigeben(db)
+    grenze = get_settings().job_max_parallel_je_mandant
+    laufend = aliased(Job)
+    ausgelastet = (select(func.count()).select_from(laufend)
+                   .where(laufend.tenant_id == Job.tenant_id,
+                          laufend.status == JobStatus.RUNNING.value)
+                   .scalar_subquery())
     stmt = (
         select(Job)
+        .join(Tenant, Tenant.id == Job.tenant_id)
         .where(Job.status.in_([JobStatus.QUEUED.value, JobStatus.FAILED.value]),
-               Job.run_at <= utcnow())
-        .order_by(Job.run_at)
+               Job.run_at <= utcnow(),
+               ausgelastet < grenze)
+        .order_by(Tenant.warteschlange_bedient_am.asc().nulls_first(), Job.run_at)
         .limit(1)
     )
     if db.get_bind().dialect.name == "postgresql":
-        stmt = stmt.with_for_update(skip_locked=True)
+        stmt = stmt.with_for_update(skip_locked=True, of=Job)
     job = db.scalar(stmt)
     if job is None:
         return None
@@ -78,6 +94,8 @@ def claim_next(db: Session, worker_id: str) -> Job | None:
     job.locked_at = utcnow()
     job.locked_by = worker_id
     job.attempts += 1
+    db.execute(update(Tenant).where(Tenant.id == job.tenant_id)
+               .values(warteschlange_bedient_am=utcnow()))
     db.commit()
     return job
 

@@ -1,6 +1,7 @@
 # Plan: Winterfeld Logistik als Abo-Produkt
 
-Stand: 28.09.2026 · Status: **Entwurf zur Freigabe**
+Stand: 28.09.2026 · Status: **freigegeben**, Umsetzung Phase A läuft
+(Schritt 1 erledigt: Mandantentrennung im Lager-Backend, siehe [`mandantentrennung.md`](mandantentrennung.md))
 
 Dazu gehören:
 - [`bestandsaufnahme.md`](bestandsaufnahme.md) — alle Stellen, die heute nur für einen Händler funktionieren
