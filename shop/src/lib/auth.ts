@@ -94,6 +94,13 @@ export async function destroySession(subjectType: SubjectType): Promise<void> {
   store.delete(cookieName);
 }
 
+/** Alle Sitzungen einer Person beenden, z. B. nach einer Passwortänderung. */
+export async function destroyAllSessions(subjectType: SubjectType, subjectId: string): Promise<void> {
+  await db
+    .delete(sessions)
+    .where(and(eq(sessions.subjectType, subjectType), eq(sessions.subjectId, subjectId)));
+}
+
 export type AdminUser = typeof adminUsers.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 

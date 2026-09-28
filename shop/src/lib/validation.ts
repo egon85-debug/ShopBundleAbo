@@ -33,6 +33,22 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/** Passwort im Adminbereich ändern: neues Passwort zweimal, anders als das alte. */
+export const passwortAendernSchema = z
+  .object({
+    aktuell: z.string().min(1, "Bitte das bisherige Passwort angeben."),
+    neu: z.string().min(12, "Das neue Passwort braucht mindestens 12 Zeichen.").max(200),
+    wiederholung: z.string(),
+  })
+  .refine((werte) => werte.neu === werte.wiederholung, {
+    message: "Die beiden neuen Passwörter stimmen nicht überein.",
+    path: ["wiederholung"],
+  })
+  .refine((werte) => werte.neu !== werte.aktuell, {
+    message: "Das neue Passwort muss sich vom bisherigen unterscheiden.",
+    path: ["neu"],
+  });
+
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(10, "Passwort braucht mindestens 10 Zeichen"),
