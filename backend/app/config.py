@@ -70,6 +70,16 @@ class Settings(BaseSettings):
     # Höchstens so viele Bilderkennungen je Artikel (jedes weitere Foto löste
     # sonst eine neue Erkennung mit allen Fotos aus).
     ki_max_erkennungen: int = 2
+    # Modell je Schritt. Die Bilderkennung bleibt beim Hauptmodell (sie liest
+    # EAN und Typenschild ab); Websuche und Texte schafft Haiku zum halben
+    # Preis – und Haiku denkt nicht vorab, das spart zusätzlich. Leer = Hauptmodell.
+    ki_modell_recherche: str = "claude-haiku-4-5"
+    ki_modell_text: str = "claude-haiku-4-5"
+    # Vor der Websuche kostenlos in Open Food Facts & Co. nach der EAN suchen.
+    produktdatenbanken: bool = True
+    # Preisrecherche gleich nach der Produktrecherche (kostet jedes Mal
+    # Websuchen) – oder nur per Knopf „Marktpreise aktualisieren“.
+    preisrecherche_automatisch: bool = False
     # Harte Obergrenze der KI-Kosten je Artikel in US-Dollar (Listenpreise).
     # Vor jedem KI-Schritt wird geprüft, ob das Restbudget dafür reicht.
     ki_budget_je_artikel_usd: float = 0.35

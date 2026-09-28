@@ -163,6 +163,8 @@ def uebersicht(db, seit) -> dict:
                                func.sum(AiRun.web_searches)).where(*bedingung)).one()
     wiederverwendet = db.scalar(select(func.count()).select_from(AiRun).where(
         AiRun.created_at >= seit, AiRun.provider == "wiederverwendet")) or 0
+    produktdatenbank = db.scalar(select(func.count()).select_from(AiRun).where(
+        AiRun.created_at >= seit, AiRun.provider == "produktdatenbank")) or 0
     return {
         "seit": seit,
         "gesamt_usd": _geld(gesamt),
@@ -174,6 +176,7 @@ def uebersicht(db, seit) -> dict:
         "ausgabe_tokens": int(tokens[1] or 0),
         "websuchen": int(tokens[2] or 0),
         "wiederverwendet": wiederverwendet,
+        "produktdatenbank": produktdatenbank,
     }
 
 
@@ -206,7 +209,7 @@ def budget_usd() -> Decimal:
 
 # Einträge im KI-Protokoll ohne eigene Kosten.
 FREIGABE = "budget_freigabe"
-OHNE_KOSTEN = {"wiederverwendet", "budget", "freigabe"}
+OHNE_KOSTEN = {"wiederverwendet", "budget", "freigabe", "produktdatenbank"}
 
 
 def budget_fuer(db, product_id: str) -> Decimal:
