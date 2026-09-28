@@ -373,3 +373,12 @@ class TestFaireWarteschlange:
         assert gesehen == [(MANDANT_B, [GEHEIM])]
         with sitzung(MANDANT_B) as db:
             assert db.get(Job, firma_b["job_id"]).status == JobStatus.DONE.value
+
+
+def test_offene_aufgaben_zeigen_nur_die_eigene_firma(client, kopf_a, firma_a, firma_b):
+    antwort = client.get("/api/v1/products/aufgaben", headers=kopf_a)
+    assert antwort.status_code == 200, antwort.text
+    ids = [a["id"] for a in antwort.json()["artikel"]]
+    assert firma_a["product_id"] in ids
+    assert firma_b["product_id"] not in ids
+    assert GEHEIM not in antwort.text

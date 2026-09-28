@@ -143,3 +143,15 @@ td.zahl, th.zahl { text-align: right; white-space: nowrap; font-variant-numeric:
 .login-card label.merken { display: flex; flex-direction: row; align-items: center; gap: 8px;
   font-weight: 500; cursor: pointer; }
 .login-card label.merken input { width: auto; margin: 0; }
+
+/* Offene Aufgaben */
+.aufgaben-liste { margin: 0; padding-left: 1.1em; }
+.aufgaben-liste li { margin: 2px 0; }
+#nav a .badge { margin-left: 4px; font-size: 11px; padding: 0 6px; vertical-align: 1px; }
+#nav a[href="#aufgaben"] { white-space: nowrap; }
+
+/* Bestand korrigieren und Artikel löschen */
+form.korrektur { background: #f6f8fb; border: 1px solid var(--border, #e2e5ea); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.card.gefahr { border-color: #f1c4c4; }
+.card.gefahr h3 { color: var(--danger); }

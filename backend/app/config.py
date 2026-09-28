@@ -61,6 +61,15 @@ class Settings(BaseSettings):
     # Abgerufene Seiten werden auf so viele Tokens gekürzt – ganze Shopseiten
     # sind sonst der größte Kostenblock einer Recherche.
     research_max_fetch_tokens: int = 6000
+    # Denktiefe der KI (low | medium | high). Sonnet 5 denkt ohne Angabe auf
+    # „high“ – das Nachdenken wird wie Ausgabe berechnet und war der größte
+    # Kostenblock. Ablesen, Auswerten und Texten brauchen es kaum, die
+    # Recherche mit Websuche etwas mehr.
+    ki_effort: str = "low"
+    ki_effort_recherche: str = "medium"
+    # Höchstens so viele Bilderkennungen je Artikel (jedes weitere Foto löste
+    # sonst eine neue Erkennung mit allen Fotos aus).
+    ki_max_erkennungen: int = 2
     # Harte Obergrenze der KI-Kosten je Artikel in US-Dollar (Listenpreise).
     # Vor jedem KI-Schritt wird geprüft, ob das Restbudget dafür reicht.
     ki_budget_je_artikel_usd: float = 0.35

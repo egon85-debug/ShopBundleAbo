@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -152,12 +152,47 @@ def _merkmale(product: Product) -> tuple:
     return (product.ean, product.mpn, product.product_name, product.model)
 
 
+def _erkennung_ueberfluessig(db: Session, product: Product) -> str | None:
+    """Grund, warum eine erneute Bilderkennung nichts mehr bringt – sonst None.
+
+    Jedes nachgereichte Foto löste früher eine neue Erkennung mit *allen*
+    Fotos aus; bei fünf Fotos lief sie mehrfach und verbrauchte das Budget,
+    bevor Recherche und Shoptext an der Reihe waren.
+    """
+    laeufe = db.scalar(select(func.count()).select_from(AiRun).where(
+        AiRun.product_id == product.id, AiRun.kind == "vision", AiRun.status == "ok")) or 0
+    if laeufe == 0:
+        return None
+    if laeufe >= getattr(get_settings(), "ki_max_erkennungen", 2):
+        return f"schon {laeufe}× erkannt (Höchstzahl)"
+    if product.product_name and (product.ean or product.mpn or product.model):
+        return "Artikel ist bereits erkannt"
+    return None
+
+
+def _pruefen_lassen(product: Product) -> None:
+    """Endzustand, wenn kein weiterer KI-Schritt folgt: bereit zur Kontrolle."""
+    if product.processing_status in (
+            ProcessingStatus.RECOGNITION_RUNNING.value, ProcessingStatus.PRODUCT_IDENTIFIED.value,
+            ProcessingStatus.IMAGES_OPTIMIZING.value, ProcessingStatus.PHOTO_UPLOADED.value):
+        product.processing_status = ProcessingStatus.REVIEW_REQUIRED.value
+
+
 def handle_recognize_product(db: Session, job: Job) -> None:
     product = db.get(Product, job.payload["product_id"])
     if product is None:
         return
     fotos = _fotos_fuer_erkennung(db, product)
     if not fotos:
+        return
+    grund = _erkennung_ueberfluessig(db, product)
+    if grund:
+        # Neue Fotos brauchen nur noch die Bildoptimierung, keine neue Erkennung.
+        log.info("Erkennung für %s ausgelassen: %s", product.id, grund)
+        _pruefen_lassen(product)
+        queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
+                      payload={"product_id": product.id}, product_id=product.id)
+        db.commit()
         return
     product.processing_status = ProcessingStatus.RECOGNITION_RUNNING.value
     db.commit()
@@ -168,6 +203,7 @@ def handle_recognize_product(db: Session, job: Job) -> None:
               for f in fotos]
     vorher = _merkmale(product)
     if _ueber_budget(db, product, "vision"):
+        _pruefen_lassen(product)
         _refresh_questions(db, product, [])
         queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
                       payload={"product_id": product.id}, product_id=product.id)
@@ -221,9 +257,37 @@ def handle_recognize_product(db: Session, job: Job) -> None:
             AiRun.status == "ok").limit(1))
         if not schon_text or _merkmale(product) != vorher:
             _shoptext_einplanen(db, product)
+        else:
+            # Kein weiterer Schritt folgt – sonst bliebe der Artikel für immer
+            # auf „Produkt erkannt“ stehen.
+            _pruefen_lassen(product)
     queue.enqueue(db, job_type=JobType.OPTIMIZE_IMAGES.value,
                   payload={"product_id": product.id}, product_id=product.id)
     db.commit()
+
+
+def ki_fortsetzen(db: Session, product: Product) -> list[str]:
+    """Nach einer Budget-Freigabe die fehlenden KI-Schritte einplanen."""
+    def fertig(kind: str) -> bool:
+        return db.scalar(select(AiRun.id).where(
+            AiRun.product_id == product.id, AiRun.kind == kind,
+            AiRun.status == "ok").limit(1)) is not None
+
+    geplant: list[str] = []
+    if not fertig("vision"):
+        _einplanen(db, product, JobType.RECOGNIZE_PRODUCT.value)
+        return [JobType.RECOGNIZE_PRODUCT.value]
+    if (product.ean or product.mpn or product.product_name) and not fertig("product_research"):
+        # Die Recherche plant Preise und Shoptext selbst ein.
+        _einplanen(db, product, JobType.RESEARCH_PRODUCT.value)
+        return [JobType.RESEARCH_PRODUCT.value]
+    if fertig("product_research") and not fertig("price_research"):
+        _einplanen(db, product, JobType.RESEARCH_PRICES.value)
+        geplant.append(JobType.RESEARCH_PRICES.value)
+    if not fertig("shoptext"):
+        _shoptext_einplanen(db, product)
+        geplant.append(JobType.GENERATE_SHOPTEXT.value)
+    return geplant
 
 
 # ── Produktrecherche ─────────────────────────────────────────────────────────
@@ -246,7 +310,13 @@ def handle_research_product(db: Session, job: Job) -> None:
                        validated={"items": [c.model_dump(mode="json") for c in candidates]},
                        confidence={}, started=started)
     elif _ueber_budget(db, product, "product_research"):
-        _shoptext_einplanen(db, product)
+        if queue.wartet(db, product_id=product.id, job_type=JobType.GENERATE_SHOPTEXT.value) \
+                or not db.scalar(select(AiRun.id).where(
+                    AiRun.product_id == product.id, AiRun.kind == "shoptext",
+                    AiRun.status == "ok").limit(1)):
+            _shoptext_einplanen(db, product)
+        else:
+            _pruefen_lassen(product)
         db.commit()
         return
     else:
@@ -476,6 +546,7 @@ def handle_optimize_images(db: Session, job: Job) -> None:
     product = db.get(Product, job.payload["product_id"])
     if product is None:
         return
+    vorher = product.processing_status
     product.processing_status = ProcessingStatus.IMAGES_OPTIMIZING.value
     db.commit()
 
@@ -516,6 +587,12 @@ def handle_optimize_images(db: Session, job: Job) -> None:
         db.add(optimized)
     # Der Shoptext wird nach Erkennung bzw. Recherche eingeplant, nicht hier:
     # er braucht die Bilder nicht, aber deren Angaben.
+    # Die Bildoptimierung ist ein Nebenschritt: danach gilt wieder der Stand
+    # von vorher (sonst bliebe „Bilder werden optimiert“ stehen, wenn sie als
+    # letzter Auftrag läuft).
+    if product.processing_status == ProcessingStatus.IMAGES_OPTIMIZING.value:
+        product.processing_status = (vorher if vorher != ProcessingStatus.IMAGES_OPTIMIZING.value
+                                     else ProcessingStatus.REVIEW_REQUIRED.value)
     db.commit()
 
 
