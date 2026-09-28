@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { removeCartItemAction, updateCartItemAction } from "@/app/actions/shop";
 import { ProduktBild, Ueberschrift } from "@/components/ui/Gestaltung";
+import { WarenkorbAbgleich } from "@/components/ui/WarenkorbAbgleich";
 import { formatCents } from "@/lib/money";
 import { shippingOptions } from "@/lib/shipping/registry";
 import { getCart } from "@/services/cart";
@@ -16,6 +17,7 @@ export default async function CartPage() {
   if (!cart || cart.lines.length === 0) {
     return (
       <div className="seite py-20 lg:py-28">
+        <WarenkorbAbgleich anzahl={0} />
         <div className="mx-auto max-w-lg text-center">
           <Ueberschrift als="h1" groesse="gross" mitte>Ihr Warenkorb ist leer</Ueberschrift>
           <p className="mt-6 text-kohle">Stöbern Sie im Sortiment und legen Sie Artikel in den Warenkorb.</p>
@@ -29,6 +31,7 @@ export default async function CartPage() {
 
   return (
     <div className="seite py-12 lg:py-16">
+      <WarenkorbAbgleich anzahl={cart.itemCount} />
       <Ueberschrift als="h1" groesse="gross" augenbraue={`${cart.itemCount} Artikel`}>Warenkorb</Ueberschrift>
 
       <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_380px]">
@@ -56,7 +59,9 @@ export default async function CartPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-4">
-                    <form action={updateCartItemAction} className="flex items-center gap-3">
+                    {/* key mit Menge: Nach einer Aktualisierung zeigt das Feld den neuen Wert,
+                        nicht den, den der Browser vom letzten Rendern behalten hat. */}
+                    <form key={`${line.itemId}-${line.quantity}`} action={updateCartItemAction} className="flex items-center gap-3">
                       <input type="hidden" name="itemId" value={line.itemId} />
                       <label htmlFor={`qty-${line.itemId}`} className="sr-only">Menge</label>
                       <input

@@ -39,8 +39,18 @@ export function CartBadge() {
   }, [laden, pathname]);
 
   useEffect(() => {
-    window.addEventListener(WARENKORB_GEAENDERT, laden);
-    return () => window.removeEventListener(WARENKORB_GEAENDERT, laden);
+    // Bringt das Ereignis die neue Anzahl mit, gilt sie sofort – ohne Umweg über den Server.
+    const geaendert = (event: Event) => {
+      const anzahl = (event as CustomEvent<{ anzahl?: number }>).detail?.anzahl;
+      if (typeof anzahl === "number") {
+        abbruch.current?.abort();
+        setCount(anzahl);
+      } else {
+        laden();
+      }
+    };
+    window.addEventListener(WARENKORB_GEAENDERT, geaendert);
+    return () => window.removeEventListener(WARENKORB_GEAENDERT, geaendert);
   }, [laden]);
 
   return (

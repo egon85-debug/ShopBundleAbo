@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-import { addToCartAction, type ActionState } from "@/app/actions/shop";
+import { addToCartAction, type AddToCartState } from "@/app/actions/shop";
 import { WARENKORB_GEAENDERT } from "@/components/ui/CartBadge";
 
 type Variant = { id: string; name: string; priceCents: number | null };
@@ -28,16 +28,17 @@ export function AddToCartForm({
   disabled?: boolean;
   maxQuantity?: number;
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(addToCartAction, { ok: false });
+  const [state, action] = useActionState<AddToCartState, FormData>(addToCartAction, { ok: false });
   const [quantity, setQuantity] = useState(1);
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
-  const letzteMeldung = useRef<string | undefined>(undefined);
+  const gemeldet = useRef<number | undefined>(undefined);
 
-  // Erst wenn der Server bestätigt hat, zählt der Warenkorb oben hoch.
+  // Erst wenn der Server bestätigt hat, zählt der Warenkorb oben hoch – und zwar
+  // bei jedem Hinzufügen, auch wenn die Meldung dieselbe ist wie beim letzten Mal.
   useEffect(() => {
-    if (!state.ok || state.message === letzteMeldung.current) return;
-    letzteMeldung.current = state.message;
-    window.dispatchEvent(new Event(WARENKORB_GEAENDERT));
+    if (!state.ok || state.zeitpunkt === gemeldet.current) return;
+    gemeldet.current = state.zeitpunkt;
+    window.dispatchEvent(new CustomEvent(WARENKORB_GEAENDERT, { detail: { anzahl: state.anzahl } }));
   }, [state]);
 
   return (
