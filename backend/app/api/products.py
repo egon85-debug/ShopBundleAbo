@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -82,6 +84,46 @@ def list_products(
     return Page(items=[product_out(p) for p in items], total=total, limit=limit, offset=offset)
 
 
+# Status, in denen die KI noch arbeitet – dort gibt es für Menschen noch nichts zu tun.
+_KI_ARBEITET = {"photo_uploaded", "recognition_running", "price_research_running",
+                "images_optimizing", "shoptext_generating"}
+
+
+@router.get("/aufgaben")
+def offene_aufgaben(db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """„Offene Aufgaben“: Artikel, bei denen Angaben fehlen oder Fragen offen sind."""
+    from app.models import AiRun, Job
+    from app.models.job import JobStatus
+    from app.services import ki_verbrauch
+    kandidaten = db.scalars(
+        select(Product).where(Product.processing_status.notin_(["published"]))
+        .order_by(Product.updated_at.desc()).limit(300)).all()
+    artikel = []
+    for p in kandidaten:
+        if p.processing_status in _KI_ARBEITET:
+            continue
+        fragen = [f.get("text") for f in (p.open_questions or []) if isinstance(f, dict)]
+        fehlt = quality_service.check_shop_ready(db, p)
+        letzte = db.scalar(select(AiRun).where(
+            AiRun.product_id == p.id,
+            or_(AiRun.status == "budget", AiRun.kind == ki_verbrauch.FREIGABE))
+            .order_by(AiRun.created_at.desc()).limit(1))
+        gebremst = letzte is not None and letzte.status == "budget"
+        if not (fragen or fehlt or gebremst or p.processing_status == "error"):
+            continue
+        artikel.append({
+            "id": p.id, "internal_sku": p.internal_sku, "product_name": p.product_name,
+            "processing_status": p.processing_status,
+            "publication_status": p.publication_status,
+            "fragen": fragen, "fehlt": fehlt, "ki_gebremst": gebremst,
+            "updated_at": p.updated_at,
+        })
+    fehlgeschlagen = db.scalar(select(func.count()).select_from(Job).where(
+        Job.status == JobStatus.DEAD.value)) or 0
+    return {"artikel": artikel, "fehlgeschlagene_auftraege": fehlgeschlagen}
+
+
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(product_id: str, db: Session = Depends(get_db),
                 user: User = Depends(get_current_user)):
@@ -119,6 +161,9 @@ def quality(product_id: str, db: Session = Depends(get_db),
     return QualityCheckOut(is_shop_ready=not missing, missing=missing)
 
 
+_BEGRUENDUNG_PFLICHT = {"manual_correction", "inventory_correction", "damaged"}
+
+
 @router.post("/{product_id}/stock-movements", response_model=StockMovementOut,
              status_code=201)
 def create_movement(product_id: str, body: StockMovementIn,
@@ -126,6 +171,10 @@ def create_movement(product_id: str, body: StockMovementIn,
                     user: User = Depends(require_role(Role.WAREHOUSE_MANAGER.value,
                                                       Role.ADMIN.value))):
     product = _get_product(db, product_id)
+    # Korrekturen und Ausschuss verändern den Bestand ohne Beleg – deshalb
+    # ist eine Begründung Pflicht (steht in der Bestandshistorie).
+    if body.movement_type in _BEGRUENDUNG_PFLICHT and len((body.reason or "").strip()) < 3:
+        raise HTTPException(422, "Bitte eine Begründung für die Korrektur angeben.")
     try:
         movement = stock_service.apply_movement(
             db, product=product, movement_type=body.movement_type,
@@ -259,6 +308,67 @@ def reject_image(product_id: str, image_id: str, db: Session = Depends(get_db),
     db.commit()
     db.refresh(product)
     return product_out(product)
+
+
+@router.delete("/{product_id}", status_code=204)
+def delete_product(product_id: str, bestaetigung: str = "",
+                   db: Session = Depends(get_db),
+                   user: User = Depends(require_role(Role.WAREHOUSE_MANAGER.value,
+                                                     Role.ADMIN.value))):
+    """Artikel endgültig löschen – mit Bestandshistorie, Bildern und KI-Protokoll.
+
+    Doppelt abgesichert: Die Oberfläche fragt zweimal nach, und als zweite
+    Bestätigung muss die Artikelnummer mitkommen. Ein im Shop sichtbarer
+    Artikel wird nicht gelöscht – er muss erst im Shop-Admin gelöscht oder
+    ausgeblendet werden, sonst stünde dort ein Artikel ohne Lager.
+    """
+    from app.models import ShopPublication
+    product = _get_product(db, product_id)
+    if bestaetigung.strip() != product.internal_sku:
+        raise HTTPException(422, f"Zum Löschen die Artikelnummer {product.internal_sku} "
+                                 "zur Bestätigung eingeben.")
+    im_shop = db.scalar(select(ShopPublication.id).where(
+        ShopPublication.product_id == product.id,
+        ShopPublication.status.in_(["published", "pending"])).limit(1))
+    if im_shop:
+        raise HTTPException(409, "Der Artikel ist im Shop veröffentlicht. Bitte zuerst im "
+                                 "Shop-Admin löschen oder ausblenden, dann hier löschen.")
+    schluessel = [i.storage_key for i in product.images]
+    # Was gelöscht wurde, bleibt im Audit-Log nachvollziehbar.
+    audit_service.log(db, user=user, entity_type="product", entity_id=product.id,
+                      action="delete", old_value=json.dumps({
+                          "internal_sku": product.internal_sku,
+                          "product_name": product.product_name, "ean": product.ean,
+                          "stock_quantity": product.stock_quantity,
+                          "storage_location": getattr(product.storage_location, "code", None),
+                      }, ensure_ascii=False))
+    db.delete(product)
+    db.commit()
+    storage = get_storage()
+    for key in schluessel:
+        try:
+            storage.delete(key)
+        except Exception:  # Datei fehlt schon o. ä. – der Artikel ist trotzdem gelöscht
+            pass
+
+
+@router.post("/{product_id}/ki-budget-freigeben")
+def ki_budget_freigeben(product_id: str, db: Session = Depends(get_db),
+                        user: User = Depends(require_role(*_BILDFREIGABE))):
+    """Für diesen einen Artikel weiteres KI-Budget freigeben und fortsetzen.
+
+    Die Bremse bleibt für alle anderen Artikel bestehen; die Freigabe steht
+    im KI-Protokoll und im Audit-Log.
+    """
+    from app.jobs.handlers import ki_fortsetzen
+    from app.services import ki_verbrauch
+    product = _get_product(db, product_id)
+    betrag = ki_verbrauch.freigeben(db, product.id, von=user.email)
+    geplant = ki_fortsetzen(db, product)
+    audit_service.log(db, user=user, entity_type="product", entity_id=product.id,
+                      action="ki_budget_freigabe", new_value=f"+{betrag} $")
+    db.commit()
+    return {**ki_verbrauch.laeufe_fuer_artikel(db, product.id), "geplant": geplant}
 
 
 @router.get("/{product_id}/ki-kosten")
