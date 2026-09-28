@@ -320,7 +320,7 @@ kommen. Die Pflicht-Schritte für den Livegang sind **fett**.
 | 3 | **Steuern & Preise** | ja | Steuersätze, Kleinunternehmer-Hinweis passt zu Schritt 2, Grundpreis/Pfand |
 | 4 | **Design wählen** | ja | eine der 100 geprüften Nummern gewählt |
 | 5 | Logo & Markenfarbe | nein (Platzhalter aus Firmennamen) | Format, Mindestauflösung, Kontrast hell/dunkel; erzeugt Favicon, App-Symbol |
-| 6 | Domain | Subdomain automatisch; eigene Domain optional | DNS-Prüfung, danach Zertifikat |
+| 6 | Domain | Subdomain automatisch; eigene Domain optional | Wunschname frei wählbar mit **Verfügbarkeitsprüfung** (§ 7.7); DNS-Prüfung, danach Zertifikat |
 | 7 | **Zahlungen (Stripe Connect)** | ja | Konto kann Kartenzahlungen annehmen und auszahlen (laut Stripe-Status) |
 | 8 | **Versand** | ja, wenn Versand genutzt | DHL-Zugang per **Prüfanfrage ohne Etikett** (`validateShipment` der Parcel-DE-Shipping-API v2, developer.dhl.com); Versandarten, Preise, Länder |
 | 9 | **E-Mail-Absender** | ja (Testmail) | SPF/DKIM/DMARC geprüft *oder* Übergangsweise Plattform-Absender mit Antwortadresse; Testmail zugestellt |
@@ -377,6 +377,32 @@ Die Plattform braucht **eine** App im DHL-Entwicklerportal, deren produktive Nut
 freigeben muss. Das dauert erfahrungsgemäß; deshalb gleich zu Beginn beantragen
 (Aufgabe für dich, Phase A). Jeder Händler bringt seinen eigenen Geschäftskundenzugang
 (Benutzer, Passwort, Abrechnungsnummer) mit.
+
+### 7.7 Shopname und Wunschdomain mit Verfügbarkeitsprüfung
+
+Der Händler wählt **Shopname** und **Domain** im Setup frei.
+
+- **Subdomain** (`<name>.<produktdomain>`): Die Prüfung läuft sofort gegen die eigene
+  Datenbank, dazu eine Sperrliste (`www`, `app`, `admin`, `mail` …, geschützte Marken,
+  anstößige Wörter).
+- **Eigene Domain**: Der Assistent schlägt aus dem Shopnamen Varianten vor
+  (`.de`, `.com`, `.shop`, mit/ohne Bindestrich) und zeigt je Variante
+  „frei“, „vergeben“ oder „gehört schon dir“.
+  - Grundlage ist die **Domain-Check-API eines Registrars** (Vorschlag: INWX, deutscher
+    Registrar mit API und Wiederverkäufer-Programm). Eine freie Abfrage über RDAP reicht
+    für `.de` nicht: DENIC betreibt RDAP nur im Versuchsbetrieb ohne Zusagen, und
+    `.de` fehlt im offiziellen RDAP-Verzeichnis der IANA
+    (denic.de/rdap-master, abgerufen 28.09.2026).
+  - Anfragen werden gedrosselt und kurz zwischengespeichert, damit niemand die Prüfung als
+    Massenabfrage missbraucht.
+  - Das Ergebnis ist eine **Momentaufnahme**: Frei heißt nicht reserviert.
+- **Stufe 1 (Phase C)**: prüfen und vorschlagen. Gekauft wird beim Registrar der Wahl des
+  Händlers, danach folgt der DNS-Assistent.
+- **Stufe 2 (Phase E, optional)**: „Domain über uns registrieren“. Inhaber wird der
+  Händler, die Plattform setzt die DNS-Einträge selbst, der DNS-Assistent entfällt.
+  Die Kosten laufen als Posten über Stripe Billing. Dazu kommen: Verlängerung,
+  Umzug zu einem anderen Anbieter bei Kündigung (Auth-Code auf Knopfdruck) und das
+  Wiederverkäufer-Verhältnis zum Registrar (vorher rechtlich prüfen).
 
 ## 8. KI-Kosten im Griff (Fehler 8)
 
