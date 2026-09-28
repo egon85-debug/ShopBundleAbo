@@ -190,7 +190,8 @@ class AnthropicClient:
                                            timeout=180.0, max_retries=2)
 
     def complete(self, content: list[dict], max_tokens: int = 16000,
-                 tools: list[dict] | None = None, max_fortsetzungen: int = 4) -> str:
+                 tools: list[dict] | None = None, max_fortsetzungen: int = 4,
+                 effort: str | None = None) -> str:
         """Eine Anfrage; mit Server-Werkzeugen (Websuche) auch mehrere Runden.
 
         Die Websuche laeuft bei Anthropic. Braucht sie mehr Runden als die
@@ -202,7 +203,7 @@ class AnthropicClient:
         # zaehlt mit. Zu knapp bemessen, bricht das JSON mittendrin ab.
         messages: list[dict] = [{"role": "user", "content": content}]
         for _ in range(max_fortsetzungen + 1):
-            response = self._senden(messages, max_tokens, tools)
+            response = self._senden(messages, max_tokens, tools, effort)
             # Jede Runde kostet – auch eine, deren Ergebnis danach verworfen wird.
             ki_verbrauch.erfassen(response, self.model)
             if response.stop_reason != "pause_turn":
@@ -218,10 +219,16 @@ class AnthropicClient:
             raise ProviderRejected("Antwort abgeschnitten (max_tokens erreicht)")
         return schlusstext(response.content)
 
-    def _senden(self, messages: list[dict], max_tokens: int, tools: list[dict] | None):
+    def _senden(self, messages: list[dict], max_tokens: int, tools: list[dict] | None,
+                effort: str | None = None):
         request = {"model": self.model, "max_tokens": max_tokens, "messages": messages}
         if tools:
             request["tools"] = tools
+        # Denktiefe: ohne Angabe denken die aktuellen Modelle auf „high“, und das
+        # Nachdenken zählt als (teure) Ausgabe. Siehe Settings.ki_effort.
+        effort = effort or getattr(get_settings(), "ki_effort", None)
+        if effort:
+            request["output_config"] = {"effort": effort}
         try:
             if self.model in MODELLE_MIT_FALLBACK:
                 return self._client.beta.messages.create(
@@ -352,7 +359,8 @@ class AnthropicWebResearchProvider(ProductResearchProvider):
         client = AnthropicClient()
         prompt = IDENTIFY_PROMPT.format(
             bekannt=_bekannt(EAN=ean, Herstellernummer=mpn, Bezeichnung=query))
-        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche())
+        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche(),
+                             effort=getattr(get_settings(), "ki_effort_recherche", None))
         daten = _parse_json_block(raw)
         return _gueltige(daten.get("candidates"), ResearchCandidate)[:3]
 
@@ -362,7 +370,8 @@ class AnthropicWebResearchProvider(ProductResearchProvider):
         client = AnthropicClient()
         prompt = OFFERS_PROMPT.format(bekannt=_bekannt(EAN=ean, Bezeichnung=query),
                                       zustand=condition or "unbekannt")
-        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche())
+        raw = client.complete([{"type": "text", "text": prompt}], tools=client.websuche(),
+                             effort=getattr(get_settings(), "ki_effort_recherche", None))
         daten = _parse_json_block(raw)
         return _gueltige(daten.get("offers"), PriceOffer)[:10]
 

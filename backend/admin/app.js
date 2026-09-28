@@ -131,6 +131,7 @@ const fmtMoney = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
 const KI_ZWECK = {
   vision: "Bilderkennung", product_research: "Produktrecherche", price_research: "Preisrecherche",
   extraction: "Sprachauswertung", shoptext: "Shoptext", stt: "Transkription",
+  budget_freigabe: "Budget-Freigabe",
 };
 /** US-Dollar mit bis zu 4 Nachkommastellen – einzelne Läufe kosten Bruchteile eines Cents. */
 const fmtUsd = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
@@ -173,6 +174,7 @@ function kiKostenUebersicht(k) {
 function kiKostenArtikel(k) {
   if (!k) return "";
   const laeufe = k.laeufe || [];
+  const ohneKosten = ["wiederverwendet", "budget", "freigabe"];
   return `
     <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}
         <span class="muted" style="font-weight:400">von ${fmtUsd(k.budget_usd)} Budget</span></h3>
@@ -184,12 +186,16 @@ function kiKostenArtikel(k) {
             ? ` <span class="badge warn" title="${esc(l.error || "")}">ausgelassen: Budget</span>`
             : l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
           <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)"
+            : l.provider === "freigabe" ? "von Hand freigegeben"
             : l.status === "budget" ? "–" : esc(l.model || l.provider || "–")}</td>
           <td class="zahl">${fmtZahl(l.input_tokens)}</td><td class="zahl">${fmtZahl(l.output_tokens)}</td>
           <td class="zahl">${fmtZahl(l.web_searches)}</td>
-          <td class="zahl">${["wiederverwendet", "budget"].includes(l.provider) ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
+          <td class="zahl">${ohneKosten.includes(l.provider) ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Für diesen Artikel lief noch keine KI.</p>'}
       ${k.ungemessen ? `<p class="muted">${k.ungemessen} Lauf/Läufe vor dem Update – ohne gemessenen Verbrauch.</p>` : ""}
+      ${k.gebremst && darfFreigeben() ? `<p>Die KI-Bremse hat Schritte ausgelassen.
+        <button class="btn small" type="button" id="ki-budget-freigeben">Weitere ${fmtUsd(k.budget_je_freigabe_usd || "0.35")} freigeben und fortsetzen</button>
+        <span id="ki-budget-meldung"></span></p>` : ""}
     </section>`;
 }
 
@@ -969,6 +975,16 @@ async function artikelDetail(productId) {
       } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
     };
   }
+  const kiFreigabe = document.getElementById("ki-budget-freigeben");
+  if (kiFreigabe) kiFreigabe.onclick = async () => {
+    if (!confirm("Für diesen Artikel weiteres KI-Budget freigeben? Die fehlenden KI-Schritte laufen dann weiter.")) return;
+    kiFreigabe.disabled = true;
+    try {
+      await api(`/products/${productId}/ki-budget-freigeben`, { method: "POST" });
+      melden("ki-budget-meldung", "✓ Freigegeben – die KI arbeitet weiter, in etwa einer Minute neu laden.");
+    } catch (err) { kiFreigabe.disabled = false; melden("ki-budget-meldung", "Fehler: " + err.message, true); }
+  };
+
   const shoptextNeu = document.getElementById("shoptext-neu");
   if (shoptextNeu) shoptextNeu.onclick = async () => {
     if (listing && !confirm("Shoptext neu schreiben lassen? Eigene Änderungen am Shoptext werden ersetzt.")) return;

@@ -125,12 +125,18 @@ def laeufe_fuer_artikel(db, product_id: str) -> dict:
     laeufe = db.scalars(select(AiRun).where(AiRun.product_id == product_id)
                         .order_by(AiRun.created_at.desc())).all()
     verbraucht = sum((Decimal(r.cost_usd) for r in laeufe if r.cost_usd is not None), Decimal(0))
+    budget = budget_fuer(db, product_id)
     return {
         "summe_usd": _geld(verbraucht),
-        "budget_usd": _geld(budget_usd()),
-        "rest_usd": _geld(max(budget_usd() - verbraucht, Decimal(0))),
+        "budget_usd": _geld(budget),
+        "rest_usd": _geld(max(budget - verbraucht, Decimal(0))),
+        # Seit der letzten Freigabe wurde ein Schritt wegen des Budgets
+        # ausgelassen → weitere Freigabe anbieten.
+        "gebremst": next((r.status == "budget" for r in laeufe
+                          if r.status == "budget" or r.kind == FREIGABE), False),
+        "budget_je_freigabe_usd": _geld(budget_usd()),
         "ungemessen": sum(1 for r in laeufe if r.cost_usd is None
-                          and r.provider != "wiederverwendet"),
+                          and r.provider not in OHNE_KOSTEN),
         "laeufe": [{
             "id": r.id, "kind": r.kind, "provider": r.provider, "model": r.model,
             "status": r.status, "created_at": r.created_at,
@@ -198,6 +204,35 @@ def budget_usd() -> Decimal:
     return Decimal(str(get_settings().ki_budget_je_artikel_usd))
 
 
+# Einträge im KI-Protokoll ohne eigene Kosten.
+FREIGABE = "budget_freigabe"
+OHNE_KOSTEN = {"wiederverwendet", "budget", "freigabe"}
+
+
+def budget_fuer(db, product_id: str) -> Decimal:
+    """Budget des Artikels: Grundbudget plus von Hand freigegebene Beträge."""
+    from sqlalchemy import select
+
+    from app.models import AiRun
+    freigaben = db.scalars(select(AiRun.validated_output).where(
+        AiRun.product_id == product_id, AiRun.kind == FREIGABE)).all()
+    extra = sum((Decimal(str(f.get("usd", "0"))) for f in freigaben), Decimal(0))
+    return budget_usd() + extra
+
+
+def freigeben(db, product_id: str, *, von: str) -> Decimal:
+    """Gibt für einen Artikel einmal das Grundbudget zusätzlich frei.
+
+    Bewusste Entscheidung eines Menschen, sichtbar im KI-Protokoll des Artikels.
+    """
+    from app.models import AiRun
+    betrag = budget_usd()
+    db.add(AiRun(product_id=product_id, kind=FREIGABE, provider="freigabe",
+                 raw_output={}, validated_output={"usd": str(betrag), "von": von},
+                 confidence={}, status="ok"))
+    return betrag
+
+
 def verbraucht_usd(db, product_id: str) -> Decimal:
     from sqlalchemy import func, select
 
@@ -211,7 +246,7 @@ def budget_pruefen(db, product_id: str, kind: str) -> str | None:
     from sqlalchemy import select
 
     from app.models import AiRun
-    rest = budget_usd() - verbraucht_usd(db, product_id)
+    rest = budget_fuer(db, product_id) - verbraucht_usd(db, product_id)
     noetig = MINDESTENS.get(kind, Decimal("0.02"))
     if kind in ("product_research", "price_research"):
         hat_text = db.scalar(select(AiRun.id).where(
@@ -221,6 +256,6 @@ def budget_pruefen(db, product_id: str, kind: str) -> str | None:
             noetig += SHOPTEXT_RESERVE
     if rest >= noetig:
         return None
-    return (f"KI-Budget je Artikel ({_geld(budget_usd())} $) reicht nicht mehr: "
+    return (f"KI-Budget je Artikel ({_geld(budget_fuer(db, product_id))} $) reicht nicht mehr: "
             f"noch {_geld(max(rest, Decimal(0)))} $ übrig, dieser Schritt braucht bis zu "
             f"{_geld(noetig)} $")

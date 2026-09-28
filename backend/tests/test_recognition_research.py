@@ -43,11 +43,12 @@ def test_alle_fotos_gehen_gemeinsam_in_die_erkennung(client, db, employee):
     recherchen = db.query(AiRun).filter(AiRun.kind == "product_research").count()
     assert recherchen == 1
 
-    # Ein spaeteres Foto → neue Erkennung mit allen Fotos, aber keine zweite
-    # Recherche, solange Name/Modell/EAN gleich bleiben (Websuche kostet)
+    # Ein spaeteres Foto: Der Artikel ist schon erkannt (Name + EAN), also
+    # keine neue Erkennung und keine zweite Recherche – beides kostet. Das Foto
+    # wird nur fuer den Shop aufbereitet.
     _foto(client, headers, capture["id"], "back", 5)
     run_all_jobs()
-    assert vision.aufrufe[1] == ["front", "type_plate", "barcode", "back"]
+    assert len(vision.aufrufe) == 1
     assert db.query(AiRun).filter(AiRun.kind == "product_research").count() == recherchen
 
 

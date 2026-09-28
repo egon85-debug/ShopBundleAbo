@@ -261,6 +261,25 @@ def reject_image(product_id: str, image_id: str, db: Session = Depends(get_db),
     return product_out(product)
 
 
+@router.post("/{product_id}/ki-budget-freigeben")
+def ki_budget_freigeben(product_id: str, db: Session = Depends(get_db),
+                        user: User = Depends(require_role(*_BILDFREIGABE))):
+    """Für diesen einen Artikel weiteres KI-Budget freigeben und fortsetzen.
+
+    Die Bremse bleibt für alle anderen Artikel bestehen; die Freigabe steht
+    im KI-Protokoll und im Audit-Log.
+    """
+    from app.jobs.handlers import ki_fortsetzen
+    from app.services import ki_verbrauch
+    product = _get_product(db, product_id)
+    betrag = ki_verbrauch.freigeben(db, product.id, von=user.email)
+    geplant = ki_fortsetzen(db, product)
+    audit_service.log(db, user=user, entity_type="product", entity_id=product.id,
+                      action="ki_budget_freigabe", new_value=f"+{betrag} $")
+    db.commit()
+    return {**ki_verbrauch.laeufe_fuer_artikel(db, product.id), "geplant": geplant}
+
+
 @router.get("/{product_id}/ki-kosten")
 def ki_kosten(product_id: str, db: Session = Depends(get_db),
               user: User = Depends(get_current_user)):
