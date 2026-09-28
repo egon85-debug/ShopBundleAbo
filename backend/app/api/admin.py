@@ -42,8 +42,14 @@ def ki_kosten(tage: int = 30, db: Session = Depends(get_db),
     jetzt = utcnow()
     tage = max(1, min(tage, 366))
     from app.config import get_settings
+    s = get_settings()
     return {
-        "modell": get_settings().anthropic_model,
+        "modell": s.anthropic_model,
+        "modelle": {"erkennung": s.anthropic_model,
+                    "recherche": s.ki_modell_recherche or s.anthropic_model,
+                    "text": s.ki_modell_text or s.anthropic_model},
+        "produktdatenbanken": s.produktdatenbanken,
+        "preisrecherche_automatisch": s.preisrecherche_automatisch,
         "budget_je_artikel_usd": str(ki_verbrauch.budget_usd()),
         "zeitraum": ki_verbrauch.uebersicht(db, jetzt - timedelta(days=tage)),
         "monat": ki_verbrauch.uebersicht(

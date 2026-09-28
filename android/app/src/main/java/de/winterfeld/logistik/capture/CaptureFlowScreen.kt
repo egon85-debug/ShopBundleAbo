@@ -1,5 +1,10 @@
 package de.winterfeld.logistik.capture
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +32,17 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
         if (state.capture == null) viewModel.startCapture(quickMode)
     }
 
+    // Google-Sprachfenster als Ausweg, wenn die Erkennung in der App abreißt.
+    val wartend = remember { arrayOfNulls<(List<String>?) -> Unit>(1) }
+    val sprachfenster = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { ergebnis ->
+        val texte = if (ergebnis.resultCode == Activity.RESULT_OK)
+            ergebnis.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) else null
+        wartend[0]?.invoke(texte)
+        wartend[0] = null
+    }
+
     // Sprachabfrage an den Zustand koppeln; Mikrofon und Sprachausgabe sauber beenden.
     val dialog = remember {
         SprachDialog(
@@ -36,6 +52,15 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
             onZwischenstand = viewModel::onLiveTranscript,
             onErgebnis = viewModel::onVoiceResult,
             onFehler = viewModel::onVoiceError,
+            systemErkennung = { intent, fertig ->
+                wartend[0] = fertig
+                try {
+                    sprachfenster.launch(intent)
+                } catch (e: ActivityNotFoundException) {
+                    wartend[0] = null
+                    throw e
+                }
+            },
         )
     }
     var voiceRunning by remember { mutableStateOf(false) }

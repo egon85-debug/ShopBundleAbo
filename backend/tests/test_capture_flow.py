@@ -20,7 +20,7 @@ class TestCaptureFlow:
         assert again.json()["id"] == first["id"]
         assert again.json()["internal_sku"] == first["internal_sku"]
 
-    def test_full_flow(self, client, db, employee):
+    def test_full_flow(self, client, db, employee, preise_automatisch):
         headers = auth_headers(client)
         capture = start_capture(client, headers)
         assert capture["internal_sku"].startswith("WL-")

@@ -116,11 +116,35 @@ const main = () => document.getElementById("main");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
   (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+/** Deutsche Namen für alle Status (Artikel, Veröffentlichung, Aufträge). */
+const STATUS_TEXT = {
+  // Artikel
+  draft: "Entwurf", photo_uploaded: "Foto hochgeladen", recognition_running: "Erkennung läuft",
+  product_identified: "Produkt erkannt", price_research_running: "Preisrecherche läuft",
+  images_optimizing: "Bilder werden optimiert", shoptext_generating: "Shoptext wird geschrieben",
+  review_required: "Zu prüfen", shop_ready: "Shopbereit", published: "Veröffentlicht",
+  error: "Fehler",
+  // Veröffentlichung
+  ready: "Bereit", publishing: "Wird veröffentlicht", publish_failed: "Veröffentlichung fehlgeschlagen",
+  pending: "Wartet", delisted: "Aus dem Shop genommen",
+  // Aufträge
+  queued: "Wartet", running: "Läuft", done: "Erledigt",
+  failed: "Fehlgeschlagen – wird wiederholt", dead: "Abgebrochen",
+  ok: "OK", budget: "Budget",
+};
+const JOB_TEXT = {
+  recognize_product: "Bilderkennung", research_product: "Produktrecherche",
+  research_prices: "Preisrecherche", transcribe_voice: "Sprachaufnahme abschreiben",
+  extract_voice_data: "Sprachangaben auswerten", optimize_images: "Bilder optimieren",
+  generate_shoptext: "Shoptext schreiben", publish_product: "Im Shop veröffentlichen",
+  sync_stock: "Bestand an den Shop melden", cleanup_voice: "Sprachaufnahme löschen",
+};
+
 function statusBadge(status) {
   const ok = ["published", "done", "shop_ready", "ok", "ready"];
   const err = ["dead", "error", "failed", "publish_failed"];
   const cls = ok.includes(status) ? "ok" : err.includes(status) ? "err" : "warn";
-  return `<span class="badge ${cls}">${esc(status)}</span>`;
+  return `<span class="badge ${cls}" title="${esc(status)}">${esc(STATUS_TEXT[status] || status)}</span>`;
 }
 
 const fmtDate = (s) => (s ? new Date(s).toLocaleString("de-DE") : "–");
@@ -131,6 +155,7 @@ const fmtMoney = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
 const KI_ZWECK = {
   vision: "Bilderkennung", product_research: "Produktrecherche", price_research: "Preisrecherche",
   extraction: "Sprachauswertung", shoptext: "Shoptext", stt: "Transkription",
+  budget_freigabe: "Budget-Freigabe",
 };
 /** US-Dollar mit bis zu 4 Nachkommastellen – einzelne Läufe kosten Bruchteile eines Cents. */
 const fmtUsd = (v) => (v == null ? "–" : Number(v).toLocaleString("de-DE",
@@ -150,7 +175,8 @@ function kiKostenUebersicht(k) {
       <div class="stat-grid">
         ${[["Dieser Monat", fmtUsd(m.gesamt_usd)], ["Artikel diesen Monat", fmtZahl(m.artikel)],
            ["Schnitt je Artikel", fmtUsd(m.schnitt_je_artikel_usd)],
-           ["Recherchen wiederverwendet", fmtZahl(m.wiederverwendet)]]
+           ["Recherchen wiederverwendet", fmtZahl(m.wiederverwendet)],
+           ["Aus Produktdatenbanken (kostenlos)", fmtZahl(m.produktdatenbank)]]
           .map(([label, wert]) => `<div class="stat"><div class="num">${wert}</div>
              <div class="muted">${label}</div></div>`).join("")}
       </div>
@@ -161,9 +187,17 @@ function kiKostenUebersicht(k) {
           <td class="zahl">${fmtUsd(usd)}</td>
           <td class="zahl muted">${gesamt ? Math.round(usd / gesamt * 100) : 0} %<span class="ki-laeufe"> · ${n} ${n === 1 ? "Lauf" : "Läufe"}</span></td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Noch keine gemessenen KI-Läufe.</p>'}
-      <p style="margin-top:10px">Modell <strong>${esc(k.modell || "–")}</strong> ·
-        Budget je Artikel <strong>${fmtUsd(k.budget_je_artikel_usd)}</strong>
-        <span class="muted">(Einstellung ANTHROPIC_MODEL bzw. KI_BUDGET_JE_ARTIKEL_USD in der .env)</span></p>
+      <p style="margin-top:10px">${k.modelle
+        ? `Bilderkennung <strong>${esc(k.modelle.erkennung)}</strong> ·
+           Recherche <strong>${esc(k.modelle.recherche)}</strong> ·
+           Texte <strong>${esc(k.modelle.text)}</strong>`
+        : `Modell <strong>${esc(k.modell || "–")}</strong>`} ·
+        Budget je Artikel <strong>${fmtUsd(k.budget_je_artikel_usd)}</strong></p>
+      <p class="muted" style="margin-top:6px">Artikel mit EAN werden ${k.produktdatenbanken === false ? "<strong>nicht</strong> " : ""}zuerst
+        kostenlos in Open Food Facts &amp; Co. nachgeschlagen. Preisrecherche ${k.preisrecherche_automatisch
+        ? "läuft automatisch" : "nur per Knopf „Marktpreise aktualisieren“ am Artikel"}.
+        Einstellungen: ANTHROPIC_MODEL, KI_MODELL_RECHERCHE, KI_MODELL_TEXT,
+        PRODUKTDATENBANKEN, PREISRECHERCHE_AUTOMATISCH, KI_BUDGET_JE_ARTIKEL_USD in der .env.</p>
       <p class="muted" style="margin-top:6px">${fmtZahl(z.eingabe_tokens)} Eingabe- und
         ${fmtZahl(z.ausgabe_tokens)} Ausgabe-Tokens, ${fmtZahl(z.websuchen)} Websuchen.
         Listenpreise der Anthropic-API in US-Dollar; gemessen wird seit dem Update, ältere Läufe fehlen.</p>
@@ -173,6 +207,7 @@ function kiKostenUebersicht(k) {
 function kiKostenArtikel(k) {
   if (!k) return "";
   const laeufe = k.laeufe || [];
+  const ohneKosten = ["wiederverwendet", "budget", "freigabe", "produktdatenbank"];
   return `
     <section class="card"><h3>KI-Kosten dieses Artikels: ${fmtUsd(k.summe_usd)}
         <span class="muted" style="font-weight:400">von ${fmtUsd(k.budget_usd)} Budget</span></h3>
@@ -184,12 +219,17 @@ function kiKostenArtikel(k) {
             ? ` <span class="badge warn" title="${esc(l.error || "")}">ausgelassen: Budget</span>`
             : l.status !== "ok" ? ' <span class="badge err">Fehler</span>' : ""}</td>
           <td class="muted">${l.provider === "wiederverwendet" ? "wiederverwendet (gleiche EAN)"
+            : l.provider === "freigabe" ? "von Hand freigegeben"
+            : l.provider === "produktdatenbank" ? "Produktdatenbank (kostenlos)"
             : l.status === "budget" ? "–" : esc(l.model || l.provider || "–")}</td>
           <td class="zahl">${fmtZahl(l.input_tokens)}</td><td class="zahl">${fmtZahl(l.output_tokens)}</td>
           <td class="zahl">${fmtZahl(l.web_searches)}</td>
-          <td class="zahl">${["wiederverwendet", "budget"].includes(l.provider) ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
+          <td class="zahl">${ohneKosten.includes(l.provider) ? "0 $" : fmtUsd(l.cost_usd)}</td></tr>`).join("")}
         </tbody></table></div>` : '<p class="muted">Für diesen Artikel lief noch keine KI.</p>'}
       ${k.ungemessen ? `<p class="muted">${k.ungemessen} Lauf/Läufe vor dem Update – ohne gemessenen Verbrauch.</p>` : ""}
+      ${k.gebremst && darfFreigeben() ? `<p>Die KI-Bremse hat Schritte ausgelassen.
+        <button class="btn small" type="button" id="ki-budget-freigeben">Weitere ${fmtUsd(k.budget_je_freigabe_usd || "0.35")} freigeben und fortsetzen</button>
+        <span id="ki-budget-meldung"></span></p>` : ""}
     </section>`;
 }
 
@@ -421,11 +461,40 @@ const views = {
     });
   },
 
+  async aufgaben() {
+    const daten = await api("/products/aufgaben");
+    aufgabenZahl(daten.artikel.length);
+    const zeile = (a) => {
+      const punkte = [
+        ...a.fragen.map((t) => `<li>❓ ${esc(t)}</li>`),
+        ...a.fehlt.map((t) => `<li>Fehlt: ${esc(t)}</li>`),
+        ...(a.ki_gebremst ? ["<li>KI-Budget aufgebraucht – im Artikel freigeben oder von Hand ergänzen</li>"] : []),
+        ...(a.processing_status === "error" ? ["<li>Verarbeitung fehlgeschlagen</li>"] : []),
+      ];
+      return `<tr><td><a href="#artikel/${esc(a.id)}"><strong>${esc(a.product_name || "Unbenannter Artikel")}</strong></a>
+          <br><span class="muted">${esc(a.internal_sku)}</span></td>
+        <td>${statusBadge(a.processing_status)}</td>
+        <td><ul class="aufgaben-liste">${punkte.join("")}</ul></td>
+        <td><a class="btn small" href="#artikel/${esc(a.id)}">Bearbeiten</a></td></tr>`;
+    };
+    main().innerHTML = `
+      <h2>Offene Aufgaben</h2>
+      <p class="muted">Artikel, bei denen Angaben fehlen oder Fragen offen sind. Artikel, an denen die KI
+        gerade arbeitet, erscheinen erst danach.</p>
+      ${daten.fehlgeschlagene_auftraege ? `<p class="error">${daten.fehlgeschlagene_auftraege} abgebrochene(r)
+        Auftrag/Aufträge – siehe <a href="#jobs">Jobs &amp; Fehler</a>.</p>` : ""}
+      ${daten.artikel.length ? `<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Status</th>
+          <th>Was zu tun ist</th><th></th></tr></thead><tbody>
+          ${daten.artikel.map(zeile).join("")}</tbody></table></div>`
+        : '<div class="card"><p>✓ Keine offenen Aufgaben – alle Artikel sind vollständig.</p></div>'}`;
+  },
+
   async jobs() {
     const jobs = await api("/jobs");
     main().innerHTML = `
       <h2>Jobs &amp; Synchronisationsfehler</h2>
-      <div class="table-wrap"><table><thead><tr><th>Typ</th><th>Status</th>
+      <p class="muted">Aufträge, die im Hintergrund laufen – KI-Schritte, Bilder, Veröffentlichung, Bestandsabgleich.</p>
+      <div class="table-wrap"><table><thead><tr><th>Auftrag</th><th>Artikel</th><th>Status</th>
         <th>Versuche</th><th>Nächster Lauf</th><th>Letzter Fehler</th><th></th></tr>
       </thead><tbody>
         ${jobs.map((j) => {
@@ -435,8 +504,9 @@ const views = {
           const haengt = j.status === "running" && minuten >= 15;
           const laeuft = j.status === "running" && !haengt
             ? `<br><span class="muted">läuft seit ${Math.max(1, Math.round(minuten))} Min.</span>` : "";
-          return `<tr><td>${esc(j.job_type)}</td>
-          <td>${haengt ? '<span class="badge err">hängt</span>' : statusBadge(j.status)}${laeuft}</td>
+          return `<tr><td title="${esc(j.job_type)}">${esc(JOB_TEXT[j.job_type] || j.job_type)}</td>
+          <td>${j.product_id ? `<a href="#artikel/${esc(j.product_id)}">öffnen</a>` : "–"}</td>
+          <td>${haengt ? '<span class="badge err">Hängt</span>' : statusBadge(j.status)}${laeuft}</td>
           <td>${j.attempts}/${j.max_attempts}</td><td>${fmtDate(j.run_at)}</td>
           <td class="muted">${esc((j.last_error || "").slice(0, 300))}</td>
           <td>${["dead", "failed"].includes(j.status) || haengt
@@ -723,6 +793,7 @@ function feldWert(product, key, art) {
   if (art === "geld") return Number(v).toFixed(2).replace(".", ",");
   if (art === "menge") return String(Number(v)).replace(".", ",");
   if (art === "datum") return String(v).slice(0, 10);
+  if (art === "lang") return htmlZuText(String(v));  // keine Tags im Eingabefeld
   return String(v);
 }
 
@@ -825,6 +896,11 @@ async function artikelDetail(productId) {
             <p class="muted marktpreis">Marktpreis ${fmtMoney(product.lowest_market_price)} – ${fmtMoney(product.highest_market_price)}
               ${product.recommended_sale_price ? ` · empfohlen <strong>${fmtMoney(product.recommended_sale_price)}</strong>
                 <button type="button" class="btn small" id="empfehlung">Als Verkaufspreis übernehmen</button>` : ""}</p>` : ""}
+          ${titel === "Preise" ? `<p class="muted marktpreis">
+            <button type="button" class="btn small" id="marktpreise">${product.lowest_market_price
+              ? "Marktpreise neu recherchieren" : "Marktpreise recherchieren"}</button>
+            Die KI sucht aktuelle Angebote im Internet (kostet einige Cent).
+            <span id="marktpreise-meldung"></span></p>` : ""}
         </section>`).join("")}
       <section class="card"><h3>Merkmale</h3>
         <p class="muted">Erscheinen im Shop als Eigenschaftsliste, z. B. Farbe, Maße, Material.</p>
@@ -842,7 +918,7 @@ async function artikelDetail(productId) {
       ${listing ? `<form id="shoptext-form" class="form-grid">
           <label class="breit"><span>SEO-Titel (max. 200 Zeichen)</span><input name="seo_title" maxlength="200" value="${esc(listing.seo_title || "")}"></label>
           <label class="breit"><span>Kurzbeschreibung</span><textarea name="short_description" rows="3">${esc(listing.short_description || "")}</textarea></label>
-          <label class="breit"><span>Beschreibung</span><textarea name="long_description" rows="8">${esc(listing.long_description || "")}</textarea></label>
+          <label class="breit"><span>Beschreibung</span><textarea name="long_description" rows="8">${esc(htmlZuText(listing.long_description || ""))}</textarea></label>
           <label class="breit"><span>Stichpunkte (eine Zeile je Punkt)</span><textarea name="bullet_points" rows="5">${esc((listing.bullet_points || []).join("\n"))}</textarea></label>
           <label><span>Lieferumfang</span><input name="scope_of_delivery" value="${esc(listing.scope_of_delivery || "")}"></label>
           <label><span>Hinweis zum Zustand</span><input name="condition_note" value="${esc(listing.condition_note || "")}"></label>
@@ -865,11 +941,20 @@ async function artikelDetail(productId) {
     <section class="card"><h3>Bestand</h3>
       <p>Bestand <strong>${product.stock_quantity}</strong> · reserviert ${product.reserved_quantity}
         · verfügbar <strong>${product.available_quantity}</strong></p>
+      ${darfBestand ? `<form id="korrektur-form" class="toolbar korrektur">
+          <strong style="width:100%">Bestand korrigieren</strong>
+          <label>Tatsächlicher Bestand <input name="neu" type="number" min="${product.reserved_quantity}" step="1" required
+            value="${product.stock_quantity}" style="width:120px"></label>
+          <label style="flex:1">Begründung (Pflicht) <input name="reason" required minlength="3"
+            placeholder="z. B. Inventur: 2 Stück fehlten, Karton beschädigt"></label>
+          <button class="btn primary" type="submit">Korrigieren</button>
+          <span id="korrektur-meldung"></span>
+        </form>` : ""}
       ${darfBestand ? `<form id="bewegung-form" class="toolbar">
           <label>Vorgang <select name="movement_type">${Object.entries(BEWEGUNGEN).map(([v, l]) =>
             `<option value="${v}">${l}</option>`).join("")}</select></label>
           <label>Menge <input name="quantity_change" type="number" step="1" required placeholder="z. B. 5 oder -2" style="width:130px"></label>
-          <label style="flex:1">Grund <input name="reason" placeholder="z. B. Nachlieferung, Inventur"></label>
+          <label style="flex:1">Grund <input name="reason" placeholder="z. B. Nachlieferung (bei Korrektur/Ausschuss Pflicht)"></label>
           <button class="btn" type="submit">Buchen</button>
           <span id="bewegung-meldung"></span>
         </form>` : '<p class="muted">Bestand buchen dürfen Lagerleiter und Administratoren.</p>'}
@@ -880,7 +965,14 @@ async function artikelDetail(productId) {
           <td>${b.quantity_change > 0 ? "+" : ""}${b.quantity_change}</td>
           <td>${b.quantity_before} → ${b.quantity_after}</td><td class="muted">${esc(b.reason || "")}</td></tr>`).join("")}
         </tbody></table></div>` : ""}
-    </section>`;
+    </section>
+
+    ${darfBestand ? `<section class="card gefahr"><h3>Artikel löschen</h3>
+      <p class="muted">Löscht den Artikel mit Bildern, Bestandshistorie und KI-Protokoll endgültig.
+        Ein im Shop veröffentlichter Artikel muss vorher im Shop-Admin gelöscht oder ausgeblendet werden.</p>
+      <button class="btn danger" type="button" id="artikel-loeschen">Artikel löschen …</button>
+      <span id="loeschen-meldung"></span>
+    </section>` : ""}`;
 
   const neuLaden = () => artikelDetail(productId);
   /** art: "ok" (gespeichert), "fehler" oder "info" (Hinweis, nichts passiert). */
@@ -902,7 +994,8 @@ async function artikelDetail(productId) {
       for (const [key, , art = "text"] of felder) {
         const neu = form.elements[key].value.trim();
         if (neu === feldWert(product, key, art)) continue;
-        aenderungen[key] = neu === "" ? null : neu;
+        aenderungen[key] = neu === "" ? null
+          : art === "lang" ? beschreibungSpeichern(neu, product[key]) : neu;
       }
     }
     for (const name of ["attributes", "technical_data"]) {
@@ -955,6 +1048,11 @@ async function artikelDetail(productId) {
       for (const key of ["seo_title", "short_description", "long_description", "scope_of_delivery",
                          "condition_note", "meta_title", "meta_description", "url_slug"]) {
         const neu = f[key].value.trim();
+        if (key === "long_description") {
+          // Im Feld steht Text, gespeichert wird HTML für den Shop.
+          if (neu !== htmlZuText(listing[key] || "")) body[key] = neu ? textZuHtml(neu) : null;
+          continue;
+        }
         if (neu !== (listing[key] || "")) body[key] = neu || null;
       }
       const punkte = liste(f.bullet_points.value, "\n");
@@ -969,6 +1067,25 @@ async function artikelDetail(productId) {
       } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
     };
   }
+  const marktpreise = document.getElementById("marktpreise");
+  if (marktpreise) marktpreise.onclick = async () => {
+    marktpreise.disabled = true;
+    try {
+      await api(`/products/${productId}/reprice`, { method: "POST" });
+      melden("marktpreise-meldung", "✓ Recherche läuft – in etwa einer Minute neu laden.");
+    } catch (err) { marktpreise.disabled = false; melden("marktpreise-meldung", "Fehler: " + err.message, true); }
+  };
+
+  const kiFreigabe = document.getElementById("ki-budget-freigeben");
+  if (kiFreigabe) kiFreigabe.onclick = async () => {
+    if (!confirm("Für diesen Artikel weiteres KI-Budget freigeben? Die fehlenden KI-Schritte laufen dann weiter.")) return;
+    kiFreigabe.disabled = true;
+    try {
+      await api(`/products/${productId}/ki-budget-freigeben`, { method: "POST" });
+      melden("ki-budget-meldung", "✓ Freigegeben – die KI arbeitet weiter, in etwa einer Minute neu laden.");
+    } catch (err) { kiFreigabe.disabled = false; melden("ki-budget-meldung", "Fehler: " + err.message, true); }
+  };
+
   const shoptextNeu = document.getElementById("shoptext-neu");
   if (shoptextNeu) shoptextNeu.onclick = async () => {
     if (listing && !confirm("Shoptext neu schreiben lassen? Eigene Änderungen am Shoptext werden ersetzt.")) return;
@@ -978,6 +1095,40 @@ async function artikelDetail(productId) {
     } catch (err) { melden("shoptext-meldung", "Fehler: " + err.message, true); }
   };
 
+  // Bestand korrigieren: tatsächlicher Bestand statt Differenz, Begründung Pflicht
+  const korrektur = document.getElementById("korrektur-form");
+  if (korrektur) korrektur.onsubmit = async (e) => {
+    e.preventDefault();
+    const daten = Object.fromEntries(new FormData(e.target).entries());
+    const neu = Number(daten.neu);
+    const grund = (daten.reason || "").trim();
+    if (!Number.isInteger(neu) || neu < 0) { melden("korrektur-meldung", "Bitte eine ganze Zahl ab 0 eingeben.", true); return; }
+    if (grund.length < 3) { melden("korrektur-meldung", "Bitte eine Begründung für die Korrektur eingeben.", true); return; }
+    const differenz = neu - product.stock_quantity;
+    if (differenz === 0) { melden("korrektur-meldung", "Der Bestand ist bereits " + neu + ".", "info"); return; }
+    if (!confirm(`Bestand von ${product.stock_quantity} auf ${neu} ändern (${differenz > 0 ? "+" : ""}${differenz})?\n\nBegründung: ${grund}`)) return;
+    try {
+      await api(`/products/${productId}/stock-movements`, { method: "POST", body: {
+        movement_type: "manual_correction", quantity_change: differenz, reason: grund } });
+      await neuLaden();
+      melden("korrektur-meldung", "✓ Bestand korrigiert.");
+    } catch (err) { melden("korrektur-meldung", "Fehler: " + err.message, true); }
+  };
+
+  // Artikel löschen: zweifache Bestätigung, die zweite mit der Artikelnummer
+  const loeschen = document.getElementById("artikel-loeschen");
+  if (loeschen) loeschen.onclick = async () => {
+    const name = product.product_name || "Unbenannter Artikel";
+    if (!confirm(`„${name}“ (${product.internal_sku}) wirklich endgültig löschen?\n\nBilder, Bestandshistorie und KI-Protokoll werden mit gelöscht.`)) return;
+    const eingabe = prompt(`Zur zweiten Bestätigung bitte die Artikelnummer eingeben:\n${product.internal_sku}`);
+    if (eingabe === null) return;
+    if (eingabe.trim() !== product.internal_sku) { melden("loeschen-meldung", "Artikelnummer stimmt nicht – nichts gelöscht.", true); return; }
+    try {
+      await api(`/products/${productId}?bestaetigung=${encodeURIComponent(eingabe.trim())}`, { method: "DELETE" });
+      location.hash = "#products";
+    } catch (err) { melden("loeschen-meldung", "Fehler: " + err.message, true); }
+  };
+
   // Lagerbewegung
   const bewegung = document.getElementById("bewegung-form");
   if (bewegung) bewegung.onsubmit = async (e) => {
@@ -985,6 +1136,10 @@ async function artikelDetail(productId) {
     const daten = Object.fromEntries(new FormData(e.target).entries());
     const menge = Number(daten.quantity_change);
     if (!Number.isInteger(menge) || menge === 0) { melden("bewegung-meldung", "Menge muss eine ganze Zahl ungleich 0 sein.", true); return; }
+    if (["manual_correction", "inventory_correction", "damaged"].includes(daten.movement_type)
+        && (daten.reason || "").trim().length < 3) {
+      melden("bewegung-meldung", "Bei Korrektur, Inventur und Ausschuss bitte eine Begründung angeben.", true); return;
+    }
     try {
       await api(`/products/${productId}/stock-movements`, { method: "POST", body: {
         movement_type: daten.movement_type, quantity_change: menge, reason: daten.reason || null } });
@@ -1013,7 +1168,16 @@ async function showApp() {
   navigate();
 }
 
+/** Zahl im Menüpunkt „Offene Aufgaben“ (0 = ausblenden). */
+function aufgabenZahl(n) {
+  const el = document.getElementById("aufgaben-zahl");
+  if (!el) return;
+  el.textContent = n;
+  el.hidden = !n;
+}
+
 function navigate() {
+  api("/products/aufgaben").then((d) => aufgabenZahl(d.artikel.length)).catch(() => {});
   // Routen haben die Form "#ansicht" oder "#ansicht/<id>" (z. B. #freigabe/<artikel-id>).
   const [route, param] = (location.hash || "#dashboard").slice(1).split("/", 2);
   const menue = route === "artikel" ? "products" : route;
