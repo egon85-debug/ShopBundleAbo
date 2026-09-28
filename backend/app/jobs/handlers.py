@@ -21,6 +21,7 @@ from app.models import (
     VoiceRecording,
 )
 from app.models.base import utcnow
+from app.providers import produktdatenbanken
 from app.providers.base import ProviderUnavailable, VisionImage
 from app.providers.registry import (
     get_image_optimizer,
@@ -281,7 +282,8 @@ def ki_fortsetzen(db: Session, product: Product) -> list[str]:
         # Die Recherche plant Preise und Shoptext selbst ein.
         _einplanen(db, product, JobType.RESEARCH_PRODUCT.value)
         return [JobType.RESEARCH_PRODUCT.value]
-    if fertig("product_research") and not fertig("price_research"):
+    if get_settings().preisrecherche_automatisch and fertig("product_research") \
+            and not fertig("price_research"):
         _einplanen(db, product, JobType.RESEARCH_PRICES.value)
         geplant.append(JobType.RESEARCH_PRICES.value)
     if not fertig("shoptext"):
@@ -301,6 +303,9 @@ def handle_research_product(db: Session, job: Job) -> None:
                                    product.model])) or None
     frueher = (_letzter_lauf(db, kind="product_research", input_ref=product.ean,
                              gueltig=PRODUKTRECHERCHE_GUELTIG) if product.ean else None)
+    datenbank = (_aus_produktdatenbank(product)
+                 if frueher is None and product.ean and get_settings().produktdatenbanken
+                 else None)
     if frueher is not None:
         # Dieselbe EAN wurde gerade erst recherchiert: Ergebnis übernehmen.
         candidates = _gueltige_kandidaten(frueher.validated_output.get("items"))
@@ -308,6 +313,14 @@ def handle_research_product(db: Session, job: Job) -> None:
                        provider="wiederverwendet", input_ref=product.ean,
                        raw={"count": len(candidates), "quelle": frueher.id},
                        validated={"items": [c.model_dump(mode="json") for c in candidates]},
+                       confidence={}, started=started)
+    elif datenbank is not None:
+        # Kostenloser Treffer in einer offenen Produktdatenbank – keine Websuche.
+        candidates = [datenbank]
+        _record_ai_run(db, product_id=product.id, kind="product_research",
+                       provider="produktdatenbank", input_ref=product.ean,
+                       raw={"count": 1, "quelle": datenbank.source_url},
+                       validated={"items": [datenbank.model_dump(mode="json")]},
                        confidence={}, started=started)
     elif _ueber_budget(db, product, "product_research"):
         if queue.wartet(db, product_id=product.id, job_type=JobType.GENERATE_SHOPTEXT.value) \
@@ -353,9 +366,23 @@ def handle_research_product(db: Session, job: Job) -> None:
         product.research_candidates = [c.model_dump(mode="json") for c in candidates[:5]]
     _refresh_questions(db, product, conflicts)
 
-    _einplanen(db, product, JobType.RESEARCH_PRICES.value)
+    if get_settings().preisrecherche_automatisch:
+        _einplanen(db, product, JobType.RESEARCH_PRICES.value)
     _shoptext_einplanen(db, product)
     db.commit()
+
+
+def _aus_produktdatenbank(product: Product) -> ResearchCandidate | None:
+    """EAN in Open Food Facts & Co. nachschlagen; Fehler bremsen nie die Kette."""
+    try:
+        erkannt = " ".join(filter(None, [product.brand, product.manufacturer,
+                                         product.product_name]))
+        return produktdatenbanken.nachschlagen(product.ean,
+                                               name_bekannt=bool(product.product_name),
+                                               erkannt=erkannt)
+    except Exception:
+        log.exception("Produktdatenbanken: Abfrage fehlgeschlagen")
+        return None
 
 
 def _gueltige_kandidaten(eintraege) -> list[ResearchCandidate]:

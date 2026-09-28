@@ -37,9 +37,9 @@ class _Aufzeichner:
 _ECHTER_CLIENT = anthropic_provider.AnthropicClient
 
 
-def _client(aufzeichner) -> anthropic_provider.AnthropicClient:
+def _client(aufzeichner, modell=None) -> anthropic_provider.AnthropicClient:
     client = object.__new__(_ECHTER_CLIENT)
-    client.model = "claude-sonnet-5"
+    client.model = modell or "claude-sonnet-5"
     client._client = aufzeichner
     return client
 
@@ -54,14 +54,49 @@ def test_denktiefe_wird_mitgeschickt():
     assert aufzeichner.anfragen[1]["output_config"] == {"effort": "medium"}
 
 
-def test_recherche_denkt_mittel_der_rest_wenig(monkeypatch):
+def test_haiku_bekommt_keine_denktiefe():
+    # Haiku 4.5 kennt effort nicht (die API lehnte die Anfrage ab) und denkt
+    # ohne thinking-Angabe ohnehin nicht vorab.
     aufzeichner = _Aufzeichner()
-    monkeypatch.setattr(anthropic_provider, "AnthropicClient", lambda: _client(aufzeichner))
+    _client(aufzeichner, "claude-haiku-4-5").complete([{"type": "text", "text": "hallo"}],
+                                                     effort="medium")
+    assert "output_config" not in aufzeichner.anfragen[0]
+
+
+def _recherche(monkeypatch, aufzeichner):
+    monkeypatch.setattr(anthropic_provider, "AnthropicClient",
+                        lambda modell=None: _client(aufzeichner, modell))
     monkeypatch.setattr(anthropic_provider, "_parse_json_block", lambda raw: {"items": []})
     anthropic_provider.AnthropicWebResearchProvider().identify_product(
         ean="4006381333931", mpn=None, query="Faltkarton")
-    assert aufzeichner.anfragen[-1]["output_config"] == {"effort": "medium"}
-    assert any(t["name"] == "web_search" for t in aufzeichner.anfragen[-1]["tools"])
+    return aufzeichner.anfragen[-1]
+
+
+def test_recherche_und_texte_laufen_mit_haiku(monkeypatch):
+    anfrage = _recherche(monkeypatch, _Aufzeichner())
+    assert anfrage["model"] == "claude-haiku-4-5"
+    assert "output_config" not in anfrage
+    # Haiku kennt nur die Grundversion der Websuche.
+    assert {t["type"] for t in anfrage["tools"]} == {"web_search_20250305", "web_fetch_20250910"}
+
+    aufzeichner = _Aufzeichner()
+    monkeypatch.setattr(anthropic_provider, "AnthropicClient",
+                        lambda modell=None: _client(aufzeichner, modell))
+    monkeypatch.setattr(anthropic_provider, "_parse_json_block", lambda raw: {})
+    try:
+        anthropic_provider.AnthropicLlmExtractor().extract_voice_data("Lagerplatz A 1")
+    except Exception:
+        pass  # leere Antwort – hier zählt nur das Modell der Anfrage
+    assert aufzeichner.anfragen[-1]["model"] == "claude-haiku-4-5"
+
+
+def test_recherche_mit_hauptmodell_denkt_mittel(monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "ki_modell_recherche", "")
+    anfrage = _recherche(monkeypatch, _Aufzeichner())
+    assert anfrage["model"] == "claude-sonnet-5"
+    assert anfrage["output_config"] == {"effort": "medium"}
+    assert any(t["name"] == "web_search" for t in anfrage["tools"])
 
 
 # ── Bilderkennung nur so oft wie nötig ───────────────────────────────────────
@@ -181,7 +216,8 @@ class _ZaehlenderText(FakeLlm):
         return super().generate_shop_text(verified_fields, unverified_fields)
 
 
-def test_freigabe_setzt_die_ausgelassenen_schritte_fort(client, db, employee, admin):
+def test_freigabe_setzt_die_ausgelassenen_schritte_fort(client, db, employee, admin,
+                                                        preise_automatisch):
     recherche, text = _TeureRecherche(), _ZaehlenderText()
     registry.set_override(ProductResearchProvider, recherche)
     registry.set_override(LlmExtractor, text)

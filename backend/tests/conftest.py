@@ -12,6 +12,8 @@ os.environ.setdefault("STORAGE_LOCAL_PATH", tempfile.mkdtemp(prefix="wf-storage-
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("VOICE_RETENTION_HOURS", "0")
 os.environ.setdefault("RECOGNITION_DELAY_SECONDS", "0")
+# Keine echten Anfragen an Open Food Facts & Co. aus den Tests.
+os.environ.setdefault("PRODUKTDATENBANKEN", "false")
 # Rate Limits würden sonst über die Testsuite hinweg greifen (gleiche Client-IP).
 os.environ.setdefault("RATE_LIMIT_AUTH_PER_MINUTE", "100000")
 os.environ.setdefault("RATE_LIMIT_UPLOAD_PER_MINUTE", "100000")
@@ -166,6 +168,13 @@ def providers():
     registry.set_override(ImageOptimizer, FakeOptimizer())
     yield
     registry.clear_overrides()
+
+
+@pytest.fixture()
+def preise_automatisch(monkeypatch):
+    """Preisrecherche gleich nach der Produktrecherche (sonst nur per Knopf)."""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "preisrecherche_automatisch", True)
 
 
 @pytest.fixture()
