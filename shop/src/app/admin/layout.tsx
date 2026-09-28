@@ -61,18 +61,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className={`flex min-h-screen flex-col bg-mist-50 ${SCHRIFTEN}`}>
       <header className="border-b border-mist-200 bg-white">
-        <div className="mx-auto flex h-16 w-full max-w-[1400px] items-center gap-6 px-5">
+        {/* Am Handy rutscht die Navigation in eine eigene, wischbare Zeile. */}
+        <div className="mx-auto flex min-h-16 w-full max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-1 px-5 py-2 md:flex-nowrap md:py-0">
           <Link href="/admin" className="flex flex-col leading-none">
             <span className="font-display text-[13px] font-extrabold tracking-[.14em]">WINTERFELD</span>
             <span className="font-mono text-[10px] tracking-[.18em] text-signal-600">BACKOFFICE</span>
           </Link>
 
-          <nav className="flex flex-1 items-center gap-1" aria-label="Adminbereich">
+          <nav
+            className="order-last -mx-2 flex w-full items-center gap-1 overflow-x-auto md:order-none md:mx-0 md:w-auto md:flex-1"
+            aria-label="Adminbereich"
+          >
             {NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-2 text-[15px] font-semibold hover:bg-mist-100"
+                className="shrink-0 rounded-lg px-3 py-2 text-[15px] font-semibold hover:bg-mist-100"
               >
                 {item.label}
               </Link>
@@ -82,7 +86,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/" className="hidden text-sm font-semibold text-mist-700 hover:text-carbon-900 sm:block">
             Zum Shop ↗
           </Link>
-          <span className="hidden text-sm text-mist-700 md:block">{admin.name}</span>
+          <Link
+            href="/admin/passwort"
+            className="ml-auto text-sm md:ml-0 text-mist-700 hover:text-carbon-900"
+            title="Passwort ändern"
+          >
+            <span className="md:hidden">Passwort</span>
+            <span className="hidden md:inline">{admin.name} · Passwort ändern</span>
+          </Link>
           <form action={adminLogoutAction}>
             <button type="submit" className="btn-ghost px-4 py-2 text-sm">Abmelden</button>
           </form>
