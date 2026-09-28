@@ -11,6 +11,29 @@ Stripe Connect, Baukasten mit 100 Designs, eine Play-Store-App …) sind gesetzt
 werden hier nicht erneut abgewogen. Wo dieser Plan davon abweicht oder etwas ergänzt,
 steht es ausdrücklich mit Begründung da.
 
+### Festlegungen (Stand 28.09.2026)
+
+| Thema | Festlegung |
+|---|---|
+| Betreiber und Marke | **eg-dynamics** |
+| Produktdomain | **eg-dynamics.de** |
+| App-Host (Setup, Lager-Web, Shop-Admin, Plattform-Admin) | `app.eg-dynamics.de` |
+| Übergangs-Absender für Shop-Mails | `…@mail.eg-dynamics.de` (eigene Subdomain, damit die Firmen-Mails von eg-dynamics nicht unter Shop-Mails leiden) |
+| Staging | `*.staging.eg-dynamics.de` |
+| Preise und Rabattaktionen | siehe `kostenmodell.md` § 5–6 |
+| Shopname und Domain der Händler | frei wählbar im Setup, mit Verfügbarkeitsprüfung (§ 7.7) |
+| Sofort-Adresse der Shops | **offen**, siehe Frage unten |
+
+**Offene Frage: Sofort-Adresse der Shops.** Möglich ist `<shop>.eg-dynamics.de`.
+Empfehlung ist aber eine **zweite, eigene Domain nur für Händler-Shops**
+(so machen es z. B. GitHub mit `github.io` oder Shopify mit `myshopify.com`).
+Grund: Stellt ein Händler Unsinn oder Betrug online, können Browser-Warnlisten und
+Spamfilter die ganze Domain treffen — dann litten auch `app.eg-dynamics.de` und die
+Firmen-Mails. Die zweite Domain wird zusätzlich in die „Public Suffix List“ eingetragen,
+damit Browser jeden Shop als eigene Website behandeln (getrennte Cookies). Die
+Entscheidung muss vor dem ersten Fremdkunden fallen, weil ein späterer Wechsel die
+Adressen aller Shops ändert.
+
 ---
 
 ## 1. Zielbild in einem Satz
@@ -268,6 +291,9 @@ kommt aus dem Abo. Das hält die Rolle als reiner Softwareanbieter klar.
   einmaliger Posten in der ersten Rechnung; 14 Tage Testphase.
 - KI-Artikel über dem Kontingent: **Stripe-Zähler (Meter)**; der Worker meldet jeden
   abrechenbaren Artikel mit Idempotenz-Schlüssel.
+- **Rabattaktionen** über Stripe-Gutscheine und Aktionscodes, angelegt im Plattform-Admin
+  (Prozent/Betrag, Dauer, Pakete, Ablaufdatum, Höchstzahl, nur Neukunden; Warnung bei
+  Unterschreiten der Kostengrenze; Details `kostenmodell.md` § 6).
 - Rechnungen, Karte und SEPA-Lastschrift über Stripe; Kundenportal von Stripe für
   Zahlungsdaten und Rechnungen.
 - Mit Accounts v2 kann derselbe Stripe-Account des Händlers zugleich „Kunde“ deines Abos
@@ -524,6 +550,7 @@ Kostenübersicht). Ergänzend:
 - „Als Kunde ansehen“ öffnet eine **eigene, zeitlich begrenzte** Sitzung, zeigt beim
   Kunden einen Hinweis und schreibt Beginn und Ende ins Audit.
 - Umsatzzahlen der Shops nur als Summen, keine Einzelbestellungen oder Kundendaten.
+- Aktionscodes anlegen, einem Kunden zuweisen, Einlösungen und Rabattumsatz auswerten.
 
 ## 14. Betrieb
 
@@ -579,7 +606,7 @@ Zulassung (Organisations-Verifizierung, Testphase) Wochen dauern kann.
 
 ## 18. Aufgaben für dich (nicht programmierbar)
 
-1. Produktname und Produktdomain festlegen, Domain kaufen.
+1. ~~Produktname und Produktdomain festlegen~~ — erledigt: eg-dynamics / eg-dynamics.de. Offen: Domain für Händler-Shops (siehe Festlegungen).
 2. Hetzner-Projekt anlegen (ich sage dir genau, wo; du gibst mir **keine** Schlüssel in
    den Chat — sie kommen als Umgebungseinstellung/Geheimnis in die Pipeline).
 3. Stripe: Plattformkonto für Connect freischalten, Managed-Risk-Bedingungen klären.

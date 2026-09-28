@@ -63,54 +63,81 @@ Server.
 | KI schlechtester Fall (volles Kontingent × 0,30 €) | 7,50 | 30,00 | 45,00 |
 | Speicher | 0,10 | 0,30 | 0,30 |
 | Mails (200 Bestellungen × 4) | 0,50 | – | 0,50 |
-| Stripe Billing 0,7 % + Kartengebühr 1,5 % + 0,25 € | 1,11 | 1,77 | 2,43 |
-| **Summe typisch** | **≈ 4 €** | **≈ 11 €** | **≈ 17 €** |
+| Stripe Billing 0,7 % + Kartengebühr 1,5 % + 0,25 € (auf den Listenpreis) | 1,55 | 3,09 | 4,41 |
+| **Summe typisch** | **≈ 4,40 €** | **≈ 12,50 €** | **≈ 18,90 €** |
 
 Zahlungsgebühren der **Shop-Bestellungen** trägt der Händler selbst (Direct Charges mit
 `fees_collector = stripe`), sie fehlen deshalb hier.
 
-## 5. Preisvorschlag
+## 5. Preise (Listenpreise, beschlossen 28.09.2026)
+
+Grundlage: Vergleich mit Shopify (Basic 39 $, Grow 105 $ im Monat; Staff-Konten,
+Rechtstexte-, DHL- und SEO-Apps kosten dort extra — shopify.com/pricing, abgerufen
+28.09.2026) und Warenwirtschaft wie Xentral (ab 349 €/Monat, xentral.com/en/pricing).
+Die Listenpreise liegen bewusst so, dass Rabattaktionen möglich sind, ohne unter die
+Kosten zu fallen.
 
 | Paket | Monat | Jahr (2 Monate geschenkt) | KI-Artikel inklusive | Inhalt |
 |---|---:|---:|---:|---|
-| **Shop** | 39 € | 390 € | 25 | Shop, Shop-Admin, KI-Texthilfe |
-| **Lager + App** | 69 € | 690 € | 100 | Lager-Web, App, KI-Erfassung, Anbindung an externe Shops |
-| **Komplett** | 99 € | 990 € | 150 | alles |
-| KI-Artikel über Kontingent | 0,49 € je Artikel | | | deckt den schlechtesten Fall (0,30 €) + Gebühren |
-| **SEO Plus** (Zusatz) | 29 € | 290 € | 100 KI-Optimierungen | Search Console, Merchant Center, Monatsbericht |
-| Einrichtungsgebühr | 149 € einmalig | | | „Einrichtung durch uns“ als Aufpreis-Option: 399 € |
+| **Shop** | 59 € | 590 € | 25 | Shop, Shop-Admin, KI-Texthilfe |
+| **Lager + App** | 129 € | 1.290 € | 100 | Lager-Web, App, KI-Erfassung, Anbindung an externe Shops |
+| **Komplett** | 189 € | 1.890 € | 150 | alles |
+| KI-Artikel über Kontingent | 0,69 € je Artikel | | | deckt den schlechtesten Fall (0,30 €) + Gebühren |
+| **SEO Plus** (Zusatz) | 59 € | 590 € | 100 KI-Optimierungen | Search Console, Merchant Center, Monatsbericht |
+| Einrichtungsgebühr | 299 € einmalig | | | „Einrichtung durch eg-dynamics“ als Aufpreis-Option: 790 € |
 
-Begründung: Der Preis je Paket liegt auch im **schlechtesten Fall** (Kontingent voll
-ausgeschöpft, jeder Artikel am Budgetdeckel) über den variablen Kosten plus Fixkostenanteil
-ab 10 Kunden. Über dem Kontingent verdient die Plattform an jedem Artikel.
+## 6. Rabattaktionen
 
-## 6. Ergebnisrechnung
+Umsetzung über **Stripe-Gutscheine und Aktionscodes** (Coupons / Promotion Codes), angelegt
+im Plattform-Admin, nicht von Hand in Stripe:
 
-Mischpreis je Kunde: 0,3 × 39 + 0,3 × 69 + 0,4 × 99 = **72,00 €**.
-Variable Kosten typisch: 0,3 × 4 + 0,3 × 11 + 0,4 × 17 = **11,30 €**.
+| Einstellung | Möglichkeiten |
+|---|---|
+| Art | Prozent oder fester Betrag |
+| Dauer | einmalig · für N Monate · dauerhaft |
+| Gilt für | bestimmte Pakete, SEO Plus, Einrichtungsgebühr (z. B. „Einrichtung gratis“) |
+| Grenzen | gültig bis Datum · höchstens N Einlösungen · nur Neukunden · nur Jahreszahlung |
+| Weg zum Kunden | Code im Checkout eingeben, Link mit Code (`…/start?code=GRUENDER30`) oder von dir direkt einem Kunden zugewiesen |
+| Übersicht | Einlösungen, Umsatz mit/ohne Rabatt, laufende Rabatte je Kunde |
+
+**Schutzregel**: Der Plattform-Admin warnt, wenn ein Rabatt einen Paketpreis unter
+**variable Kosten im schlechtesten Fall + 10 €** drücken würde (Shop 20 €, Lager + App
+45 €, Komplett 60 €). KI-Mehrverbrauch über dem Kontingent wird **nie** rabattiert.
+
+Beispiele:
+- **Gründerpreis**: 30 % für 12 Monate, nur die ersten 20 Kunden.
+- **Jahresaktion**: Einrichtung gratis bei Jahreszahlung.
+- **Empfehlung**: 1 Monat gratis für Werber und Geworbenen.
+
+## 7. Ergebnisrechnung
+
+Mischpreis je Kunde (Listenpreis): 0,3 × 59 + 0,3 × 129 + 0,4 × 189 = **132,00 €**.
+Variable Kosten typisch: 0,3 × 4,40 + 0,3 × 12,50 + 0,4 × 18,90 = **12,60 €**.
 (Ohne SEO Plus, ohne Einrichtungsgebühren, ohne Mehrverbrauch KI.)
 
 | | 1 Kunde | 10 Kunden | 50 Kunden | 200 Kunden |
 |---|---:|---:|---:|---:|
-| Einnahmen | 72 € | 720 € | 3.600 € | 14.400 € |
+| Einnahmen | 132 € | 1.320 € | 6.600 € | 26.400 € |
 | Fixkosten | 59 € | 59 € | 107 € | 237 € |
-| Variable Kosten | 11 € | 113 € | 565 € | 2.260 € |
-| **Deckungsbeitrag / Monat** | **≈ 2 €** | **≈ 548 €** | **≈ 2.928 €** | **≈ 11.903 €** |
-| Marge | 3 % | 76 % | 81 % | 83 % |
+| Variable Kosten | 13 € | 126 € | 630 € | 2.520 € |
+| **Deckungsbeitrag / Monat** | **≈ 60 €** | **≈ 1.135 €** | **≈ 5.863 €** | **≈ 23.643 €** |
+| Marge | 46 % | 86 % | 89 % | 90 % |
 
-Mit **einem** Kunden (Winterfeld selbst) trägt sich die Plattform gerade so; ab etwa
-**zwei zahlenden Fremdkunden** ist sie in der Gewinnzone. Winterfeld zahlt heute bereits
-für Hetzner, Vercel und Supabase — ein Teil dieser Kosten entfällt durch den Umzug.
+**Mit Gründerpreis** (alle Kunden 30 % Rabatt): Mischpreis 92,40 €; bei 10 Kunden
+ca. 740 € Deckungsbeitrag im Monat — weiterhin deutlich im Plus.
 
-## 7. Einmalige Kosten (außerhalb der Monatsrechnung)
+Winterfeld (Kunde Nr. 1) zahlt heute bereits für Hetzner, Vercel und Supabase — ein
+Teil dieser Kosten entfällt durch den Umzug.
+
+## 8. Einmalige Kosten (außerhalb der Monatsrechnung)
 
 - Google-Play-Entwicklerkonto 25 $; als **Organisation** anmelden (D-U-N-S-Nummer nötig,
   kostenlos, einige Tage Wartezeit) — dann entfällt der Pflicht-Test mit 12 Testern über
   14 Tage, der nur für neue **private** Konten gilt.
 - Anwaltliche Prüfung von AVV, TOMs und Unterauftragsverarbeiter-Liste (Angebot einholen).
-- Produktdomain.
+- Produktdomain `eg-dynamics.de` ist vorhanden.
 
-## 8. Was das Modell unsicher macht
+## 9. Was das Modell unsicher macht
 
 1. **KI-Kosten je Artikel** sind geschätzt. Die echten Zahlen stehen in `ai_runs` bei
    Winterfeld; vor der Preisfreigabe auswerten.
