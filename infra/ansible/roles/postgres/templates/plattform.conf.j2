@@ -1,0 +1,14 @@
+# Von Ansible verwaltet (Rolle postgres).
+listen_addresses = 'localhost,{{ db_privat_ip }}'
+password_encryption = 'scram-sha-256'
+
+# Laufende Archivierung der Änderungen → Wiederherstellung auf jede Minute.
+archive_mode = on
+archive_command = 'pgbackrest --stanza={{ postgres_pgbackrest_stanza }} archive-push %p'
+wal_level = replica
+max_wal_senders = 3
+
+# Protokoll: langsame Abfragen und Anmeldungen, keine Parameterwerte.
+log_min_duration_statement = 1000
+log_connections = on
+log_disconnections = on

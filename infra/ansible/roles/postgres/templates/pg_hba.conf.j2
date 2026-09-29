@@ -1,0 +1,7 @@
+# Von Ansible verwaltet (Rolle postgres). Alles, was hier nicht steht, ist verboten.
+# TYPE  DATABASE        USER                        ADDRESS                  METHOD
+local   all             postgres                                             peer
+local   all             all                                                  peer
+host    {{ db_name }}   {{ db_rolle_eigentuemer }}  {{ app_privat_ip }}/32   scram-sha-256
+host    {{ db_name }}   {{ db_rolle_app }}          {{ app_privat_ip }}/32   scram-sha-256
+host    {{ db_name }}   {{ db_rolle_plattform }}    {{ app_privat_ip }}/32   scram-sha-256

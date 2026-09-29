@@ -90,9 +90,46 @@ WF_TEST_POSTGRES="postgresql+psycopg2://postgres@/postgres?host=/tmp&port=5432" 
   python -m pytest tests/test_mandanten_postgres.py
 ```
 
+## Bilder und Sprachaufnahmen (Schritt 2)
+
+**Ablage je Firma** im Objekt-Storage:
+
+```
+m/<tenant_id>/produkte/<product_id>/original/…   Originalfoto (privat)
+m/<tenant_id>/produkte/<product_id>/shop/…       Shopbild
+m/<tenant_id>/produkte/<product_id>/sprache/…    Sprachaufnahme (privat)
+```
+
+Ältere Dateien (`products/…`) bleiben, wo sie sind, und funktionieren weiter; beim Umzug
+(Phase B) werden sie in die neue Ablage kopiert.
+
+**Wer bekommt was** (`GET /api/v1/media/<pfad>`, Regeln in `app/services/medien.py`):
+
+| Datei | ohne Signatur | mit Signatur |
+|---|---|---|
+| Originalfoto | nein | ja |
+| Shopbild, Artikel nicht veröffentlicht | nein | ja |
+| Shopbild, Artikel veröffentlicht | **ja** (der Shop bindet es ein) | ja |
+| Sprachaufnahme | nein | nein |
+| unbekannter Pfad | nein (404) | nein (404) |
+
+- Signierte Adressen stehen nur in API-Antworten an angemeldete Nutzer der eigenen Firma.
+  Die Signatur gilt für genau eine Datei, ist 24–48 Stunden gültig und bleibt einen Tag
+  lang gleich (damit Browser und App Bilder zwischenspeichern können).
+- Abgelehnt wird immer mit 404 — auch wenn es die Datei gibt —, damit sich fremde Dateien
+  nicht ertasten lassen.
+- Signiert ausgelieferte Bilder tragen `Cache-Control: private` (kein geteilter
+  Zwischenspeicher), veröffentlichte Shopbilder `public`.
+- `MEDIA_PUBLIC_BASE_URL` darf auf ein CDN zeigen, das an diesen Endpunkt weiterreicht —
+  **nie direkt auf den Speicher-Bucket**, sonst entfiele die Prüfung.
+- Lager-Web und App brauchen keine Änderung: Sie benutzen die Adresse aus der API.
+
+Tests: `tests/test_medien.py` (Gegenprobe: akzeptiert man jede Signatur, schlagen 4 Tests
+fehl).
+
 ## Noch offen (folgende Schritte in Phase A)
 
-- Bilder: Speicherpfade je Firma, Originale privat (heute liefert `/api/v1/media/…`
-  jede Datei an jeden aus, der den Schlüssel kennt).
+- Shopbilder nur unter der Domain des eigenen Shops ausliefern (kommt mit dem Umzug des
+  Shops auf die Plattform).
 - Shop auf dieselbe Datenbank und dieselbe Trennung umstellen.
 - Infrastruktur-Code (Terraform/Ansible) legt die drei Datenbankrollen an.

@@ -1,0 +1,48 @@
+name: Infrastruktur prüfen
+
+# Prüft Terraform und Ansible bei jeder Änderung — ohne Zugang zu Hetzner,
+# ohne Geheimnisse. Angewendet wird nur über „Infrastruktur anwenden“.
+on:
+  push:
+    branches: ["**"]
+    paths: ["infra/**", ".github/workflows/infra-*.yml"]
+  pull_request:
+    paths: ["infra/**"]
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        umgebung: [staging, produktion]
+    defaults:
+      run:
+        working-directory: infra/terraform/umgebungen/${{ matrix.umgebung }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+      - name: Format
+        run: terraform fmt -check -recursive ../..
+      - name: Init (ohne Zustand)
+        run: terraform init -backend=false -input=false
+      - name: Validate
+        run: terraform validate
+
+  ansible:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/ansible
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Werkzeuge
+        run: |
+          pip install "ansible-core>=2.17,<2.18" ansible-lint
+          ansible-galaxy collection install -r requirements.yml -p collections
+      - name: Lint (Profil production)
+        run: ansible-lint --offline --profile production site.yml

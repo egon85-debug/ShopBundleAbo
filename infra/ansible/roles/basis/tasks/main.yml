@@ -1,0 +1,52 @@
+# Grundsicherung jedes Servers.
+
+- name: Paketquellen aktualisieren und System auf Stand bringen
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: safe
+    cache_valid_time: 3600
+
+- name: Grundpakete
+  ansible.builtin.apt:
+    # acl: nötig, damit Ansible Aufgaben als anderer Benutzer (postgres) ausführen kann.
+    name: [unattended-upgrades, fail2ban, chrony, ufw, ca-certificates, curl, gnupg, acl, python3-psycopg2]
+    state: present
+
+- name: Sicherheitsupdates automatisch einspielen (ohne automatischen Neustart)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: SSH nur mit Schlüssel, kein Kennwort
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-plattform.conf
+    mode: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+      X11Forwarding no
+      MaxAuthTries 3
+  notify: SSH neu laden
+
+# Zweite Schicht hinter der Hetzner-Firewall: auch wenn dort eine Regel
+# verrutscht, bleiben nur die vorgesehenen Ports offen.
+- name: Firewall – Grundregeln
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Firewall – SSH
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Firewall – privates Netz untereinander
+  community.general.ufw:
+    rule: allow
+    from_ip: 10.20.0.0/16

@@ -31,7 +31,7 @@ class ProductImage(Base, IdMixin, TenantMixin, TimestampMixin):
     )
     kind: Mapped[str] = mapped_column(String(16), default=ImageKind.ORIGINAL.value, nullable=False)
     role: Mapped[str] = mapped_column(String(24), default=ImageRole.OTHER.value, nullable=False)
-    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(500), index=True, nullable=False)
     content_type: Mapped[str] = mapped_column(String(64), default="image/jpeg", nullable=False)
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)

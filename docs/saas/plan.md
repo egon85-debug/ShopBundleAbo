@@ -1,23 +1,37 @@
-# Plan: Winterfeld Logistik als Abo-Produkt
+# Plan: B.Y.O.B. — Winterfeld Logistik als Abo-Produkt
 
-Stand: 28.09.2026 · Status: **freigegeben**, Umsetzung Phase A läuft
-(Schritt 1 erledigt: Mandantentrennung im Lager-Backend, siehe [`mandantentrennung.md`](mandantentrennung.md))
+Stand: 29.09.2026 · Status: **angepasst nach Marktprüfung** (§ 0), Umsetzung Phase A läuft
+(erledigt: Schritt 1 Mandantentrennung im Lager-Backend, Schritt 2 Bilder je Firma mit
+signierten Adressen — siehe [`mandantentrennung.md`](mandantentrennung.md); Schritt 3
+Server als Code — siehe [`infrastruktur.md`](infrastruktur.md))
+
+**Was sich am 29.09.2026 geändert hat (Kurzfassung):**
+1. Klare Zielgruppe: Händler mit vielen **Einzelstücken** statt „alle Onlineshops“ (§ 0).
+2. Neues Kernversprechen: **einmal erfassen, überall verkaufen**. Marktplatz-Anbindung
+   (zuerst eBay) mit Bestandsabgleich wird vorgezogen (§ 9a, Phase M).
+3. Neue **Phase V (Validierung)** mit Pilotkunden und messbaren Kriterien, bevor der
+   Setup-Assistent für Fremdkunden gebaut wird (§ 16).
+4. Design-Baukasten startet mit **12 statt 100** geprüften Designs; der Ausbau auf 100 folgt
+   bei Bedarf (§ 9).
+5. Produktname **B.Y.O.B.** (Build your own Business), entwickelt von eg-dynamics.
 
 Dazu gehören:
 - [`bestandsaufnahme.md`](bestandsaufnahme.md) — alle Stellen, die heute nur für einen Händler funktionieren
 - [`kostenmodell.md`](kostenmodell.md) — Fixkosten, Kosten je Kunde, Preisvorschlag, Quellen
 
 Die Entscheidungen aus der Auftragsbeschreibung (zentrale Plattform, alles auf Hetzner,
-Stripe Connect, Baukasten mit 100 Designs, eine Play-Store-App …) sind gesetzt und
-werden hier nicht erneut abgewogen. Wo dieser Plan davon abweicht oder etwas ergänzt,
-steht es ausdrücklich mit Begründung da.
+Stripe Connect, eine Play-Store-App …) sind gesetzt und werden hier nicht erneut
+abgewogen. Wo dieser Plan davon abweicht oder etwas ergänzt, steht es ausdrücklich mit
+Begründung da. Die einzige inhaltliche Abweichung nach der Marktprüfung betrifft den
+Umfang des Design-Baukastens zum Start (§ 9).
 
-### Festlegungen (Stand 28.09.2026)
+### Festlegungen (Stand 29.09.2026)
 
 | Thema | Festlegung |
 |---|---|
-| Betreiber und Marke | **eg-dynamics** |
-| Produktdomain | **eg-dynamics.de** |
+| Betreiber (Hersteller) | **eg-dynamics** |
+| Produktname | **B.Y.O.B.** — „Build your own Business“ (Marken- und Domainprüfung offen, Aufgabe 8) |
+| Produktdomain | vorerst **eg-dynamics.de**; eigene Produktdomain nach der Markenprüfung |
 | App-Host (Setup, Lager-Web, Shop-Admin, Plattform-Admin) | `app.eg-dynamics.de` |
 | Übergangs-Absender für Shop-Mails | `…@mail.eg-dynamics.de` (eigene Subdomain, damit die Firmen-Mails von eg-dynamics nicht unter Shop-Mails leiden) |
 | Staging | `*.staging.eg-dynamics.de` |
@@ -36,6 +50,53 @@ Entscheidung muss vor dem ersten Fremdkunden fallen, weil ein späterer Wechsel 
 Adressen aller Shops ändert.
 
 ---
+
+## 0. Zielgruppe, Positionierung, Wettbewerb
+
+### 0.1 Für wen
+
+**Händler mit vielen Einzelstücken**, bei denen jeder Artikel einzeln erfasst, bewertet
+und beschrieben werden muss:
+
+- Second-Hand- und Gebrauchtwarenhändler,
+- Haushaltsauflösungen und Entrümpelungen,
+- Restposten- und Retourenverwerter,
+- Antik-, Vintage- und Sammlerhandel,
+- gewerbliche Marktplatz-Verkäufer mit wechselndem Sortiment.
+
+**Nicht** die Zielgruppe: Händler mit wenigen Artikeln in großer Stückzahl (Mode-Label,
+Dropshipping). Für sie ist ein allgemeiner Shop-Baukasten wie Shopify günstiger und besser.
+
+### 0.2 Kernversprechen
+
+> **Ein Foto – und dein Artikel ist erfasst, bewertet, beschrieben und überall im Verkauf.**
+
+Der Wert liegt im **Ablauf für Einzelstücke**: Erfassen per App (Foto + Sprache) →
+KI-Recherche mit Preisvorschlag → Shopbild und Text → Lagerplatz → gleichzeitig im eigenen
+Shop **und** auf Marktplätzen → Verkauf an einer Stelle beendet das Angebot überall.
+
+### 0.3 Wettbewerb (ehrlich)
+
+| Anbieter | Was er kann | Was ihm für unsere Zielgruppe fehlt |
+|---|---|---|
+| eBay „Magical Listing“ | Foto → fertiges Angebot, kostenlos, auch für Privatverkäufer ([eBay, April 2025](https://innovation.ebayinc.com/stories/ebay-reduces-the-time-to-list-on-mobile-with-new-simplified-selling-tool-now-featuring-magical-listing-ai-technology/)) | nur eBay; kein Lager, keine Lagerplätze, kein eigener Shop |
+| Shopify + Shopify Magic | Shop, KI-Texte und Bildfreistellung kostenlos in allen Tarifen ([Shopify Help Center](https://help.shopify.com/en/manual/ai-powered-tools/shopify-magic)) | kein Erfassungs-Ablauf für Einzelstücke, keine Preisrecherche, Lager und DHL nur über Zusatz-Apps |
+| Warenwirtschaft (JTL, Xentral, Plentymarkets) | Lager und Mehrkanal-Verkauf | für kleine Händler komplex bzw. teuer; keine KI-Erfassung |
+
+**Folgerung:** Die KI allein ist kein Alleinstellungsmerkmal mehr. Wir gewinnen nur mit der
+**Kombination** aus Einzelstück-Erfassung, Lager und Verkauf auf mehreren Kanälen, und mit
+Hosting in Deutschland.
+
+### 0.4 Marktgröße (Schätzung, Stand 29.09.2026)
+
+| | Zahl | Quelle / Grundlage |
+|---|---|---|
+| Onlinehandel Deutschland 2024 | 88,8 Mrd. € netto | [HDE Online-Monitor 2025](https://bvoh.de/hde-online-monitor-2025-onlinehandel-zurueck-auf-wachstumskurs/) |
+| Onlineshops in Deutschland | ca. 190.700, davon ca. 70 % Kleingewerbe/Freiberuf | [Listflix, abgerufen 29.09.2026](https://listflix.de/statistik/online-shops/) |
+| Davon mit vielen Einzelstücken | **Schätzung** 20.000–40.000, plus reine Marktplatz-Verkäufer | eigene Annahme, in Phase V zu prüfen |
+| Realistisch erreichbar in 2–3 Jahren | **Schätzung** 300–1.000 zahlende Kunden ≈ 0,5–1,5 Mio. € Jahresumsatz | Mischpreis ~130 € (`kostenmodell.md` § 7) |
+
+Erweiterung später: Österreich und Schweiz (gleiche Sprache).
 
 ## 1. Zielbild in einem Satz
 
@@ -147,7 +208,9 @@ Mandant im signierten Aufruf), damit Winterfeld in Phase B unverändert weiterl�
 Umstellung auf Ereignisse folgt in Phase C.
 
 Der WooCommerce-Connector bleibt für Kunden im Paket „Lager + App“, die einen **externen**
-Shop betreiben.
+Shop betreiben. Marktplätze (zuerst eBay) hängen am selben Ereignisweg: Ein Verkauf auf
+einem Kanal wird zu einer Bestandsbuchung im Lager und beendet die Angebote auf allen
+anderen Kanälen (§ 9a).
 
 ### 3.5 Bilder
 
@@ -256,6 +319,8 @@ hat — eine neue Tabelle ohne Regel lässt die Pipeline scheitern.
 | `mandant_design` | tenant_id, design_nummer, eigene Markenfarbe, Logo-Varianten |
 | `zugangsdaten` | tenant_id, anbieter (`dhl_paket`, `dhl_express`, `rechtstexte`, `google`), verschlüsselte Daten, zuletzt_geprüft, prüfergebnis |
 | `stripe_konten` | tenant_id, account_id, Fähigkeiten-Status, Auszahlungen aktiv |
+| `kanal_verbindungen` | tenant_id, kanal (`ebay`, `woocommerce` …), verschlüsselte Zugangs-Token, Status, zuletzt_geprüft (§ 9a) |
+| `kanal_angebote` | tenant_id, product_id, kanal, externe_id, status (`entwurf`, `aktiv`, `beendet`, `fehler`), zuletzt_abgeglichen |
 | `ereignisse` | Outbox (§ 3.4) |
 | `webhook_eingang` | anbieter, event_id (eindeutig), tenant_id, verarbeitet_am |
 | `audit` | wer, als_wer (bei „als Kunde ansehen“), mandant, aktion, vorher/nachher, Zeit — nur anhängen |
@@ -345,7 +410,7 @@ kommen. Die Pflicht-Schritte für den Livegang sind **fett**.
 | 1 | **Konto & Paket** | ja | E-Mail bestätigt, Stripe-Checkout abgeschlossen (Testphase aktiv) |
 | 2 | **Firmendaten** | ja | Pflichtfelder, PLZ-Format je Land, USt-IdNr.-Format (und optional Abfrage beim EU-Dienst VIES), Absenderadresse |
 | 3 | **Steuern & Preise** | ja | Steuersätze, Kleinunternehmer-Hinweis passt zu Schritt 2, Grundpreis/Pfand |
-| 4 | **Design wählen** | ja | eine der 100 geprüften Nummern gewählt |
+| 4 | **Design wählen** | ja | eines der geprüften Designs gewählt |
 | 5 | Logo & Markenfarbe | nein (Platzhalter aus Firmennamen) | Format, Mindestauflösung, Kontrast hell/dunkel; erzeugt Favicon, App-Symbol |
 | 6 | Domain | Subdomain automatisch; eigene Domain optional | Wunschname frei wählbar mit **Verfügbarkeitsprüfung** (§ 7.7); DNS-Prüfung, danach Zertifikat |
 | 7 | **Zahlungen (Stripe Connect)** | ja | Konto kann Kartenzahlungen annehmen und auszahlen (laut Stripe-Status) |
@@ -353,6 +418,7 @@ kommen. Die Pflicht-Schritte für den Livegang sind **fett**.
 | 9 | **E-Mail-Absender** | ja (Testmail) | SPF/DKIM/DMARC geprüft *oder* Übergangsweise Plattform-Absender mit Antwortadresse; Testmail zugestellt |
 | 10 | **Rechtstexte** | ja | alle vier Texte (Impressum, Datenschutz, AGB, Widerruf) vom Dienst vorhanden |
 | 11 | Lager & Team | je Paket | Lagerplätze, Einladungen, QR-Code zur App |
+| 11a | Marktplätze verbinden (neu) | nein, aber empfohlen | eBay-Konto per Anmeldung bei eBay verbunden; Probeangebot im Entwurf angelegt und wieder gelöscht (§ 9a) |
 | 12 | KI | ja (Standard vorbelegt) | Budget je Artikel, Monatsgrenze, Verhalten über Kontingent |
 | 13 | Sichtbarkeit bei Google | nein | Suchbegriffe; Search Console / Merchant Center optional |
 | 14 | **Abschluss-Check & Livegang** | ja | Checkliste grün, Testbestellung erfolgreich |
@@ -449,22 +515,57 @@ Für SEO-Plus-Texte gilt ein eigenes Kontingent mit derselben Budgetbremse.
 
 ## 9. Design-Baukasten
 
-- **Ein Code, 100 Token-Sätze** (Fehler 11). Tailwind-Farben, Radien, Schatten und
+**Abweichung (29.09.2026):** Zum Start **12 geprüfte Designs** aus **3 Grundlayouts**
+statt 100 aus 10. Grund: Für Einzelstück-Händler entscheiden Erfassung und Marktplätze
+über den Kauf, nicht die Zahl der Designs. Die Technik (Token-System, automatische
+Prüfung) wird von Anfang an so gebaut, dass der Ausbau auf 100 Designs ohne Umbau möglich
+ist; er folgt, wenn Pilotkunden danach fragen. Werbung und Videos sprechen bis dahin von
+„eigenem Design“, nicht von „100 Designs“.
+
+- **Ein Code, viele Token-Sätze** (Fehler 11). Tailwind-Farben, Radien, Schatten und
   Schriften werden auf CSS-Variablen umgestellt (`--farbe-akzent`, `--radius-karte` …);
   das Layout der Shop-Seite setzt die Variablen des Mandanten.
-- **10 Grundlayouts** als Varianten derselben Komponenten (Kopfzeile, Einstieg,
-  Produktkarte, Produktseite, Fußzeile, Warenkorb). Varianten ändern Anordnung und
+- **Grundlayouts** (zum Start 3, später bis 10) als Varianten derselben Komponenten
+  (Kopfzeile, Einstieg, Produktkarte, Produktseite, Fußzeile, Warenkorb). Varianten ändern Anordnung und
   Aussehen, **nie** Funktionen; alle nutzen dieselben Server-Aktionen und Tests.
 - **Farbwelten** und **Schriftpaare** (nur Google Fonts unter OFL, selbst ausgeliefert,
   kein Abruf bei Google zur Laufzeit — auch aus Datenschutzgründen).
-- **100 kuratierte Kombinationen** mit Nummer, Name, Beschreibung, Filtermerkmalen
-  (hell/dunkel, ruhig/verspielt, Branche). Das heutige Winterfeld-Design ist Nr. 1.
+- **Kuratierte Kombinationen** (zum Start 12, Ausbau bis 100) mit Nummer, Name,
+  Beschreibung, Filtermerkmalen (hell/dunkel, ruhig/verspielt, Branche). Das heutige
+  Winterfeld-Design ist Nr. 1.
 - **Automatische Prüfung** (Playwright + axe-core) je Design, sonst nicht in der Galerie:
   Kontrast WCAG AA für Text und Knöpfe, Mindestschriftgröße am Handy, kein seitliches
   Scrollen bei 360 px, kompletter Checkout im Testmodus, Vorschaubilder Desktop/Handy.
 - Die Regeln aus `winterfeld-design` (ein Akzent je Sichtbereich, flache Karten …) sind
   Prüfmaßstab für alle Designs.
 - Keine Nachbildung fremder Marken; eigene Beispielbilder für die Vorschau.
+
+## 9a. Marktplätze: einmal erfassen, überall verkaufen (neu)
+
+Für Einzelstücke (Bestand fast immer 1) ist der **Doppelverkauf** das größte Risiko: Der
+Artikel wird im Shop verkauft, steht aber noch bei eBay. Deshalb ist der Bestandsabgleich
+Pflichtteil der Anbindung, nicht Zusatz.
+
+| Kanal | Plan | Hinweis |
+|---|---|---|
+| Eigener B.Y.O.B.-Shop | vorhanden | über die Ereignistabelle (§ 3.4) |
+| **eBay** | **zuerst (Phase M)** | offizielle Verkäufer-Schnittstellen von eBay; Händler verbindet sein eBay-Konto per Anmeldung bei eBay (OAuth), tippt keine Schlüssel ab. Vor dem Bau die dann aktuelle eBay-Entwicklerdoku und die Nutzungsbedingungen prüfen |
+| Externe Shops (WooCommerce) | vorhanden | bestehender Connector |
+| Kleinanzeigen, Vinted u. a. | geprüft, nicht zugesagt | nur, wenn es eine offizielle Schnittstelle gibt; kein Automatisieren über Web-Oberflächen |
+
+**Ablauf:**
+1. Artikel ist erfasst und freigegeben → Händler wählt die Kanäle (Standard je Firma
+   einstellbar).
+2. Der Worker legt das Angebot je Kanal an; Kategorie- und Pflichtfeld-Zuordnung schlägt
+   die KI vor, der Händler bestätigt beim ersten Mal je Kategorie.
+3. **Verkauf auf einem Kanal** → Lager bucht den Bestand → auf allen anderen Kanälen wird
+   das Angebot sofort beendet bzw. auf 0 gesetzt.
+4. Ein Abgleich im Hintergrund prüft regelmäßig, ob Bestand und Angebote übereinstimmen,
+   und meldet Abweichungen im Lager-Web.
+
+**Fertig, wenn:** Ein Artikel mit Bestand 1 steht gleichzeitig im Shop und bei eBay; ein
+Testkauf auf einem Kanal beendet das Angebot auf dem anderen nachweislich innerhalb von
+Minuten (Test in der eBay-Testumgebung, der „Sandbox“).
 
 ## 10. Migration von Kunde Nr. 1 (Winterfeld)
 
@@ -578,18 +679,55 @@ Rechtsberatung.
 
 ## 16. Phasen und „fertig, wenn …“
 
+**Neue Reihenfolge (29.09.2026):** Erst beweisen, dass Händler dafür zahlen, dann den
+Selbstbedienungs-Weg für viele Kunden bauen. Pilotkunden richtet eg-dynamics anfangs
+**von Hand** ein (über den Plattform-Admin); der vollautomatische Setup-Assistent
+(Phase C) folgt erst nach bestandener Validierung.
+
+```
+A Fundament ──▶ B Umzug Winterfeld ──▶ M Marktplätze ──▶ P Pilotbetrieb ──▶ [Entscheidung]
+      V Validierung (parallel ab sofort) ─────────────────────────────────────▲
+                                                         ja ──▶ C ──▶ E ──▶ D ──▶ G
+                                          F App (parallel ab B, wegen Play-Store-Wartezeiten)
+```
+
 | Phase | Inhalt | Fertig, wenn … |
 |---|---|---|
-| **A Fundament** | Terraform/Ansible, Staging + Produktion, Mandanten-Tabellen, `tenant_id` + RLS in allen Tabellen, Trennungstests, Shop im Node-Modus auf Hetzner, eine Datenbank, Bilder im Object Storage, Sicherung + erste Test-Wiederherstellung, Update-Pipeline | Staging und Produktion per Befehl aufbaubar; Trennungstests grün (inkl. „jede Tabelle hat RLS“); Wiederherstellung auf Staging dokumentiert und einmal durchgeführt; Update ohne Ausfall vorgeführt |
+| **A Fundament** (läuft) | Terraform/Ansible, Staging + Produktion, Mandanten-Tabellen, `tenant_id` + RLS in allen Tabellen, Trennungstests, Shop im Node-Modus auf Hetzner, eine Datenbank, Bilder im Object Storage, Sicherung + erste Test-Wiederherstellung, Update-Pipeline | Staging und Produktion per Befehl aufbaubar; Trennungstests grün (inkl. „jede Tabelle hat RLS“); Wiederherstellung auf Staging dokumentiert und einmal durchgeführt; Update ohne Ausfall vorgeführt |
+| **V Validierung** (neu, parallel ab sofort, überwiegend deine Aufgabe) | Zeitmessung bei Winterfeld; 10–20 Gespräche mit Händlern der Zielgruppe (§ 0.1); Landingpage mit Warteliste und den fertigen Werbevideos; Gründerpreis-Angebot für Pilotkunden | Zeit je Artikel **vorher/nachher** bei Winterfeld gemessen und dokumentiert; mindestens 10 Gespräche ausgewertet; mindestens 5 Händler haben einer Pilotphase zugesagt |
 | **B Umzug Winterfeld** | Migrationsskript, Probeläufe, Zahlenabgleich, Umschalten, Rückweg | zwei saubere Probeläufe; Umschalten erledigt; Abgleichbericht mit 0 Abweichungen; Tablets ohne Datenverlust umgestellt |
-| **C Setup-Assistent** | alle 14 Schritte, Stripe Connect, DHL-Prüfanfrage, Mail-DNS, Domain-Assistent, Rechtstexte, Outbox Lager↔Shop, ein Konto für alles + 2FA | neuer Testkunde kommt ohne Hilfe in < 30 Min. bis zur Testbestellung (ohne Wartezeiten externer Anbieter); kein Pflichtschritt überspringbar; Screenshots Desktop + Handy abgenommen |
-| **D Designs + SEO-Grundlagen** | Token-System, 10 Layouts, 100 Designs, Galerie mit Live-Vorschau, SEO-Grundlagen | alle 100 Designs bestehen Kontrast-, Handy- und Checkout-Prüfung; Sitemap, `robots.txt`, eine Canonical-Domain, gültige strukturierte Daten (Rich-Results-Test), `noindex` für Test/gesperrt |
+| **M Marktplätze** (neu, vorgezogen) | eBay-Anbindung mit Bestandsabgleich (§ 9a), Kanalwahl je Artikel, Abgleich-Bericht im Lager-Web | Doppelverkauf-Test in der eBay-Sandbox bestanden; Winterfeld verkauft produktiv über Shop und eBay |
+| **P Pilotbetrieb** (neu) | 3–5 Pilotkunden, von Hand eingerichtet, Gründerpreis; Abrechnung zunächst über Stripe-Zahlungslinks; eigener Shop optional (Pakete „Lager + App“ mit eBay reicht) | Pilotkunden arbeiten mindestens 8 Wochen produktiv; Zeitersparnis bei ihnen gemessen; Rückmeldungen ausgewertet |
+| **Entscheidung** | Go/No-Go nach den Kriterien unten | Kriterien erfüllt → weiter mit C; sonst Anpassung (§ 16.1) |
+| **C Setup-Assistent** | alle 14 Schritte, Stripe Connect, DHL-Prüfanfrage, Mail-DNS, Domain-Assistent, Rechtstexte, Outbox Lager↔Shop, ein Konto für alles + 2FA, **Schritt „Marktplätze verbinden“** | neuer Testkunde kommt ohne Hilfe in < 30 Min. bis zur Testbestellung (ohne Wartezeiten externer Anbieter); kein Pflichtschritt überspringbar; Screenshots Desktop + Handy abgenommen |
 | **E Abrechnung, Plattform-Admin, SEO Plus** | Stripe Billing, Meter, Sperrlogik, Export, Löschung, Plattform-Admin, Kostenübersicht, SEO Plus | Testphase → Abo → Verzug → Sperre → Entsperren im Testmodus durchgespielt; Kosten je Kunde sichtbar |
+| **D Designs + SEO-Grundlagen** | Token-System, **3 Layouts, 12 Designs** (Ausbau auf 100 bei Bedarf), Galerie mit Live-Vorschau, SEO-Grundlagen | alle Designs bestehen Kontrast-, Handy- und Checkout-Prüfung; Sitemap, `robots.txt`, eine Canonical-Domain, gültige strukturierte Daten (Rich-Results-Test), `noindex` für Test/gesperrt |
 | **F App** | Play-Store-Version, Mandanten-Login, Branding, targetSdk 36 | App in geschlossener Testphase freigegeben; Winterfeld-Tablets umgestellt |
 | **G Betrieb** | Überwachung, Alarme, Statusseite, Betriebshandbuch, monatliche Test-Wiederherstellung | Alarm-Test ausgelöst und angekommen; Handbuch vorhanden |
 
-Reihenfolge-Hinweis: **Phase F kann parallel zu C beginnen**, weil die Play-Store-
-Zulassung (Organisations-Verifizierung, Testphase) Wochen dauern kann.
+Reihenfolge-Hinweis: **Phase F kann parallel ab B beginnen**, weil die Play-Store-
+Zulassung (Organisations-Verifizierung, Testphase) Wochen dauern kann. Die Grundlagen der
+Überwachung aus G (Erreichbarkeit, Sicherungsalter, Alarm per Mail) werden schon vor dem
+ersten Pilotkunden eingerichtet.
+
+### 16.1 Entscheidungskriterien nach der Pilotphase
+
+| Kriterium | Ziel |
+|---|---|
+| Zeitersparnis je Artikel (Erfassen bis online) | mindestens **50 %** gegenüber vorher, gemessen bei Winterfeld und bei den Piloten |
+| Zahlungsbereitschaft | mindestens **3 von 5** Piloten zahlen nach dem Gründerpreis-Zeitraum weiter |
+| Nutzung | Piloten erfassen regelmäßig (mindestens wöchentlich) |
+| Preis | Rückmeldung zu 59/129/189 € ausgewertet; `kostenmodell.md` danach überarbeitet |
+
+Werden die Ziele verfehlt, gibt es drei Wege, die dann gemeinsam entschieden werden:
+1. **Schärfen**: Das Paket auf „Erfassen + Marktplätze“ ohne eigenen Shop zuschneiden,
+   günstiger und schneller zu bauen.
+2. **Andere Nische**: Zielgruppe wechseln (z. B. Restposten-Großhandel statt Second-Hand).
+3. **Intern halten**: Das System bleibt Winterfelds Werkzeug; der Aufwand für Fremdkunden
+   (Setup-Assistent, Abrechnung, Support) entfällt.
+
+Die Arbeit aus Phase A ist in allen drei Fällen nicht verloren: Sicherung, Server als Code
+und saubere Datentrennung verbessern auch den Betrieb bei Winterfeld.
 
 ## 17. Risiken
 
@@ -604,6 +742,13 @@ Zulassung (Organisations-Verifizierung, Testphase) Wochen dauern kann.
 | Hetzner-Preise steigen weiter | Fixkosten | Infrastruktur-Code erlaubt Wechsel der Servergröße/-reihe |
 | Ein einzelner Anwendungsserver fällt aus | alle Shops offline | Sicherung + Infrastruktur-Code: neuer Server in < 1 h; Floating IP umhängen. Hochverfügbarkeit (zwei Server + Load Balancer) erst ab ~50 Kunden, weil sie die Fixkosten etwa verdoppelt |
 | Supabase-/Vercel-Daten beim Export unvollständig | Umzug verzögert | Export früh testen (Phase A) |
+| Marktplätze bieten KI-Erfassung kostenlos (eBay, Shopify) | Hauptargument „KI“ zieht nicht | Positionierung über den **gesamten** Einzelstück-Ablauf inkl. Lager und Mehrkanal (§ 0.3); Zeitersparnis mit Zahlen belegen |
+| eBay ändert Schnittstelle oder Richtlinien | Kanal fällt zeitweise aus | Anbindung als austauschbarer Adapter; Bestandsabgleich meldet Fehler sofort; eigener Shop bleibt als Kanal |
+| Doppelverkauf eines Einzelstücks | Ärger mit Käufern, Bewertungen | Bestandsabgleich ist Pflicht, Test in der Sandbox (§ 9a) |
+| Zu wenig Nachfrage | Aufwand ohne Ertrag | Phase V und P **vor** dem teuren Selbstbedienungs-Ausbau; Entscheidungskriterien § 16.1 |
+| Kleine Händler kündigen schnell | Umsatz schwankt | Jahrestarif mit Rabatt; Einrichtung durch eg-dynamics; Erfolg der Piloten eng begleiten |
+| Name „B.Y.O.B.“ nicht schützbar oder Domain belegt | Umbenennung nach dem Start teuer | Markenrecherche (DPMA/EUIPO) und Domainprüfung **vor** jeder Veröffentlichung von Werbung |
+| Betrieb durch eine Person | Support- und Ausfallrisiko | Pilotphase klein halten; Betriebshandbuch; Überwachung mit Alarmen vor dem ersten Fremdkunden |
 
 ## 18. Aufgaben für dich (nicht programmierbar)
 
@@ -615,3 +760,11 @@ Zulassung (Organisations-Verifizierung, Testphase) Wochen dauern kann.
 5. Händlerbund und IT-Recht Kanzlei: Plattform-Anbindung anfragen.
 6. Google Play: Entwicklerkonto als Organisation (D-U-N-S) beantragen.
 7. Anwalt: AVV/TOM/Unterauftragsverarbeiter-Vorlagen prüfen lassen.
+8. **Name B.Y.O.B.**: Markenrecherche beim DPMA und EUIPO (oder über einen Anwalt) und
+   Verfügbarkeit einer Produktdomain prüfen — vor jeder Veröffentlichung der Werbevideos.
+9. **Zeitmessung bei Winterfeld** (Phase V): für 20 Artikel die Zeit vom Auspacken bis
+   „online“ notieren, einmal im alten Ablauf, einmal mit App und KI. Vorlage mit
+   automatischer Auswertung: [`validierung/Messtabelle_Zeiterfassung.xlsx`](validierung/Messtabelle_Zeiterfassung.xlsx).
+10. **10–20 Gespräche** mit Händlern der Zielgruppe (§ 0.1). Leitfaden mit 10 Fragen,
+    Notizbogen und Auswertung: [`validierung/Gespraechsleitfaden_Haendler.docx`](validierung/Gespraechsleitfaden_Haendler.docx).
+11. **eBay-Entwicklerkonto** anlegen (für Phase M), Zugang zur Sandbox.

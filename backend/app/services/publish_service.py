@@ -16,7 +16,7 @@ from app.models import (
     ShopPublication,
 )
 from app.models.base import utcnow
-from app.providers.registry import get_storage
+from app.services import medien
 
 
 class PublishError(Exception):
@@ -25,14 +25,15 @@ class PublishError(Exception):
 
 def build_payload(db: Session, product: Product) -> ShopListingPayload:
     listing = db.scalar(select(ShopListing).where(ShopListing.product_id == product.id))
-    storage = get_storage()
     images = db.scalars(
         select(ProductImage)
         .where(ProductImage.product_id == product.id,
                ProductImage.kind == ImageKind.OPTIMIZED.value)
         .order_by(ProductImage.is_primary.desc(), ProductImage.sort_order)
     ).all()
-    image_urls = [url for url in (storage.public_url(i.storage_key) for i in images) if url]
+    # Öffentlich (ohne Signatur) ausgeliefert, sobald der Artikel veröffentlicht
+    # wird — siehe services/medien.py.
+    image_urls = [url for url in (medien.oeffentliche_url(i.storage_key) for i in images) if url]
 
     if product.sale_price is None:
         raise PublishError("Kein Verkaufspreis gesetzt")

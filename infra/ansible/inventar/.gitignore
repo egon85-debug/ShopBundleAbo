@@ -1,0 +1,2 @@
+# Von Terraform erzeugt, enthält Datenbank-Kennwörter — nie einchecken.
+*.yml

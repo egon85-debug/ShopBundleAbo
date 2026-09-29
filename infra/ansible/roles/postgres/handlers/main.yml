@@ -1,0 +1,13 @@
+- name: PostgreSQL neu starten
+  ansible.builtin.service:
+    name: "postgresql@{{ postgres_version }}-main"
+    state: restarted
+
+- name: PostgreSQL neu laden
+  ansible.builtin.service:
+    name: "postgresql@{{ postgres_version }}-main"
+    state: reloaded
+
+- name: Systemd neu laden
+  ansible.builtin.systemd_service:
+    daemon_reload: true

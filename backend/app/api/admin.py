@@ -194,20 +194,47 @@ def client_error(body: ClientErrorIn, db: Session = Depends(get_db),
 # ── Medien-Auslieferung ─────────────────────────────────────────────────────
 
 @router.get("/media/{key:path}")
-def get_media(key: str):
-    """Liefert Bilder aus (Shop-Bilder müssen öffentlich erreichbar sein;
-    Keys enthalten unratbare UUIDs)."""
+def get_media(key: str, ablauf: str | None = None, sig: str | None = None):
+    """Bilder ausliefern — mit Signatur jedes Bild der eigenen Firma, ohne
+    Signatur nur Shopbilder veröffentlichter Artikel. Regeln: services/medien.py.
+
+    Kommt ohne Anmeldung (<img> im Browser, Shop); die Zuordnung zur Firma
+    läuft deshalb über die Plattform-Sitzung.
+    """
+    from app.models import Product, ProductImage, PublicationStatus
+    from app.services import medien
+    from app.tenancy import plattform_sitzung
+
+    nicht_gefunden = HTTPException(404, "Datei nicht gefunden")
+    with plattform_sitzung() as db:
+        zeile = db.execute(
+            select(ProductImage.kind, Product.publication_status)
+            .join(Product, Product.id == ProductImage.product_id)
+            .where(ProductImage.storage_key == key)).first()
+    if zeile is None:
+        # Auch Sprachaufnahmen und unbekannte Pfade: nie ausliefern.
+        raise nicht_gefunden
+    art, veroeffentlichung = zeile
+    signiert = medien.signatur_pruefen(key, ablauf, sig)
+    oeffentlich = (art == "optimized" and veroeffentlichung in (
+        PublicationStatus.PUBLISHING.value, PublicationStatus.PUBLISHED.value))
+    if not (signiert or oeffentlich):
+        raise nicht_gefunden
+
     storage = get_storage()
     try:
         if not storage.exists(key):
-            raise HTTPException(404, "Datei nicht gefunden")
+            raise nicht_gefunden
         data = storage.get(key)
     except ValueError:
-        raise HTTPException(400, "Ungültiger Pfad")
+        raise nicht_gefunden
     content_type = "image/jpeg"
     if key.endswith(".png"):
         content_type = "image/png"
     elif key.endswith(".webp"):
         content_type = "image/webp"
+    # Veröffentlichte Shopbilder dürfen Zwischenspeicher (CDN) teilen; alles,
+    # was nur mit Signatur kommt, nur der Browser dessen, der es abruft.
+    cache = "public, max-age=86400" if oeffentlich else "private, max-age=86400"
     return Response(content=data, media_type=content_type,
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": cache, "X-Content-Type-Options": "nosniff"})

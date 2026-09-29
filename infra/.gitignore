@@ -1,0 +1,9 @@
+# Terraform: Arbeitsdateien und Variablen mit echten Werten nie einchecken.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+# Ansible-Collections werden bei Bedarf installiert.
+ansible/collections/

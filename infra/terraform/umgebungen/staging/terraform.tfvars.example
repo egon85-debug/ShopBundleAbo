@@ -1,0 +1,5 @@
+# Kopie als terraform.tfvars (wird nicht eingecheckt) oder als TF_VAR_… setzen.
+ssh_schluessel = {
+  admin = "ssh-ed25519 AAAA… admin@beispiel"
+}
+admin_netze = ["203.0.113.10/32"]
