@@ -763,8 +763,8 @@ und saubere Datentrennung verbessern auch den Betrieb bei Winterfeld.
 8. **Name B.Y.O.B.**: Markenrecherche beim DPMA und EUIPO (oder über einen Anwalt) und
    Verfügbarkeit einer Produktdomain prüfen — vor jeder Veröffentlichung der Werbevideos.
 9. **Zeitmessung bei Winterfeld** (Phase V): für 20 Artikel die Zeit vom Auspacken bis
-   „online“ notieren, einmal im alten Ablauf, einmal mit App und KI. Ich bereite dafür
-   eine einfache Tabelle vor.
-10. **10–20 Gespräche** mit Händlern der Zielgruppe (§ 0.1). Ich schreibe dir einen
-    Gesprächsleitfaden mit 10 Fragen.
+   „online“ notieren, einmal im alten Ablauf, einmal mit App und KI. Vorlage mit
+   automatischer Auswertung: [`validierung/Messtabelle_Zeiterfassung.xlsx`](validierung/Messtabelle_Zeiterfassung.xlsx).
+10. **10–20 Gespräche** mit Händlern der Zielgruppe (§ 0.1). Leitfaden mit 10 Fragen,
+    Notizbogen und Auswertung: [`validierung/Gespraechsleitfaden_Haendler.docx`](validierung/Gespraechsleitfaden_Haendler.docx).
 11. **eBay-Entwicklerkonto** anlegen (für Phase M), Zugang zur Sandbox.
