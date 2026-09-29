@@ -79,6 +79,11 @@ Rechtstexte-, DHL- und SEO-Apps kosten dort extra — shopify.com/pricing, abger
 Die Listenpreise liegen bewusst so, dass Rabattaktionen möglich sind, ohne unter die
 Kosten zu fallen.
 
+**Stand 29.09.2026:** Die Preise gelten als Arbeitsgrundlage für die Pilotphase und werden
+nach den Entscheidungskriterien in `plan.md` § 16.1 überprüft. Zu klären ist dann vor
+allem, ob ein günstigeres Paket „Erfassen + Marktplätze“ ohne eigenen Shop gebraucht wird
+und in welches Paket die eBay-Anbindung gehört.
+
 | Paket | Monat | Jahr (2 Monate geschenkt) | KI-Artikel inklusive | Inhalt |
 |---|---:|---:|---:|---|
 | **Shop** | 59 € | 590 € | 25 | Shop, Shop-Admin, KI-Texthilfe |
