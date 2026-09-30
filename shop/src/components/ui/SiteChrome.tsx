@@ -24,7 +24,7 @@ function Wortmarke() {
         alt=""
         width={344}
         height={56}
-        className="h-6 w-auto min-[380px]:h-7 sm:h-9 lg:h-11"
+        className="h-6 w-auto min-[380px]:h-7 sm:h-9 md:h-10 lg:h-14"
       />
     </Link>
   );
@@ -61,15 +61,15 @@ export async function SiteHeader() {
           Drei Spalten 1fr · auto · 1fr halten das Logo genau mittig; was rechts nicht
           mehr passt (Suche unter 1280 px, Konto unter 768 px), steht im Menü. */}
       <header className="sticky top-0 z-50 border-b border-haarlinie bg-white">
-        <div className="seite grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6 lg:h-[88px]">
+        <div className="seite grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-6 lg:h-24">
           <div className="justify-self-start">
             <KategorienMenue kategorien={fuersMenue(categories)} />
           </div>
 
           <Wortmarke />
 
-          <div className="flex items-center justify-self-end gap-4">
-            <form action="/shop" className="hidden w-56 xl:block" role="search">
+          <div className="flex items-center justify-self-end gap-3">
+            <form action="/shop" className="hidden w-40 xl:block" role="search">
               <input
                 type="search"
                 name="q"
