@@ -45,6 +45,7 @@ def _kuerzen(text: str | None, grenze: int) -> str | None:
 
 class WinterfeldShopConnector(ShopConnector):
     connector_type = "winterfeld"
+    anzeige_name = "Eigener Shop"
 
     def _client(self) -> httpx.Client:
         api_key = self.credentials.get("api_key", "")

@@ -155,3 +155,21 @@ form.korrektur { background: #f6f8fb; border: 1px solid var(--border, #e2e5ea); 
   padding: 10px 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .card.gefahr { border-color: #f1c4c4; }
 .card.gefahr h3 { color: var(--danger); }
+
+/* Vertriebskanäle und Kleinanzeigen-Assistent */
+.kanal-liste { list-style: none; margin: 10px 0 14px; padding: 0; display: grid; gap: 8px; }
+.kanal-liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.kanal-liste label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px;
+                     cursor: pointer; font-size: 1rem; font-weight: 400; }
+.kanal-liste label .muted { font-size: .85rem; }
+.kanal-liste input[type=checkbox] { width: 18px; height: 18px; padding: 0; margin: 0; }
+#kleinanzeigen-assistent .toolbar #ka-url { flex: 1 1 320px; min-width: 0; }
+.ka-schritte { margin: 10px 0; padding-left: 1.3em; }
+.ka-schritte li { margin: 6px 0; }
+.ka-felder { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: end; margin: 14px 0; }
+.ka-felder label { display: grid; gap: 4px; }
+.ka-felder input, .ka-felder textarea { width: 100%; }
+.ka-bilder { display: flex; flex-wrap: wrap; gap: 10px; }
+.ka-bilder a { display: grid; gap: 4px; width: 110px; font-size: .85rem; text-decoration: none; }
+.ka-bilder img { width: 110px; height: 110px; object-fit: contain; background: #f3f4f3; border-radius: 6px; }
+@media (max-width: 640px) { .ka-felder { grid-template-columns: 1fr; } }

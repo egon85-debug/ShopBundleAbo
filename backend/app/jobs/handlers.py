@@ -688,7 +688,13 @@ def handle_sync_stock(db: Session, job: Job) -> None:
     connection = db.get(ShopConnection, publication.connection_id)
     if product is None or connection is None or not connection.is_active:
         return
-    build_connector(connection).update_stock(publication.external_id, product.available_quantity)
+    connector = build_connector(connection)
+    if connector.manuell:
+        # Kein Zugriff aufs Portal: ausverkauft → Aufgabe „Anzeige löschen“.
+        from app.services import kanaele
+        kanaele.manuell_nachziehen(publication, product)
+    else:
+        connector.update_stock(publication.external_id, product.available_quantity)
     db.commit()
 
 

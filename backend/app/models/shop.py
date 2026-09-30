@@ -26,6 +26,10 @@ class PublicationStatusEnum(StrEnum):
     PUBLISHED = "published"
     FAILED = "failed"
     DELISTED = "delisted"
+    # Kanäle ohne Schnittstelle (Kleinanzeigen): vorbereitet, aber noch nicht von
+    # Hand eingestellt – bzw. ausverkauft und von Hand zu löschen.
+    VORBEREITET = "vorbereitet"
+    ZU_LOESCHEN = "zu_loeschen"
 
 
 class ShopPublication(Base, IdMixin, TenantMixin, TimestampMixin):

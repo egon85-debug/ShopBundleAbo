@@ -23,7 +23,7 @@ from app.models import (
     User,
 )
 from app.schemas.misc import ListingOut, ListingUpdate, ShopConnectionIn, ShopConnectionOut
-from app.services import audit_service, quality_service, stock_service
+from app.services import audit_service, stock_service
 from app.tenancy import mandant_setzen, mandant_von
 from app.utils.security import encrypt_credentials
 
@@ -131,39 +131,126 @@ def regenerate_listing(product_id: str, db: Session = Depends(get_db),
 @router.post("/products/{product_id}/publish", status_code=202)
 def publish(product_id: str, connection_id: str, db: Session = Depends(get_db),
             user: User = Depends(require_role(*_PUBLISHER))):
-    """„JETZT VERÖFFENTLICHEN“: Qualitätsprüfung → Publikationsprotokoll → Job."""
+    """„JETZT VERÖFFENTLICHEN“ auf einem Kanal: Qualitätsprüfung → Protokoll → Job."""
+    from app.services import kanaele
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(404, "Artikel nicht gefunden")
     connection = db.get(ShopConnection, connection_id)
     if connection is None or not connection.is_active:
         raise HTTPException(404, "Shop-Verbindung nicht gefunden oder inaktiv")
-
-    connector = build_connector(connection)
-    missing = quality_service.check_shop_ready(db, product, connector.required_fields())
-    if missing:
-        raise HTTPException(422, {
-            "code": "not_shop_ready",
-            "detail": "Produkt noch nicht shopbereit",
-            "missing": missing,
-        })
-
-    existing = db.scalar(select(ShopPublication).where(
-        ShopPublication.product_id == product.id,
-        ShopPublication.connection_id == connection.id,
-        ShopPublication.status.in_(["pending", "published"])))
-    publication = existing or ShopPublication(
-        product_id=product.id, connection_id=connection.id, published_by=user.id)
-    if existing is None:
-        db.add(publication)
-        db.flush()
-    product.publication_status = "publishing"
-    queue.enqueue(db, job_type=JobType.PUBLISH_PRODUCT.value,
-                  payload={"publication_id": publication.id}, product_id=product.id)
-    audit_service.log(db, user=user, entity_type="product", entity_id=product.id,
-                      action="publish", new_value=connection.name)
+    try:
+        publication = kanaele.veroeffentlichen(db, product, connection, user=user)
+    except kanaele.KanalFehler as exc:
+        raise HTTPException(422, {"code": "not_shop_ready", "detail": str(exc),
+                                  "missing": exc.fehlt})
     db.commit()
-    return {"detail": "Veröffentlichung gestartet", "publication_id": publication.id}
+    return {"detail": "Veröffentlichung gestartet", "publication_id": publication.id,
+            "status": publication.status}
+
+
+# ── Kanäle: eigener Shop, eBay, Amazon, Kleinanzeigen … ─────────────────────
+
+@router.get("/kanaele")
+def kanaele_liste(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Aktive Kanäle zur Auswahl nach der Erfassung – auch für Mitarbeitende,
+    ohne Adressen und Zugangsdaten."""
+    from app.services import kanaele
+    return kanaele.kanal_liste(db)
+
+
+@router.post("/products/{product_id}/veroeffentlichen")
+def auf_gewaehlten_kanaelen(product_id: str, db: Session = Depends(get_db),
+                            user: User = Depends(require_role(*_PUBLISHER))):
+    """Freigabe: auf allen beim Artikel gewählten Kanälen veröffentlichen."""
+    from app.services import kanaele
+    product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(404, "Artikel nicht gefunden")
+    if not product.kanaele:
+        raise HTTPException(422, "Für diesen Artikel sind noch keine Kanäle gewählt")
+    ergebnisse = kanaele.alle_gewaehlten_veroeffentlichen(db, product, user=user)
+    db.commit()
+    return {"ergebnisse": ergebnisse}
+
+
+@router.get("/products/{product_id}/veroeffentlichungen")
+def veroeffentlichungen(product_id: str, db: Session = Depends(get_db),
+                        user: User = Depends(get_current_user)):
+    """Wo der Artikel steht – je Kanal der letzte Stand."""
+    from app.services import kanaele
+    if db.get(Product, product_id) is None:
+        raise HTTPException(404, "Artikel nicht gefunden")
+    publikationen = db.scalars(select(ShopPublication).where(
+        ShopPublication.product_id == product_id)
+        .order_by(ShopPublication.created_at.desc())).all()
+    gesehen, ergebnis = set(), []
+    for pub in publikationen:
+        if pub.connection_id in gesehen:
+            continue
+        gesehen.add(pub.connection_id)
+        connection = db.get(ShopConnection, pub.connection_id)
+        ergebnis.append({
+            "id": pub.id, "connection_id": pub.connection_id,
+            "name": connection.name if connection else "–",
+            "portal": kanaele.anzeige_name(connection) if connection else "–",
+            "manuell": kanaele.ist_manuell(connection) if connection else False,
+            "status": pub.status, "external_id": pub.external_id,
+            "url": (pub.payload_snapshot or {}).get("url"),
+            "error": pub.error, "published_at": pub.published_at,
+        })
+    return ergebnis
+
+
+def _manuelle_publikation(db: Session, publication_id: str) -> ShopPublication:
+    from app.services import kanaele
+    pub = db.get(ShopPublication, publication_id)
+    connection = db.get(ShopConnection, pub.connection_id) if pub else None
+    if pub is None or connection is None or not kanaele.ist_manuell(connection):
+        raise HTTPException(404, "Vorbereitete Anzeige nicht gefunden")
+    return pub
+
+
+@router.get("/products/{product_id}/kleinanzeigen")
+def kleinanzeigen_entwurf(product_id: str, db: Session = Depends(get_db),
+                          user: User = Depends(get_current_user)):
+    """Assistent: Titel, Text, Preis und Fotos zum Einstellen bei Kleinanzeigen."""
+    from app.services import kanaele
+    product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(404, "Artikel nicht gefunden")
+    return kanaele.kleinanzeigen_entwurf(db, product)
+
+
+@router.post("/publications/{publication_id}/online")
+def anzeige_online(publication_id: str, body: dict | None = None, db: Session = Depends(get_db),
+                   user: User = Depends(require_role(*_PUBLISHER))):
+    """Von Hand eingestellte Anzeige bestätigen (optional mit Adresse)."""
+    from app.services import kanaele
+    pub = _manuelle_publikation(db, publication_id)
+    try:
+        kanaele.kleinanzeigen_online(pub, (body or {}).get("url"))
+    except kanaele.KanalFehler as exc:
+        raise HTTPException(422, str(exc))
+    product = db.get(Product, pub.product_id)
+    if product is not None:
+        kanaele.manuell_nachziehen(pub, product)  # schon ausverkauft? → gleich löschen lassen
+    audit_service.log(db, user=user, entity_type="product", entity_id=pub.product_id,
+                      action="anzeige_online", new_value=(body or {}).get("url"))
+    db.commit()
+    return {"status": pub.status, "external_id": pub.external_id}
+
+
+@router.post("/publications/{publication_id}/geloescht")
+def anzeige_geloescht(publication_id: str, db: Session = Depends(get_db),
+                      user: User = Depends(require_role(*_PUBLISHER))):
+    """Von Hand gelöschte Anzeige bestätigen."""
+    pub = _manuelle_publikation(db, publication_id)
+    pub.status = "delisted"
+    audit_service.log(db, user=user, entity_type="product", entity_id=pub.product_id,
+                      action="anzeige_geloescht")
+    db.commit()
+    return {"status": pub.status}
 
 
 # ── Bestell-Webhook (Bestandsabbuchung) ─────────────────────────────────────
@@ -215,6 +302,8 @@ async def order_webhook(connection_id: str, request: Request,
                 quantity_change=-quantity, user=None,
                 reason="Verkauf im Shop", reference=order_ref or None,
             )
+            from app.services import kanaele
+            kanaele.bestand_nachziehen(db, product)
             results.append({"sku": sku, "status": "ok",
                             "new_stock": product.stock_quantity})
         except stock_service.StockError as exc:

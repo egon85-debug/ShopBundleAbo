@@ -127,6 +127,10 @@ class Product(Base, IdMixin, TenantMixin, TimestampMixin):
     # Offene Rückfragen + Produktkandidaten der Recherche (bis zur Bestätigung).
     open_questions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     research_candidates: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # Gewünschte Vertriebskanäle: IDs der Shop-Verbindungen (eigener Shop, eBay,
+    # Amazon, Kleinanzeigen …). Gewählt nach der Erfassung in App oder Lager-Web;
+    # veröffentlicht wird bei der Freigabe auf allen gewählten.
+    kanaele: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
 
     processing_status: Mapped[str] = mapped_column(
         String(32), default=ProcessingStatus.DRAFT.value, nullable=False, index=True

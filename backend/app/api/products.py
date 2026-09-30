@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -89,6 +90,36 @@ _KI_ARBEITET = {"photo_uploaded", "recognition_running", "price_research_running
                 "images_optimizing", "shoptext_generating"}
 
 
+def _kanal_aufgaben(db: Session) -> list[dict]:
+    """Anzeigen auf Kanälen ohne Schnittstelle, die ein Mensch einstellen oder
+    (weil ausverkauft) löschen muss – auch bei längst veröffentlichten Artikeln."""
+    from app.models import ShopConnection, ShopPublication
+    from app.services import kanaele
+    offen = db.scalars(select(ShopPublication).where(
+        ShopPublication.status.in_(["vorbereitet", "zu_loeschen"]))
+        .order_by(ShopPublication.updated_at.desc()).limit(200)).all()
+    eintraege: dict[str, dict] = {}
+    for pub in offen:
+        product = db.get(Product, pub.product_id)
+        connection = db.get(ShopConnection, pub.connection_id)
+        if product is None or connection is None:
+            continue
+        portal = kanaele.anzeige_name(connection)
+        text = (f"{portal}: Anzeige einstellen" if pub.status == "vorbereitet"
+                else f"{portal}: Anzeige löschen – ausverkauft")
+        eintrag = eintraege.setdefault(product.id, {
+            "id": product.id, "internal_sku": product.internal_sku,
+            "product_name": product.product_name,
+            "processing_status": product.processing_status,
+            "publication_status": product.publication_status,
+            "fragen": [], "fehlt": [], "ki_gebremst": False, "kanal_aufgaben": [],
+            "updated_at": pub.updated_at,
+        })
+        eintrag["kanal_aufgaben"].append({"publication_id": pub.id, "status": pub.status,
+                                          "text": text})
+    return list(eintraege.values())
+
+
 @router.get("/aufgaben")
 def offene_aufgaben(db: Session = Depends(get_db),
                     user: User = Depends(get_current_user)):
@@ -117,11 +148,40 @@ def offene_aufgaben(db: Session = Depends(get_db),
             "processing_status": p.processing_status,
             "publication_status": p.publication_status,
             "fragen": fragen, "fehlt": fehlt, "ki_gebremst": gebremst,
-            "updated_at": p.updated_at,
+            "kanal_aufgaben": [], "updated_at": p.updated_at,
         })
+    # Kanal-Aufgaben (z. B. Kleinanzeige einstellen/löschen) an bestehende
+    # Einträge hängen, sonst als eigene Einträge.
+    vorhanden = {a["id"]: a for a in artikel}
+    for eintrag in _kanal_aufgaben(db):
+        if eintrag["id"] in vorhanden:
+            vorhanden[eintrag["id"]]["kanal_aufgaben"] = eintrag["kanal_aufgaben"]
+        else:
+            artikel.append(eintrag)
     fehlgeschlagen = db.scalar(select(func.count()).select_from(Job).where(
         Job.status == JobStatus.DEAD.value)) or 0
     return {"artikel": artikel, "fehlgeschlagene_auftraege": fehlgeschlagen}
+
+
+class KanaeleIn(BaseModel):
+    connection_ids: list[str]
+
+
+@router.put("/{product_id}/kanaele", response_model=ProductOut)
+def kanaele_waehlen(product_id: str, body: KanaeleIn, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """Kanäle wählen (eigener Shop, eBay, Amazon, Kleinanzeigen …) – nach der
+    Erfassung in der App oder im Lager-Web. Veröffentlicht wird erst bei der Freigabe."""
+    from app.services import kanaele
+    product = _get_product(db, product_id)
+    if user.role == Role.EMPLOYEE.value and product.created_by != user.id:
+        raise HTTPException(403, "Nur eigene Erfassungen bearbeitbar")
+    try:
+        kanaele.kanaele_setzen(db, product, body.connection_ids, user=user)
+    except kanaele.KanalFehler as exc:
+        raise HTTPException(422, str(exc))
+    db.commit()
+    return product_out(product)
 
 
 @router.get("/{product_id}", response_model=ProductOut)
@@ -183,14 +243,9 @@ def create_movement(product_id: str, body: StockMovementIn,
         )
     except stock_service.StockError as exc:
         raise HTTPException(422, str(exc))
-    # Shopbestand nachziehen, falls veröffentlicht.
-    from app.models import ShopPublication
-    publication = db.scalar(select(ShopPublication).where(
-        ShopPublication.product_id == product.id,
-        ShopPublication.status == "published"))
-    if publication:
-        queue.enqueue(db, job_type=JobType.SYNC_STOCK.value,
-                      payload={"publication_id": publication.id}, product_id=product.id)
+    # Bestand auf allen Kanälen nachziehen (eigener Shop, eBay, Amazon, …).
+    from app.services import kanaele
+    kanaele.bestand_nachziehen(db, product)
     db.commit()
     return movement
 

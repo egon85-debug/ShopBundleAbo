@@ -126,6 +126,7 @@ const STATUS_TEXT = {
   error: "Fehler",
   // Veröffentlichung
   ready: "Bereit", publishing: "Wird veröffentlicht", publish_failed: "Veröffentlichung fehlgeschlagen",
+  vorbereitet: "Vorbereitet – von Hand einstellen", zu_loeschen: "Anzeige löschen",
   pending: "Wartet", delisted: "Aus dem Shop genommen",
   // Aufträge
   queued: "Wartet", running: "Läuft", done: "Erledigt",
@@ -470,6 +471,8 @@ const views = {
         ...a.fehlt.map((t) => `<li>Fehlt: ${esc(t)}</li>`),
         ...(a.ki_gebremst ? ["<li>KI-Budget aufgebraucht – im Artikel freigeben oder von Hand ergänzen</li>"] : []),
         ...(a.processing_status === "error" ? ["<li>Verarbeitung fehlgeschlagen</li>"] : []),
+        ...(a.kanal_aufgaben || []).map((k) =>
+          `<li>📣 <a href="#freigabe/${esc(a.id)}">${esc(k.text)}</a></li>`),
       ];
       return `<tr><td><a href="#artikel/${esc(a.id)}"><strong>${esc(a.product_name || "Unbenannter Artikel")}</strong></a>
           <br><span class="muted">${esc(a.internal_sku)}</span></td>
@@ -479,8 +482,9 @@ const views = {
     };
     main().innerHTML = `
       <h2>Offene Aufgaben</h2>
-      <p class="muted">Artikel, bei denen Angaben fehlen oder Fragen offen sind. Artikel, an denen die KI
-        gerade arbeitet, erscheinen erst danach.</p>
+      <p class="muted">Artikel, bei denen Angaben fehlen oder Fragen offen sind, und Anzeigen auf Portalen
+        ohne Schnittstelle (z. B. Kleinanzeigen), die einzustellen oder zu löschen sind. Artikel, an denen
+        die KI gerade arbeitet, erscheinen erst danach.</p>
       ${daten.fehlgeschlagene_auftraege ? `<p class="error">${daten.fehlgeschlagene_auftraege} abgebrochene(r)
         Auftrag/Aufträge – siehe <a href="#jobs">Jobs &amp; Fehler</a>.</p>` : ""}
       ${daten.artikel.length ? `<div class="table-wrap"><table><thead><tr><th>Artikel</th><th>Status</th>
@@ -576,12 +580,15 @@ function darfFreigeben() {
 }
 
 async function freigabeDetail(productId) {
-  const [product, quality, connections] = await Promise.all([
+  const [product, quality, kanaele, stand] = await Promise.all([
     api("/products/" + productId),
     api("/products/" + productId + "/quality"),
-    api("/shop/connections").catch(() => []),
+    api("/shop/kanaele").catch(() => []),
+    api(`/shop/products/${productId}/veroeffentlichungen`).catch(() => []),
   ]);
-  const aktiv = connections.filter((c) => c.is_active);
+  const standJe = Object.fromEntries(stand.map((v) => [v.connection_id, v]));
+  const gewaehlt = new Set(product.kanaele || []);
+  const manuellOffen = stand.filter((v) => v.manuell && v.status !== "delisted");
   const paare = bildpaare(product);
   const optimierte = product.images.filter((i) => i.kind === "optimized");
   const darf = darfFreigeben();
@@ -642,16 +649,25 @@ async function freigabeDetail(productId) {
 
     ${darf ? `<div class="card" id="veroeffentlichen">
       <strong>Veröffentlichen</strong>
-      ${aktiv.length === 0
-        ? '<p class="muted">Keine aktive Shop-Verbindung. Unter <a href="#connections">Shop-Verbindungen</a> anlegen.</p>'
-        : `<div class="toolbar">
-            <label>Shop <select id="pub-conn">${aktiv.map((c) =>
-              `<option value="${c.id}">${esc(c.name)} (${esc(c.connector_type)})</option>`).join("")}</select></label>
-            <button class="btn primary" id="pub-btn" ${quality.is_shop_ready && optimierte.length ? "" : "disabled"}>
-              Jetzt veröffentlichen</button>
+      ${kanaele.length === 0
+        ? '<p class="muted">Kein aktiver Kanal. Unter <a href="#connections">Shop-Verbindungen</a> anlegen – eigener Shop, eBay, Amazon, Kleinanzeigen.</p>'
+        : `<p class="muted">Häkchen setzen, wo der Artikel erscheinen soll. Die Auswahl wird sofort gespeichert
+            (auch in der App wählbar).</p>
+          <ul class="kanal-liste">${kanaele.map((k) => {
+            const v = standJe[k.id];
+            return `<li><label><input type="checkbox" data-kanal="${k.id}" ${gewaehlt.has(k.id) ? "checked" : ""}>
+              <strong>${esc(k.name)}</strong> <span class="muted">${esc(k.portal)}${k.manuell ? " · von Hand" : ""}</span></label>
+              ${v ? statusBadge(v.status) : ""}
+              ${v && v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">Anzeige ansehen</a>` : ""}
+              ${v && v.error ? `<span class="error">${esc(v.error)}</span>` : ""}</li>`;
+          }).join("")}</ul>
+          <div class="toolbar">
+            <button class="btn primary" id="pub-btn" ${gewaehlt.size ? "" : "disabled"}>
+              Auf gewählten Kanälen veröffentlichen</button>
           </div>`}
-      <p id="pub-result"></p>
-    </div>` : ""}`;
+      <div id="pub-result"></div>
+    </div>
+    ${manuellOffen.length ? '<div class="card" id="kleinanzeigen-assistent"><p class="muted">Kleinanzeigen-Assistent wird geladen …</p></div>' : ""}` : ""}`;
 
   const neuLaden = () => freigabeDetail(productId);
   const melde = (text, fehler) => {
@@ -685,23 +701,107 @@ async function freigabeDetail(productId) {
                        { method: "DELETE" }));
     };
   });
+  // Kanalwahl: jedes Häkchen speichert sofort.
+  main().querySelectorAll("[data-kanal]").forEach((box) => {
+    box.onchange = async () => {
+      const ids = [...main().querySelectorAll("[data-kanal]:checked")].map((b) => b.dataset.kanal);
+      try {
+        await api(`/products/${productId}/kanaele`, { method: "PUT", body: { connection_ids: ids } });
+        const btn = document.getElementById("pub-btn");
+        if (btn) btn.disabled = ids.length === 0;
+      } catch (err) { box.checked = !box.checked; melde("Fehler: " + err.message, true); }
+    };
+  });
+
   const pubBtn = document.getElementById("pub-btn");
   if (pubBtn) {
     pubBtn.onclick = async () => {
       pubBtn.disabled = true;
       melde("Veröffentlichung wird gestartet …");
       try {
-        const conn = document.getElementById("pub-conn").value;
-        await api(`/shop/products/${productId}/publish?connection_id=${encodeURIComponent(conn)}`,
-                  { method: "POST" });
-        melde("✓ Veröffentlichung gestartet – Fortschritt unter „Jobs & Fehler“.");
-        setTimeout(neuLaden, 1200);
+        const res = await api(`/shop/products/${productId}/veroeffentlichen`, { method: "POST" });
+        const text = { pending: "wird veröffentlicht", vorbereitet: "vorbereitet – bitte von Hand einstellen (Assistent unten)",
+          published: "bereits veröffentlicht", fehlt: "noch nicht bereit", fehler: "Fehler" };
+        document.getElementById("pub-result").innerHTML = `<ul class="aufgaben-liste">${res.ergebnisse.map((e) =>
+          `<li><strong>${esc(e.name)}</strong>: ${esc(text[e.status] || e.status)}${
+            e.fehlt && e.fehlt.length ? " – fehlt: " + esc(e.fehlt.join(", ")) : e.fehler && e.status !== "fehlt" ? " – " + esc(e.fehler) : ""}</li>`
+        ).join("")}</ul><p class="muted">Fortschritt unter „Jobs &amp; Fehler“.</p>`;
+        setTimeout(neuLaden, 1500);
       } catch (err) {
         melde("Fehler: " + err.message, true);
         pubBtn.disabled = false;
       }
     };
   }
+
+  if (manuellOffen.length) kleinanzeigenAssistent(productId, manuellOffen[0], neuLaden);
+}
+
+/** Kleinanzeigen hat keine Schnittstelle: Titel, Text, Preis und Fotos zum
+ *  Übernehmen, dann bestätigen, dass die Anzeige online ist. */
+async function kleinanzeigenAssistent(productId, pub, neuLaden) {
+  const box = document.getElementById("kleinanzeigen-assistent");
+  if (!box) return;
+  let e;
+  try { e = await api(`/shop/products/${productId}/kleinanzeigen`); }
+  catch (err) { box.innerHTML = `<p class="error">Assistent: ${esc(err.message)}</p>`; return; }
+  const kopieren = (id, label) => `<button class="btn small" type="button" data-kopieren="${id}">${label}</button>`;
+  const schritt = pub.status === "zu_loeschen"
+    ? `<p class="error"><strong>Ausverkauft:</strong> Bitte die Anzeige bei Kleinanzeigen löschen und hier bestätigen.</p>
+       <div class="toolbar">${pub.url ? `<a class="btn" href="${esc(pub.url)}" target="_blank" rel="noopener">Anzeige öffnen</a>` : ""}
+         <button class="btn primary" id="ka-geloescht">Anzeige ist gelöscht</button></div>`
+    : pub.status === "published"
+      ? `<p class="ok">✓ Anzeige ist online${pub.url ? ` – <a href="${esc(pub.url)}" target="_blank" rel="noopener">ansehen</a>` : ""}.
+           Ist der Artikel ausverkauft, erscheint hier und unter „Offene Aufgaben“ die Erinnerung zum Löschen.</p>`
+      : `<ol class="ka-schritte">
+           <li><a class="btn" href="${esc(e.einstellen_url)}" target="_blank" rel="noopener">Kleinanzeigen öffnen</a>
+             und „Anzeige aufgeben“ wählen${e.kategorie_hinweis ? ` – Kategorie passend zu „${esc(e.kategorie_hinweis)}“` : ""}.</li>
+           <li>Titel, Beschreibung und Preis mit den Kopier-Knöpfen übernehmen, Fotos herunterladen und hochladen.</li>
+           <li>Nach dem Veröffentlichen die Adresse der Anzeige hier einfügen und bestätigen.</li>
+         </ol>
+         <div class="toolbar"><input id="ka-url" class="breit" placeholder="https://www.kleinanzeigen.de/s-anzeige/…">
+           <button class="btn primary" id="ka-online">Anzeige ist online</button></div>`;
+  box.innerHTML = `
+    <strong>Kleinanzeigen-Assistent</strong> ${statusBadge(pub.status)}
+    ${schritt}
+    <div class="ka-felder">
+      <label><span>Titel <span class="muted">(${e.titel.length}/${e.grenzen.titel})</span></span>
+        <input id="ka-titel" readonly value="${esc(e.titel)}"></label>${kopieren("ka-titel", "Titel kopieren")}
+      <label><span>Preis (${esc(e.preisart)})</span><input id="ka-preis" readonly value="${esc((e.preis || "").replace(".", ","))}"></label>
+        ${kopieren("ka-preis", "Preis kopieren")}
+      <label class="breit"><span>Beschreibung <span class="muted">(${e.text.length}/${e.grenzen.text})</span></span>
+        <textarea id="ka-text" rows="10" readonly>${esc(e.text)}</textarea></label>${kopieren("ka-text", "Beschreibung kopieren")}
+    </div>
+    <p><strong>Fotos</strong> <span class="muted">(${e.bilder.length}; in dieser Reihenfolge hochladen, das erste ist das Titelbild)</span></p>
+    <div class="ka-bilder">${e.bilder.map((b, i) => `<a href="${esc(b.url)}" download="kleinanzeige-${i + 1}.jpg" target="_blank" rel="noopener">
+      <img src="${esc(b.url)}" alt="Foto ${i + 1}"><span>Foto ${i + 1} ↓</span></a>`).join("")}</div>
+    <p id="ka-meldung"></p>`;
+
+  box.querySelectorAll("[data-kopieren]").forEach((btn) => {
+    btn.onclick = async () => {
+      const feld = document.getElementById(btn.dataset.kopieren);
+      try { await navigator.clipboard.writeText(feld.value); }
+      catch { feld.select(); document.execCommand("copy"); }
+      const alt = btn.textContent; btn.textContent = "✓ Kopiert"; setTimeout(() => { btn.textContent = alt; }, 1500);
+    };
+  });
+  const meldung = (t, fehler) => {
+    document.getElementById("ka-meldung").innerHTML = `<span class="${fehler ? "error" : "ok"}">${esc(t)}</span>`;
+  };
+  const online = document.getElementById("ka-online");
+  if (online) online.onclick = async () => {
+    try {
+      await api(`/shop/publications/${pub.id}/online`, { method: "POST",
+        body: { url: document.getElementById("ka-url").value.trim() || null } });
+      neuLaden();
+    } catch (err) { meldung("Fehler: " + err.message, true); }
+  };
+  const geloescht = document.getElementById("ka-geloescht");
+  if (geloescht) geloescht.onclick = async () => {
+    if (!confirm("Ist die Anzeige bei Kleinanzeigen wirklich gelöscht?")) return;
+    try { await api(`/shop/publications/${pub.id}/geloescht`, { method: "POST" }); neuLaden(); }
+    catch (err) { meldung("Fehler: " + err.message, true); }
+  };
 }
 
 // ── Artikel bearbeiten ───────────────────────────────────────────────────────

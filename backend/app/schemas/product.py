@@ -165,6 +165,7 @@ class ProductOut(ApiModel):
     field_confidence: dict
     field_sources: dict
     open_questions: list
+    kanaele: list[str] = []
     research_candidates: list
     processing_status: str
     publication_status: str

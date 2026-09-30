@@ -46,6 +46,11 @@ class ShopConnectorError(Exception):
 
 class ShopConnector(ABC):
     connector_type: str
+    # Anzeigename in Lager-Web und App.
+    anzeige_name: str = ""
+    # True: Portal ohne Schnittstelle. Das Lager bereitet die Anzeige vor, ein
+    # Mensch stellt sie ein und löscht sie wieder (z. B. Kleinanzeigen).
+    manuell: bool = False
 
     def __init__(self, base_url: str, credentials: dict) -> None:
         self.base_url = base_url.rstrip("/")
