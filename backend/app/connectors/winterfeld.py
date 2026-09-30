@@ -21,6 +21,7 @@ from app.connectors.base import (
 )
 
 _INGEST_PFAD = "/api/ingest/produkt"
+_BESTELL_PFAD = "/api/ingest/bestellung"
 
 # Obergrenzen des Prüfschemas im Shop (shop/src/services/ingest.ts). Ein Feld
 # darüber lässt den ganzen Artikel mit 422 scheitern – und die Veröffentlichung
@@ -59,10 +60,12 @@ class WinterfeldShopConnector(ShopConnector):
             timeout=60,
         )
 
-    def _post(self, payload: dict) -> dict:
+    def _post(self, payload: dict, pfad: str = _INGEST_PFAD) -> dict:
         try:
             with self._client() as client:
-                response = client.post(_INGEST_PFAD, json=payload)
+                response = client.post(pfad, json=payload)
+                if response.status_code == 404 and pfad != _INGEST_PFAD:
+                    raise ShopConnectorError(f"Winterfeldt-Shop kennt {pfad} noch nicht – Shop aktualisieren")
                 if response.status_code == 401:
                     raise ShopConnectorError("Winterfeldt-Shop: Zugang verweigert (falscher API-Schlüssel)")
                 if response.status_code == 503:
@@ -75,11 +78,16 @@ class WinterfeldShopConnector(ShopConnector):
                 return response.json() if response.content else {}
         except httpx.HTTPStatusError as exc:
             raise ShopConnectorError(
-                f"Winterfeldt-Shop POST {_INGEST_PFAD}: HTTP {exc.response.status_code} — "
+                f"Winterfeldt-Shop POST {pfad}: HTTP {exc.response.status_code} — "
                 f"{exc.response.text[:500]}"
             ) from exc
         except httpx.HTTPError as exc:
             raise ShopConnectorError(f"Winterfeldt-Shop nicht erreichbar: {exc}") from exc
+
+    def bestellung_uebernehmen(self, bestellung: dict) -> dict:
+        """Marktplatzbestellung (eBay …) zum Versand in den Shop-Admin geben.
+        Wiederholbar: der Shop legt dieselbe Bestellung nie doppelt an."""
+        return self._post(bestellung, _BESTELL_PFAD)
 
     def test_connection(self) -> None:
         """Der Gesundheitsendpunkt sagt, ob Shop *und* Datenbank antworten."""

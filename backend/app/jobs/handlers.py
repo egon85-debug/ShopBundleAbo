@@ -721,6 +721,27 @@ def handle_marktplatz_abgleich(db: Session, job: Job) -> None:
     db.commit()
 
 
+def handle_bestellung_weitergeben(db: Session, job: Job) -> None:
+    """Marktplatzbestellung in den Shop-Admin geben. Fehler → erneuter Versuch."""
+    from app.connectors.registry import build_connector
+    from app.models import ShopConnection
+    shop = db.get(ShopConnection, job.payload.get("shop_connection_id"))
+    if shop is None or not shop.is_active:
+        return
+    ergebnis = build_connector(shop).bestellung_uebernehmen(job.payload["bestellung"])
+    log.info("Bestellung %s an den Shop: %s", job.payload["bestellung"].get("bestellnummer"), ergebnis)
+
+
+def handle_versand_melden(db: Session, job: Job) -> None:
+    """Sendungsnummer beim Marktplatz eintragen. Fehler → erneuter Versuch."""
+    from app.services import ebay_konto
+    p = job.payload
+    if p.get("quelle") != "ebay":
+        return
+    ebay_konto.versand_eintragen(db, p["bestellnummer"], p["sendungsnummer"], p.get("versender", ""))
+    db.commit()
+
+
 HANDLERS = {
     JobType.RECOGNIZE_PRODUCT.value: handle_recognize_product,
     JobType.RESEARCH_PRODUCT.value: handle_research_product,
@@ -733,4 +754,6 @@ HANDLERS = {
     JobType.PUBLISH_PRODUCT.value: handle_publish_product,
     JobType.SYNC_STOCK.value: handle_sync_stock,
     JobType.MARKTPLATZ_ABGLEICH.value: handle_marktplatz_abgleich,
+    JobType.BESTELLUNG_WEITERGEBEN.value: handle_bestellung_weitergeben,
+    JobType.VERSAND_MELDEN.value: handle_versand_melden,
 }

@@ -86,6 +86,12 @@ class EbayAttrappe:
         if pfad == "/sell/fulfillment/v1/order":
             return httpx.Response(200, json={"orders": self.bestellungen,
                                              "total": len(self.bestellungen)})
+        if pfad.startswith("/sell/fulfillment/v1/order/") and pfad.endswith("/shipping_fulfillment"):
+            return httpx.Response(201)
+        if pfad.startswith("/sell/fulfillment/v1/order/") and request.method == "GET":
+            nummer = pfad.rsplit("/", 1)[1]
+            treffer = [b for b in self.bestellungen if b["orderId"] == nummer]
+            return httpx.Response(200, json=treffer[0]) if treffer else httpx.Response(404, json={})
         return httpx.Response(500, json={"errors": [{"message": f"unerwartet: {request.method} {pfad}"}]})
 
     def aufrufe(self, methode: str, pfad: str) -> list[dict | None]:
@@ -324,3 +330,76 @@ def test_abruf_plant_sich_selbst_neu_ein(db, employee, attrappe):
     assert db.query(Job).filter_by(job_type=JobType.MARKTPLATZ_ABGLEICH.value,
                                    status="queued").count() == 0
     assert db.query(Product).count() == 0
+
+
+# ── Versand über den Shop-Admin ─────────────────────────────────────────────
+
+def _shop(db):
+    shop = ShopConnection(name="Eigener Shop", connector_type="winterfeld",
+                          base_url="https://shop.example.de", webhook_secret="shop-geheim")
+    db.add(shop)
+    db.flush()
+    ebay_konto.zugangsdaten_ergaenzen(shop, {"api_key": "k" * 40})
+    db.commit()
+    return shop
+
+
+def test_bestellung_geht_zum_versand_an_den_shop(db, employee, attrappe, monkeypatch):
+    from app.connectors.winterfeld import WinterfeldShopConnector
+    angekommen = []
+    monkeypatch.setattr(WinterfeldShopConnector, "bestellung_uebernehmen",
+                        lambda self, b: angekommen.append(b) or {"angelegt": True})
+    _shop(db)
+    verbindung = _ebay(db, refresh_token="refresh-1")
+    produkt = make_ready_product(db, employee, "ebay-5")
+    bestellung = _bestellung("12-1", produkt.internal_sku, 2)
+    bestellung["pricingSummary"]["deliveryCost"] = {"value": "4.90", "currency": "EUR"}
+    bestellung["pricingSummary"]["total"] = {"value": "63.90", "currency": "EUR"}
+    unbekannt = _bestellung("12-2", "NUR-BEI-EBAY")
+    attrappe.bestellungen = [bestellung, unbekannt, _bestellung("12-3", produkt.internal_sku, bezahlt=False)]
+
+    ergebnis = ebay_konto.verkaeufe_abholen(db, verbindung)
+    db.commit()
+    assert ergebnis["weitergegeben"] == 2  # auch ein Artikel, den das Lager nicht kennt, muss raus
+    run_all_jobs()
+    erste = next(b for b in angekommen if b["bestellnummer"] == "12-1")
+    assert erste["quelle"] == "ebay"
+    assert erste["lieferadresse"] == {"name": "Erika Muster", "strasse": "Hauptstr. 1", "zusatz": None,
+                                      "plz": "12345", "ort": "Musterstadt", "land": "DE"}
+    assert erste["positionen"] == [{"sku": produkt.internal_sku, "name": "Artikel", "menge": 2,
+                                    "einzelpreisCents": 2950}]
+    assert (erste["versandCents"], erste["summeCents"]) == (490, 6390)
+
+    # Nächster Abruf: bereits gebuchte Bestellung wird nicht erneut weitergegeben.
+    angekommen.clear()
+    ebay_konto.verkaeufe_abholen(db, verbindung)
+    db.commit()
+    run_all_jobs()
+    assert [b["bestellnummer"] for b in angekommen] == ["12-2"]
+
+
+def test_sendungsnummer_aus_dem_shop_geht_an_ebay(client, db, attrappe):
+    import hashlib
+    import hmac
+    shop = _shop(db)
+    _ebay(db, refresh_token="refresh-1")
+    attrappe.bestellungen = [_bestellung("13-1", "X", 1)]
+    url = f"/api/v1/shop/webhooks/{shop.id}/versand"
+
+    def senden(daten, geheimnis="shop-geheim"):
+        body = json.dumps(daten).encode()
+        sig = hmac.new(geheimnis.encode(), body, hashlib.sha256).hexdigest()
+        return client.post(url, content=body, headers={"X-Webhook-Signature": sig,
+                                                       "content-type": "application/json"})
+
+    meldung = {"quelle": "ebay", "bestellnummer": "13-1", "sendungsnummer": "00340434161094042557",
+               "versender": "dhl_paket"}
+    assert senden(meldung, "falsch").status_code == 401
+    assert senden({**meldung, "quelle": "amazon"}).json()["status"] == "ignoriert"
+    assert senden(meldung).json() == {"status": "eingeplant"}
+    run_all_jobs()
+    eingetragen = attrappe.aufrufe("POST", "/sell/fulfillment/v1/order/13-1/shipping_fulfillment")
+    assert len(eingetragen) == 1
+    assert eingetragen[0]["lineItems"] == [{"lineItemId": "13-1-1"}]
+    assert eingetragen[0]["trackingNumber"] == "00340434161094042557"
+    assert eingetragen[0]["shippingCarrierCode"] == "DHL"

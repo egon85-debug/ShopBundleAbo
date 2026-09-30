@@ -28,6 +28,10 @@ class JobType(StrEnum):
     CLEANUP_VOICE = "cleanup_voice"
     # Verkäufe auf Marktplätzen (eBay …) abholen; plant sich selbst neu ein.
     MARKTPLATZ_ABGLEICH = "marktplatz_abgleich"
+    # Marktplatzbestellung in den Shop-Admin geben (Versand mit DHL-Etikett).
+    BESTELLUNG_WEITERGEBEN = "bestellung_weitergeben"
+    # Sendungsnummer beim Marktplatz eintragen.
+    VERSAND_MELDEN = "versand_melden"
 
 
 class Job(Base, IdMixin, TenantMixin, TimestampMixin):

@@ -367,6 +367,9 @@ class EbayConnector(ShopConnector):
                     "bezahlt": o.get("orderPaymentStatus") in ("PAID", "PARTIALLY_REFUNDED"),
                     "storniert": (o.get("cancelStatus") or {}).get("cancelState") == "CANCELED",
                     "summe": (o.get("pricingSummary") or {}).get("total", {}).get("value"),
+                    "versandkosten": ((o.get("pricingSummary") or {}).get("deliveryCost") or {}).get("value"),
+                    "bezahlt_am": ((o.get("paymentSummary") or {}).get("payments") or [{}])[0].get("paymentDate")
+                    or o.get("creationDate"),
                     "kaeufer": o.get("buyer", {}).get("username"),
                     "lieferadresse": {
                         "name": versand.get("fullName"),
@@ -387,6 +390,11 @@ class EbayConnector(ShopConnector):
             offset += 50
             if offset >= gesamt or not daten.get("orders"):
                 return ergebnis
+
+    def positionen_der_bestellung(self, bestellnummer: str) -> list[str]:
+        """lineItemIds einer Bestellung – eBay will beim Versand jede Position."""
+        daten = self._anfrage("GET", f"/sell/fulfillment/v1/order/{bestellnummer}")
+        return [li["lineItemId"] for li in daten.get("lineItems") or [] if li.get("lineItemId")]
 
     def versand_melden(self, bestellnummer: str, positionen: list[str], sendungsnummer: str,
                        versender: str = "DHL") -> None:

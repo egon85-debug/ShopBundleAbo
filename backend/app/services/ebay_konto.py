@@ -15,6 +15,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from sqlalchemy import select
@@ -129,6 +130,45 @@ def abruf_einplanen(db: Session, connection: ShopConnection, verzoegerung: int =
                   payload={"connection_id": connection.id}, delay_seconds=verzoegerung)
 
 
+def _cent(wert) -> int | None:
+    if wert in (None, ""):
+        return None
+    return int((Decimal(str(wert)) * 100).quantize(Decimal("1")))
+
+
+def versand_shop(db: Session) -> ShopConnection | None:
+    """Der eigene Shop, in dessen Admin Marktplatzbestellungen versendet werden."""
+    return db.scalar(select(ShopConnection).where(
+        ShopConnection.connector_type == "winterfeld", ShopConnection.is_active.is_(True))
+        .order_by(ShopConnection.created_at).limit(1))
+
+
+def shop_bestellung(bestellung: dict) -> dict:
+    """eBay-Bestellung → Format der Shop-Schnittstelle /api/ingest/bestellung."""
+    a = bestellung.get("lieferadresse") or {}
+    positionen = []
+    for pos in bestellung["positionen"]:
+        menge = max(int(pos["menge"] or 1), 1)
+        gesamt = _cent(pos.get("preis")) or 0
+        positionen.append({"sku": pos.get("sku") or None, "name": (pos.get("titel") or pos.get("sku") or "Artikel")[:300],
+                           "menge": menge, "einzelpreisCents": round(gesamt / menge)})
+    return {
+        "quelle": "ebay",
+        "bestellnummer": bestellung["bestellnummer"],
+        "email": a.get("email"),
+        "telefon": a.get("telefon"),
+        "kaeufer": bestellung.get("kaeufer"),
+        "lieferadresse": {"name": a.get("name") or bestellung.get("kaeufer") or "eBay-Käufer",
+                          "strasse": a.get("strasse") or "", "zusatz": a.get("zusatz"),
+                          "plz": a.get("plz") or "", "ort": a.get("ort") or "",
+                          "land": (a.get("land") or "DE").upper()},
+        "positionen": positionen,
+        "versandCents": _cent(bestellung.get("versandkosten")) or 0,
+        "summeCents": _cent(bestellung.get("summe")),
+        "bezahltAm": bestellung.get("bezahlt_am"),
+    }
+
+
 def verkaeufe_abholen(db: Session, connection: ShopConnection) -> dict:
     daten = zugangsdaten(connection)
     jetzt = datetime.now(timezone.utc)
@@ -137,14 +177,17 @@ def verkaeufe_abholen(db: Session, connection: ShopConnection) -> dict:
     connector = build_connector(connection)
     bestellungen = connector.bestellungen_seit(seit.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
 
-    gebucht, unbekannt, fehler = 0, [], []
+    shop = versand_shop(db)
+    gebucht, unbekannt, fehler, weitergegeben = 0, [], [], 0
     for bestellung in bestellungen:
         if bestellung["storniert"] or not bestellung["bezahlt"]:
             continue
+        neu = False
         for pos in bestellung["positionen"]:
             referenz = f"ebay:{bestellung['bestellnummer']}:{pos['position']}"
             if db.scalar(select(StockMovement.id).where(StockMovement.reference == referenz).limit(1)):
                 continue  # schon gebucht (Abruffenster überlappt absichtlich)
+            neu = True
             product = db.scalar(select(Product).where(Product.internal_sku == pos["sku"])) if pos["sku"] else None
             if product is None:
                 unbekannt.append(pos["sku"] or pos["titel"])
@@ -158,8 +201,34 @@ def verkaeufe_abholen(db: Session, connection: ShopConnection) -> dict:
                 gebucht += 1
             except stock_service.StockError as exc:
                 fehler.append(f"{pos['sku']}: {exc}")
+        if neu and shop is not None:
+            # Versand über den Shop-Admin (DHL-Etikett). Der Shop legt eine
+            # Bestellung nie doppelt an – ein erneutes Weitergeben schadet nicht.
+            queue.enqueue(db, job_type=JobType.BESTELLUNG_WEITERGEBEN.value, payload={
+                "shop_connection_id": shop.id, "bestellung": shop_bestellung(bestellung)})
+            weitergegeben += 1
     zugangsdaten_ergaenzen(connection, {"letzter_bestellabruf": jetzt.isoformat()})
     if unbekannt or fehler:
         log.warning("eBay-Abruf %s: unbekannt %s, Fehler %s", connection.name, unbekannt, fehler)
-    return {"bestellungen": len(bestellungen), "gebucht": gebucht,
+    return {"bestellungen": len(bestellungen), "gebucht": gebucht, "weitergegeben": weitergegeben,
             "unbekannt": unbekannt, "fehler": fehler}
+
+
+def versand_eintragen(db: Session, bestellnummer: str, sendungsnummer: str, versender: str) -> str:
+    """Sendungsnummer aus dem Shop-Admin bei eBay eintragen (Bestellung → versendet)."""
+    verbindungen = db.scalars(select(ShopConnection).where(
+        ShopConnection.connector_type == "ebay", ShopConnection.is_active.is_(True))
+        .order_by(ShopConnection.created_at)).all()
+    angemeldet = [c for c in verbindungen if zugangsdaten(c).get("refresh_token")]
+    if not angemeldet:
+        raise EbayFehler("Keine angemeldete eBay-Verbindung")
+    connector = build_connector(angemeldet[0])
+    positionen = connector.positionen_der_bestellung(bestellnummer)
+    if not positionen:
+        raise EbayFehler(f"eBay-Bestellung {bestellnummer} ohne Positionen")
+    connector.versand_melden(bestellnummer, positionen, sendungsnummer, EBAY_VERSENDER.get(versender, "DHL"))
+    return angemeldet[0].id
+
+
+# Versandart im Shop → Versanddienstleister-Code bei eBay.
+EBAY_VERSENDER = {"dhl_paket": "DHL", "dhl_express": "DHL"}

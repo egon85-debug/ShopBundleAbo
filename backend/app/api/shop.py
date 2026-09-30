@@ -425,6 +425,34 @@ async def order_webhook(connection_id: str, request: Request,
     return {"order_id": order_ref, "results": results}
 
 
+@router.post("/webhooks/{connection_id}/versand")
+async def versand_webhook(connection_id: str, request: Request,
+                          db: Session = Depends(get_db)):
+    """Etikett im Shop-Admin für eine Marktplatzbestellung erstellt → die
+    Sendungsnummer beim Marktplatz eintragen (als Auftrag mit Wiederholung)."""
+    connection = _verbindung_fuer_webhook(db, connection_id)
+    body = await request.body()
+    if not connection.webhook_secret:
+        raise HTTPException(401, "Webhook-Secret fehlt")
+    _signatur_pruefen(connection, body, request)
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Ungültiges JSON")
+    quelle = str(payload.get("quelle", ""))
+    bestellnummer = str(payload.get("bestellnummer", "")).strip()
+    sendungsnummer = str(payload.get("sendungsnummer", "")).strip()
+    if quelle != "ebay":
+        return {"status": "ignoriert", "grund": f"Quelle {quelle or '–'} ohne Schnittstelle"}
+    if not bestellnummer or not sendungsnummer:
+        raise HTTPException(422, "bestellnummer und sendungsnummer nötig")
+    queue.enqueue(db, job_type=JobType.VERSAND_MELDEN.value, payload={
+        "quelle": quelle, "bestellnummer": bestellnummer, "sendungsnummer": sendungsnummer,
+        "versender": str(payload.get("versender", ""))})
+    db.commit()
+    return {"status": "eingeplant"}
+
+
 # ── Produkt-Webhook (Änderungen im Shop-Admin) ──────────────────────────────
 
 @router.post("/webhooks/{connection_id}/product")

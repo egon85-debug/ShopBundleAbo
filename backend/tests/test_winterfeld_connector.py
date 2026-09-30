@@ -196,3 +196,22 @@ def test_ohne_lebensmittelangaben_werden_sie_im_shop_geleert(antwort):
     antwort(handler).publish_product(_listing())
     assert gesendet["inhalt"] is None and gesendet["pfandCents"] == 0
     assert gesendet["pfandArt"] is None and gesendet["zutaten"] is None
+
+
+def test_bestellung_geht_an_die_bestellschnittstelle(antwort):
+    gesehen = []
+
+    def handler(request):
+        gesehen.append((request.url.path, request.headers["x-api-key"]))
+        return httpx.Response(201, json={"bestellnummer": "WL-2026-000007", "angelegt": True})
+
+    connector = antwort(handler)
+    ergebnis = connector.bestellung_uebernehmen({"quelle": "ebay", "bestellnummer": "12-1"})
+    assert ergebnis["angelegt"] is True
+    assert gesehen == [("/api/ingest/bestellung", "k" * 40)]
+
+
+def test_alter_shop_ohne_bestellschnittstelle_wird_benannt(antwort):
+    connector = antwort(lambda request: httpx.Response(404, text="Not Found"))
+    with pytest.raises(ShopConnectorError, match="Shop aktualisieren"):
+        connector.bestellung_uebernehmen({"quelle": "ebay"})
