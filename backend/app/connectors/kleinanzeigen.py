@@ -23,6 +23,7 @@ class KleinanzeigenConnector(ShopConnector):
     connector_type = "kleinanzeigen"
     anzeige_name = "Kleinanzeigen"
     manuell = True
+    standard_url = "https://www.kleinanzeigen.de"
 
     def test_connection(self) -> None:
         """Nichts zu prüfen – es gibt keine Verbindung, nur den Assistenten."""

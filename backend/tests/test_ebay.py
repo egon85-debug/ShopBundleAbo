@@ -157,6 +157,36 @@ def test_verbinden_und_rueckruf(client, db, admin, attrappe):
     # Die Zugangsdaten verlassen den Server nicht.
     liste = client.get("/api/v1/shop/connections", headers=headers).json()
     assert "refresh-1" not in json.dumps(liste)
+    assert liste[0]["angemeldet"] is True
+
+
+def test_verbindung_im_lager_web_anlegen_und_aendern(client, db, admin, attrappe):
+    headers = auth_headers(client, email="admin@example.com")
+    typen = client.get("/api/v1/shop/connector-types", headers=headers).json()
+    assert typen["ebay_app_bereit"] is True
+    ebay_typ = next(d for d in typen["details"] if d["typ"] == "ebay")
+    assert ebay_typ["standard_url"] == "https://www.ebay.de"
+    assert [f["schluessel"] for f in ebay_typ["felder"]] == ["plz", "ort"]
+
+    # Portal mit fester Adresse: keine URL nötig.
+    res = client.post("/api/v1/shop/connections", headers=headers, json={
+        "name": "eBay", "connector_type": "ebay", "credentials": {"plz": "10115", "ort": ""}})
+    assert res.status_code == 201, res.text
+    neu = res.json()
+    assert neu["base_url"] == "https://www.ebay.de" and neu["angemeldet"] is False
+    assert client.post("/api/v1/shop/connections", headers=headers, json={
+        "name": "Woo", "connector_type": "woocommerce"}).status_code == 422
+
+    # Ort nachtragen, PLZ bleibt erhalten; deaktivieren.
+    res = client.patch(f"/api/v1/shop/connections/{neu['id']}", headers=headers,
+                       json={"credentials": {"ort": "Berlin", "plz": ""}, "is_active": False})
+    assert res.status_code == 200, res.text
+    assert res.json()["is_active"] is False
+    db.expire_all()
+    assert ebay_konto.zugangsdaten(db.get(ShopConnection, neu["id"])) == {"plz": "10115", "ort": "Berlin"}
+    make_user(db, email="chef@example.com", role="warehouse_manager")
+    assert client.patch(f"/api/v1/shop/connections/{neu['id']}", json={"is_active": True},
+                        headers=auth_headers(client, email="chef@example.com")).status_code == 403
 
 
 # ── Einstellen ──────────────────────────────────────────────────────────────

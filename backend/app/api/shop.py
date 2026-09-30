@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
-from app.connectors.registry import available_connector_types, build_connector
+from app.connectors.registry import available_connector_types, build_connector, connector_klasse
 from app.db import get_db
 from app.jobs import queue
 from app.models import (
@@ -23,7 +23,7 @@ from app.models import (
     ShopPublication,
     User,
 )
-from app.schemas.misc import ListingOut, ListingUpdate, ShopConnectionIn, ShopConnectionOut
+from app.schemas.misc import ListingOut, ListingUpdate, ShopConnectionIn, ShopConnectionOut, ShopConnectionUpdate
 from app.services import audit_service, stock_service
 from app.tenancy import mandant_setzen, mandant_von
 from app.utils.security import encrypt_credentials
@@ -35,17 +35,38 @@ _PUBLISHER = (Role.SHOP_MANAGER.value, Role.WAREHOUSE_MANAGER.value, Role.ADMIN.
 
 @router.get("/connector-types")
 def connector_types(user: User = Depends(get_current_user)):
-    return {"types": available_connector_types()}
+    from app.connectors import ebay
+    details = []
+    for typ in available_connector_types():
+        cls = connector_klasse(typ)
+        details.append({"typ": typ, "name": cls.anzeige_name or typ, "manuell": cls.manuell,
+                        "standard_url": cls.standard_url, "webhook": cls.webhook,
+                        "felder": [{"schluessel": k, "text": t, "geheim": g}
+                                   for k, t, g in cls.zugangsfelder]})
+    # eBay braucht zusätzlich die App-Schlüssel des Betreibers in der Server-.env.
+    return {"types": available_connector_types(), "details": details,
+            "ebay_app_bereit": ebay.app_konfiguriert()}
+
+
+def _verbindung_out(c: ShopConnection) -> ShopConnectionOut:
+    angemeldet = None
+    if c.connector_type == "ebay":
+        from app.services import ebay_konto
+        try:
+            angemeldet = bool(ebay_konto.zugangsdaten(c).get("refresh_token"))
+        except Exception:
+            angemeldet = False
+    return ShopConnectionOut(
+        id=c.id, name=c.name, connector_type=c.connector_type, base_url=c.base_url,
+        is_active=c.is_active, has_credentials=bool(c.credentials_encrypted),
+        angemeldet=angemeldet)
 
 
 @router.get("/connections", response_model=list[ShopConnectionOut])
 def list_connections(db: Session = Depends(get_db),
                      user: User = Depends(require_role(*_PUBLISHER))):
     connections = db.scalars(select(ShopConnection).order_by(ShopConnection.name)).all()
-    return [ShopConnectionOut(
-        id=c.id, name=c.name, connector_type=c.connector_type, base_url=c.base_url,
-        is_active=c.is_active, has_credentials=bool(c.credentials_encrypted),
-    ) for c in connections]
+    return [_verbindung_out(c) for c in connections]
 
 
 @router.post("/connections", response_model=ShopConnectionOut, status_code=201)
@@ -53,21 +74,49 @@ def create_connection(body: ShopConnectionIn, db: Session = Depends(get_db),
                       user: User = Depends(require_role(Role.ADMIN.value))):
     if body.connector_type not in available_connector_types():
         raise HTTPException(422, f"Unbekannter Connector-Typ: {body.connector_type}")
+    cls = connector_klasse(body.connector_type)
+    base_url = (body.base_url or cls.standard_url or "").strip()
+    if not base_url:
+        raise HTTPException(422, "Basis-URL fehlt")
     connection = ShopConnection(
-        name=body.name, connector_type=body.connector_type, base_url=body.base_url,
+        name=body.name, connector_type=body.connector_type, base_url=base_url,
         webhook_secret=body.webhook_secret, is_active=body.is_active,
     )
-    if body.credentials:
-        connection.credentials_encrypted = encrypt_credentials(json.dumps(body.credentials))
+    zugang = {k: v for k, v in (body.credentials or {}).items() if v not in (None, "")}
+    if zugang:
+        connection.credentials_encrypted = encrypt_credentials(json.dumps(zugang))
     db.add(connection)
     db.flush()
     audit_service.log(db, user=user, entity_type="shop_connection", entity_id=connection.id,
                       action="create", new_value=connection.name)
     db.commit()
-    return ShopConnectionOut(id=connection.id, name=connection.name,
-                             connector_type=connection.connector_type,
-                             base_url=connection.base_url, is_active=connection.is_active,
-                             has_credentials=bool(connection.credentials_encrypted))
+    return _verbindung_out(connection)
+
+
+@router.patch("/connections/{connection_id}", response_model=ShopConnectionOut)
+def update_connection(connection_id: str, body: ShopConnectionUpdate, db: Session = Depends(get_db),
+                      user: User = Depends(require_role(Role.ADMIN.value))):
+    """Name, Aktiv-Schalter oder einzelne Zugangsdaten ändern. Leere Werte
+    lassen hinterlegte Zugangsdaten unverändert (sie werden nie zurückgegeben)."""
+    connection = db.get(ShopConnection, connection_id)
+    if connection is None:
+        raise HTTPException(404, "Verbindung nicht gefunden")
+    if body.name:
+        connection.name = body.name
+    if body.is_active is not None:
+        connection.is_active = body.is_active
+    if body.webhook_secret:
+        connection.webhook_secret = body.webhook_secret
+    zugang = {k: v for k, v in (body.credentials or {}).items() if v not in (None, "")}
+    if zugang:
+        from app.services import ebay_konto
+        ebay_konto.zugangsdaten_ergaenzen(connection, zugang)
+    audit_service.log(db, user=user, entity_type="shop_connection", entity_id=connection.id,
+                      action="update", new_value=",".join(sorted(
+                          [k for k, v in body.model_dump(exclude={"credentials"}).items() if v is not None]
+                          + [f"zugang:{k}" for k in zugang])))
+    db.commit()
+    return _verbindung_out(connection)
 
 
 @router.post("/connections/{connection_id}/test")

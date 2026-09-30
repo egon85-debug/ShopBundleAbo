@@ -57,6 +57,12 @@ class ShopConnector(ABC):
     # True: Portal ohne Schnittstelle. Das Lager bereitet die Anzeige vor, ein
     # Mensch stellt sie ein und löscht sie wieder (z. B. Kleinanzeigen).
     manuell: bool = False
+    # Eingabefelder im Lager-Web: (Schlüssel, Beschriftung, geheim).
+    zugangsfelder: tuple[tuple[str, str, bool], ...] = ()
+    # Feste Adresse (Portal) – dann fragt das Lager-Web keine URL ab.
+    standard_url: str = ""
+    # Shop meldet Bestellungen per Webhook (Webhook-Secret abfragen).
+    webhook: bool = False
 
     def __init__(self, base_url: str, credentials: dict) -> None:
         self.base_url = base_url.rstrip("/")

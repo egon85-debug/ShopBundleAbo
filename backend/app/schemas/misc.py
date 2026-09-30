@@ -68,7 +68,7 @@ class StockMovementOut(ApiModel):
 class ShopConnectionIn(BaseModel):
     name: str
     connector_type: str
-    base_url: str
+    base_url: str = ""  # leer bei Portalen mit fester Adresse (eBay, Kleinanzeigen)
     credentials: dict | None = None  # z. B. {"consumer_key": …, "consumer_secret": …}
     webhook_secret: str | None = None
     is_active: bool = True
@@ -81,6 +81,15 @@ class ShopConnectionOut(ApiModel):
     base_url: str
     is_active: bool
     has_credentials: bool = False
+    # Nur eBay: Verkäuferkonto angemeldet?
+    angemeldet: bool | None = None
+
+
+class ShopConnectionUpdate(BaseModel):
+    name: str | None = None
+    is_active: bool | None = None
+    webhook_secret: str | None = None
+    credentials: dict | None = None
 
 
 class ListingOut(ApiModel):

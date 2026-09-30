@@ -115,6 +115,9 @@ def _fehlertext(antwort: httpx.Response) -> str:
 class EbayConnector(ShopConnector):
     connector_type = "ebay"
     anzeige_name = "eBay"
+    standard_url = "https://www.ebay.de"
+    # Adresse des Lagers – eBay verlangt einen Artikelstandort.
+    zugangsfelder = (("plz", "PLZ des Lagers", False), ("ort", "Ort des Lagers", False))
 
     def __init__(self, base_url: str, credentials: dict) -> None:
         super().__init__(base_url or "https://www.ebay.de", credentials)

@@ -14,6 +14,9 @@ from app.connectors.base import (
 class WooCommerceConnector(ShopConnector):
     connector_type = "woocommerce"
     anzeige_name = "WooCommerce"
+    zugangsfelder = (("consumer_key", "Consumer Key", False),
+                     ("consumer_secret", "Consumer Secret", True))
+    webhook = True
 
     def _client(self) -> httpx.Client:
         key = self.credentials.get("consumer_key", "")

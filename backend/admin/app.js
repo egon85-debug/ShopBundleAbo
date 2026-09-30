@@ -416,48 +416,101 @@ const views = {
   async connections() {
     const [connections, types] = await Promise.all([
       api("/shop/connections"), api("/shop/connector-types")]);
+    const details = Object.fromEntries(types.details.map((d) => [d.typ, d]));
+    const portal = (typ) => (details[typ] ? details[typ].name : typ);
+    const anmeldung = (c) => {
+      if (c.connector_type !== "ebay") return "";
+      return c.angemeldet
+        ? '<span class="badge ok">bei eBay angemeldet</span>'
+        : '<span class="badge warn">noch nicht angemeldet</span>';
+    };
+    const knoepfe = (c) => [
+      c.connector_type === "ebay"
+        ? `<button class="btn small primary" data-ebay="${c.id}">${c.angemeldet ? "Erneut anmelden" : "Mit eBay verbinden"}</button>` : "",
+      (details[c.connector_type] && details[c.connector_type].manuell)
+        || (c.connector_type === "ebay" && !c.angemeldet) ? ""
+        : `<button class="btn small" data-test="${c.id}">Verbindung testen</button>`,
+      `<button class="btn small" data-aktiv="${c.id}" data-an="${c.is_active}">${c.is_active ? "Deaktivieren" : "Aktivieren"}</button>`,
+    ].join(" ");
     main().innerHTML = `
       <h2>Shop-Verbindungen</h2>
+      <p class="muted">Jede Verbindung ist ein Verkaufskanal: eigener Shop, eBay, Kleinanzeigen …
+        Nach der Erfassung wird je Artikel gewählt, wo er erscheint.</p>
+      ${types.ebay_app_bereit ? "" : `<p class="muted">Für eBay müssen auf dem Server die App-Schlüssel
+        (EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RUNAME) in der .env stehen.</p>`}
       <form id="conn-form" class="card form-grid" style="margin-bottom:16px">
+        <label>Typ <select name="connector_type">${types.details.map((d) =>
+          `<option value="${esc(d.typ)}">${esc(d.name)}</option>`).join("")}</select></label>
         <label>Name <input name="name" required></label>
-        <label>Typ <select name="connector_type">${types.types.map((t) =>
-          `<option>${esc(t)}</option>`).join("")}</select></label>
-        <label>Basis-URL <input name="base_url" required placeholder="https://shop.example.de"></label>
-        <label>Consumer Key <input name="consumer_key"></label>
-        <label>Consumer Secret <input name="consumer_secret" type="password"></label>
-        <label>Webhook-Secret <input name="webhook_secret"></label>
+        <div id="conn-felder" style="display:contents"></div>
         <button class="btn primary" type="submit">Anlegen</button>
       </form>
-      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Typ</th><th>URL</th>
-        <th>Credentials</th><th>Status</th><th></th></tr></thead><tbody>
-        ${connections.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.connector_type)}</td>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Portal</th><th>URL</th>
+        <th>Zugangsdaten</th><th>Status</th><th></th></tr></thead><tbody>
+        ${connections.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(portal(c.connector_type))}</td>
           <td>${esc(c.base_url)}</td>
-          <td>${c.has_credentials ? "hinterlegt (verschlüsselt)" : "–"}</td>
+          <td>${c.has_credentials ? "hinterlegt (verschlüsselt)" : "–"} ${anmeldung(c)}</td>
           <td>${c.is_active ? '<span class="badge ok">aktiv</span>'
                             : '<span class="badge err">inaktiv</span>'}</td>
-          <td><button class="btn small" data-test="${c.id}">Verbindung testen</button></td>
+          <td>${knoepfe(c)}</td>
           </tr>`).join("")}
       </tbody></table></div>
       <p id="conn-result"></p>`;
-    document.getElementById("conn-form").onsubmit = async (e) => {
-      e.preventDefault();
-      const raw = Object.fromEntries(new FormData(e.target).entries());
-      const body = { name: raw.name, connector_type: raw.connector_type,
-                     base_url: raw.base_url, webhook_secret: raw.webhook_secret || null };
-      if (raw.consumer_key || raw.consumer_secret)
-        body.credentials = { consumer_key: raw.consumer_key,
-                             consumer_secret: raw.consumer_secret };
-      await api("/shop/connections", { method: "POST", body });
-      views.connections();
+
+    const form = document.getElementById("conn-form");
+    const felderZeigen = () => {
+      const d = details[form.connector_type.value];
+      form.name.placeholder = d.name;
+      document.getElementById("conn-felder").innerHTML = [
+        d.standard_url ? "" : '<label>Basis-URL <input name="base_url" required placeholder="https://shop.example.de"></label>',
+        ...d.felder.map((f) => `<label>${esc(f.text)} <input name="z_${esc(f.schluessel)}"
+          ${f.geheim ? 'type="password" autocomplete="new-password"' : ""}></label>`),
+        d.webhook ? "<label>Webhook-Secret <input name=\"webhook_secret\"></label>" : "",
+        d.typ === "ebay" ? '<p class="muted" style="grid-column:1/-1">Nach dem Anlegen „Mit eBay verbinden“ klicken und beim eBay-Verkäuferkonto anmelden.</p>' : "",
+        d.manuell ? '<p class="muted" style="grid-column:1/-1">Ohne Schnittstelle: Das Lager bereitet jede Anzeige vor, eingestellt wird von Hand (Assistent in der Freigabe).</p>' : "",
+      ].join("");
     };
+    form.connector_type.onchange = felderZeigen;
+    felderZeigen();
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const raw = Object.fromEntries(new FormData(form).entries());
+      const d = details[raw.connector_type];
+      const credentials = {};
+      d.felder.forEach((f) => { if (raw["z_" + f.schluessel]) credentials[f.schluessel] = raw["z_" + f.schluessel]; });
+      const body = { name: raw.name, connector_type: raw.connector_type,
+                     base_url: raw.base_url || "", webhook_secret: raw.webhook_secret || null,
+                     credentials: Object.keys(credentials).length ? credentials : null };
+      try {
+        await api("/shop/connections", { method: "POST", body });
+        views.connections();
+      } catch (err) {
+        document.getElementById("conn-result").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+      }
+    };
+    const ausgabe = (html) => { document.getElementById("conn-result").innerHTML = html; };
     main().querySelectorAll("[data-test]").forEach((btn) => {
       btn.onclick = async () => {
-        const out = document.getElementById("conn-result");
-        out.textContent = "Teste …";
+        ausgabe("Teste …");
         try {
           await api("/shop/connections/" + btn.dataset.test + "/test", { method: "POST" });
-          out.innerHTML = '<span class="ok">✓ Verbindung erfolgreich</span>';
-        } catch (err) { out.innerHTML = `<span class="error">${esc(err.message)}</span>`; }
+          ausgabe('<span class="ok">✓ Verbindung erfolgreich</span>');
+        } catch (err) { ausgabe(`<span class="error">${esc(err.message)}</span>`); }
+      };
+    });
+    main().querySelectorAll("[data-ebay]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const { url } = await api("/shop/ebay/verbinden?connection_id=" + encodeURIComponent(btn.dataset.ebay));
+          window.location.href = url;  // eBay leitet nach der Anmeldung zurück
+        } catch (err) { ausgabe(`<span class="error">${esc(err.message)}</span>`); }
+      };
+    });
+    main().querySelectorAll("[data-aktiv]").forEach((btn) => {
+      btn.onclick = async () => {
+        await api("/shop/connections/" + btn.dataset.aktiv, { method: "PATCH",
+          body: { is_active: btn.dataset.an !== "true" } });
+        views.connections();
       };
     });
   },
