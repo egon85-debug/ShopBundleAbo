@@ -28,16 +28,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import de.winterfeld.logistik.data.remote.dto.AnswerDto
 import de.winterfeld.logistik.data.remote.dto.ConfirmResultDto
+import de.winterfeld.logistik.data.remote.dto.KanalDto
 import de.winterfeld.logistik.data.remote.dto.ProductDto
 import de.winterfeld.logistik.data.remote.dto.QuestionDto
 import de.winterfeld.logistik.ui.components.BigButton
 import de.winterfeld.logistik.ui.components.ConfidenceChip
+import de.winterfeld.logistik.ui.components.KanalAuswahl
 import de.winterfeld.logistik.ui.components.Labels
 
 /**
  * Kontrollbildschirm (Anforderung 11): kompakte Übersicht, unsichere Felder markiert,
  * Rückfragen inline, Ein-Tipp-Korrekturen. Aktionen:
- * [Speichern] [Bearbeiten] [Weitere Fotos] [Erneut sprechen] [Shop vorbereiten]
+ * [Speichern] [Bearbeiten] [Weitere Fotos] [Erneut sprechen], dazu „Wo verkaufen?“ (Kanäle).
  */
 @Composable
 fun ReviewScreen(
@@ -50,6 +52,8 @@ fun ReviewScreen(
     onSpeakAgain: () -> Unit,
     onSave: () -> Unit,
     onDuplicateAction: (action: String, duplicateId: String?) -> Unit,
+    kanalLaden: (suspend () -> List<KanalDto>)? = null,
+    kanalSetzen: (suspend (List<String>) -> List<String>)? = null,
 ) {
     if (savedFlash) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
@@ -108,6 +112,10 @@ fun ReviewScreen(
 
             product.openQuestions.orEmpty().forEach { question ->
                 QuestionCard(question, onAnswer)
+            }
+
+            if (kanalLaden != null && kanalSetzen != null) {
+                KanalAuswahl(product.id, product.kanaele.orEmpty(), kanalLaden, kanalSetzen)
             }
         }
 

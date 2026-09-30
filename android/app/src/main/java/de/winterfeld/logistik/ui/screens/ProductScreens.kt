@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import de.winterfeld.logistik.data.remote.dto.KanalDto
 import de.winterfeld.logistik.data.remote.dto.LocationDto
 import de.winterfeld.logistik.data.remote.dto.AnswerDto
 import de.winterfeld.logistik.data.remote.dto.ProductDto
@@ -59,6 +60,7 @@ import de.winterfeld.logistik.data.remote.dto.QuestionDto
 import de.winterfeld.logistik.data.remote.dto.SupplierDto
 import de.winterfeld.logistik.data.repo.ProductRepository
 import de.winterfeld.logistik.ui.components.AppTopBar
+import de.winterfeld.logistik.ui.components.KanalAuswahl
 import de.winterfeld.logistik.ui.components.Labels
 import de.winterfeld.logistik.ui.components.ListCard
 import de.winterfeld.logistik.ui.components.ListDivider
@@ -365,7 +367,9 @@ fun ProductDetailScreen(products: ProductRepository, productId: String, baseUrl:
         } else {
             ProductDetailContent(p, baseUrl, error, onEdit = { editing = it },
                 onQuestion = { question = it },
-                onUseRecommended = { price -> speichern(mapOf("sale_price" to price)) })
+                onUseRecommended = { price -> speichern(mapOf("sale_price" to price)) },
+                kanalLaden = products::kanaele,
+                kanalSetzen = { ids -> products.kanaeleSetzen(productId, ids) })
         }
     }
 
@@ -390,7 +394,9 @@ private fun serverMeldung(e: HttpException): String {
 @Composable
 fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
                          onEdit: (Feld) -> Unit, onQuestion: (QuestionDto) -> Unit,
-                         onUseRecommended: (String) -> Unit) {
+                         onUseRecommended: (String) -> Unit,
+                         kanalLaden: (suspend () -> List<KanalDto>)? = null,
+                         kanalSetzen: (suspend (List<String>) -> List<String>)? = null) {
     // Für Werkzeug & Co. keine acht leeren Zeilen: erst auf Antippen aufklappen.
     val hatLebensmittel = FELDER_LEBENSMITTEL.any { feldWert(p, it) != null }
     var lebensmittelOffen by rememberSaveable(p.id) { mutableStateOf(false) }
@@ -440,6 +446,9 @@ fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
             }
         }
 
+        if (kanalLaden != null && kanalSetzen != null) {
+            item { KanalAuswahl(p.id, p.kanaele.orEmpty(), kanalLaden, kanalSetzen) }
+        }
         item { SectionHeader("Artikel") }
         item { FeldKarte(p, FELDER_ARTIKEL, onEdit) }
 

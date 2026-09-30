@@ -19,6 +19,7 @@ import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -82,6 +83,15 @@ interface ApiService {
 
     @PATCH("products/{id}")
     suspend fun patchProduct(@Path("id") id: String, @Body fields: okhttp3.RequestBody): ProductDto
+
+    @GET("shop/kanaele")
+    suspend fun kanaele(): List<de.winterfeld.logistik.data.remote.dto.KanalDto>
+
+    @PUT("products/{id}/kanaele")
+    suspend fun kanaeleSetzen(
+        @Path("id") id: String,
+        @Body body: de.winterfeld.logistik.data.remote.dto.KanaeleRequest,
+    ): ProductDto
 
     @POST("client-errors")
     suspend fun clientError(@Body body: de.winterfeld.logistik.data.remote.dto.ClientErrorDto):

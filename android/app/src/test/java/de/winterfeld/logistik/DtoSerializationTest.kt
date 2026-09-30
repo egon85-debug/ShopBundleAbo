@@ -1,9 +1,14 @@
 package de.winterfeld.logistik
 
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import de.winterfeld.logistik.data.remote.dto.ConfirmResultDto
+import de.winterfeld.logistik.data.remote.dto.KanalDto
+import de.winterfeld.logistik.data.remote.dto.KanaeleRequest
 import de.winterfeld.logistik.data.remote.dto.ProductDto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DtoSerializationTest {
@@ -38,5 +43,27 @@ class DtoSerializationTest {
         val result = gson.fromJson(json, ConfirmResultDto::class.java)
         assertEquals("duplicate_found", result.status)
         assertEquals("Gleiche EAN", result.duplicates?.first()?.matchReason)
+    }
+
+    @Test
+    fun `vertriebskanaele werden gelesen und gesendet`() {
+        val liste: List<KanalDto> = gson.fromJson(
+            """[{"id": "k1", "name": "Kleinanzeigen", "connector_type": "kleinanzeigen",
+                 "portal": "Kleinanzeigen", "manuell": true}]""",
+            object : TypeToken<List<KanalDto>>() {}.type)
+        assertEquals("kleinanzeigen", liste.single().connectorType)
+        assertTrue(liste.single().manuell)
+
+        val mitKanaelen = gson.fromJson("""{"id": "a", "internal_sku": "WL-1", "condition": "new",
+            "stock_quantity": 1, "available_quantity": 1, "processing_status": "draft",
+            "publication_status": "draft", "kanaele": ["k1", "k2"]}""", ProductDto::class.java)
+        assertEquals(listOf("k1", "k2"), mitKanaelen.kanaele)
+        // Ältere Server liefern das Feld nicht.
+        val ohne = gson.fromJson("""{"id": "a", "internal_sku": "WL-1", "condition": "new",
+            "stock_quantity": 1, "available_quantity": 1, "processing_status": "draft",
+            "publication_status": "draft"}""", ProductDto::class.java)
+        assertNull(ohne.kanaele)
+
+        assertEquals("""{"connection_ids":["k1"]}""", gson.toJson(KanaeleRequest(listOf("k1"))))
     }
 }

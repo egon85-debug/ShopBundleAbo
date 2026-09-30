@@ -74,6 +74,8 @@ data class ProductDto(
     @SerializedName("field_confidence") val fieldConfidence: Map<String, Double>?,
     @SerializedName("field_sources") val fieldSources: Map<String, String>?,
     @SerializedName("open_questions") val openQuestions: List<QuestionDto>?,
+    /** Gewählte Vertriebskanäle (IDs der Shop-Verbindungen); ältere Server liefern nichts. */
+    val kanaele: List<String>? = null,
     @SerializedName("research_candidates") val researchCandidates: List<Map<String, Any?>>?,
     @SerializedName("processing_status") val processingStatus: String,
     @SerializedName("publication_status") val publicationStatus: String,
@@ -126,3 +128,16 @@ data class ClientErrorDto(
     val device: String,
     val report: String,
 )
+
+
+/** Ein Vertriebskanal: eigener Shop, eBay, Amazon, Kleinanzeigen … */
+data class KanalDto(
+    val id: String,
+    val name: String,
+    @SerializedName("connector_type") val connectorType: String,
+    val portal: String,
+    /** Ohne Schnittstelle – wird im Lager-Web vorbereitet und von Hand eingestellt. */
+    val manuell: Boolean,
+)
+
+data class KanaeleRequest(@SerializedName("connection_ids") val connectionIds: List<String>)

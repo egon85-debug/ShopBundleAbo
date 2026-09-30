@@ -156,6 +156,15 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Vertriebskanäle zur Auswahl im Prüfbildschirm. */
+    suspend fun kanaele() = products.kanaele()
+
+    /** Gewählte Kanäle des erfassten Artikels speichern. */
+    suspend fun kanaeleSetzen(ids: List<String>): List<String> {
+        val id = _state.value.serverState?.id ?: error("Artikel ist noch nicht beim Server")
+        return products.kanaeleSetzen(id, ids)
+    }
+
     fun answer(answer: AnswerDto) {
         val capture = _state.value.capture ?: return
         viewModelScope.launch {
