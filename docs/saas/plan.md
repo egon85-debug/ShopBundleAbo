@@ -32,6 +32,7 @@ Umfang des Design-Baukastens zum Start (§ 9).
 | Betreiber (Hersteller) | **eg-dynamics** |
 | Produktname | **B.Y.O.B.** — „Build your own Business“ (Marken- und Domainprüfung offen, Aufgabe 8) |
 | Produktdomain | vorerst **eg-dynamics.de**; eigene Produktdomain nach der Markenprüfung |
+| Code | Repository **egon85-debug/ShopBundleAbo** (seit 30.09.2026; übernommen mit vollständigem Verlauf aus Winterfeld-Logistik, das bis zum Umzug in Phase B den heutigen Betrieb trägt) |
 | App-Host (Setup, Lager-Web, Shop-Admin, Plattform-Admin) | `app.eg-dynamics.de` |
 | Übergangs-Absender für Shop-Mails | `…@mail.eg-dynamics.de` (eigene Subdomain, damit die Firmen-Mails von eg-dynamics nicht unter Shop-Mails leiden) |
 | Staging | `*.staging.eg-dynamics.de` |

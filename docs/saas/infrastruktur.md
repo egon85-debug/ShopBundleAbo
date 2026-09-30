@@ -11,7 +11,7 @@ Serverwechsel oder für Staging.
 | `infra/terraform/` | Terraform | **legt an**: Netz, Server, Datenträger, feste IP, Firewall |
 | `infra/ansible/` | Ansible | **richtet ein**: Sicherheit, PostgreSQL mit drei Rollen, Sicherung, Anwendung |
 | `.github/workflows/infra-*.yml` | GitHub Actions | prüfen bei jeder Änderung; anwenden per Knopfdruck |
-| `.github/workflows/backend-image.yml` | GitHub Actions | baut das Backend-Image (`ghcr.io/…/winterfeld-backend`) |
+| `.github/workflows/backend-image.yml` | GitHub Actions | baut das Backend-Image (`ghcr.io/…/byob-backend`) |
 
 ## Aufbau einer Umgebung
 
@@ -65,7 +65,7 @@ Werte in GitHub ein. Die Werte gibst du **nie** in einen Chat.
    „S3-Zugangsdaten“ einen Zugang erzeugen (Access Key + Secret Key).
 4. **SSH-Schlüssel** für die Server erzeugen (einmalig, z. B. mit `ssh-keygen -t ed25519`
    oder ich erkläre es dir Schritt für Schritt).
-5. **GitHub-Umgebung** anlegen: Repository → Settings → Environments → `staging`.
+5. **GitHub-Umgebung** anlegen im Repository **ShopBundleAbo**: [Settings → Environments → New environment](https://github.com/egon85-debug/ShopBundleAbo/settings/environments/new) → `staging`.
    Für `produktion` zusätzlich „Required reviewers: du selbst“ — dann läuft nichts in
    Produktion ohne deine Bestätigung.
 6. **Geheimnisse** in der Umgebung eintragen (Environment secrets):

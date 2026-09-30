@@ -1,3 +1,7 @@
+> **B.Y.O.B. – Build your own Business** · Plattform von eg-dynamics. Dieses Repository ist seit
+> 30.09.2026 die Heimat der Plattform; es entstand aus dem Projekt Winterfeld Logistik
+> (Kunde Nr. 1). Plan und Stand: [`docs/saas/plan.md`](docs/saas/plan.md).
+
 # Winterfeldt Logistik
 
 **Blitzschnelle digitale Erfassung von Lagerartikeln per Android-Tablet.**
