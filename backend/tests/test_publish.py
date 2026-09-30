@@ -37,7 +37,7 @@ class RecordingConnector(ShopConnector):
         published_payloads.append(("stock", external_id, quantity))
 
     def update_price(self, external_id, price):
-        pass
+        published_payloads.append(("price", external_id, price))
 
     def delist_product(self, external_id):
         pass

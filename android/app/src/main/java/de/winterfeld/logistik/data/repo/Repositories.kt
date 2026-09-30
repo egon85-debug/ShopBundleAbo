@@ -123,10 +123,11 @@ class ProductRepository(private val api: ApiClient) {
     suspend fun reportError(body: de.winterfeld.logistik.data.remote.dto.ClientErrorDto): Boolean =
         api.service().clientError(body).isSuccessful
     /** Vertriebskanäle zur Auswahl (eigener Shop, eBay, Amazon, Kleinanzeigen …). */
-    suspend fun kanaele() = api.service().kanaele()
-    /** Gewählte Kanäle speichern; liefert die gespeicherte Auswahl zurück. */
-    suspend fun kanaeleSetzen(id: String, ids: List<String>): List<String> =
-        api.service().kanaeleSetzen(id, de.winterfeld.logistik.data.remote.dto.KanaeleRequest(ids))
+    /** Aktive Kanäle, mit [productId] auch der Preis des Artikels je Kanal. */
+    suspend fun kanaele(productId: String? = null) = api.service().kanaele(productId)
+    /** Gewählte Kanäle (und optional feste Preise) speichern; liefert die gespeicherte Auswahl. */
+    suspend fun kanaeleSetzen(id: String, ids: List<String>, preise: Map<String, String>? = null): List<String> =
+        api.service().kanaeleSetzen(id, de.winterfeld.logistik.data.remote.dto.KanaeleRequest(ids, preise))
             .kanaele.orEmpty()
     suspend fun suppliers() = api.service().suppliers()
     suspend fun storageLocations() = api.service().storageLocations()

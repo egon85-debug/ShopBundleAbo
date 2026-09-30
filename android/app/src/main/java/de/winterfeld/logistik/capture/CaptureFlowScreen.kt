@@ -119,6 +119,7 @@ fun CaptureFlowScreen(quickMode: Boolean, onExit: () -> Unit) {
             },
             kanalLaden = viewModel::kanaele,
             kanalSetzen = viewModel::kanaeleSetzen,
+            kanalPreisSetzen = viewModel::kanalPreisSetzen,
             onDuplicateAction = { action, duplicateId ->
                 viewModel.confirm(action, duplicateId) { wasQuickMode ->
                     if (wasQuickMode) {

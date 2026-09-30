@@ -173,3 +173,14 @@ form.korrektur { background: #f6f8fb; border: 1px solid var(--border, #e2e5ea); 
 .ka-bilder a { display: grid; gap: 4px; width: 110px; font-size: .85rem; text-decoration: none; }
 .ka-bilder img { width: 110px; height: 110px; object-fit: contain; background: #f3f4f3; border-radius: 6px; }
 @media (max-width: 640px) { .ka-felder { grid-template-columns: 1fr; } }
+
+/* Preise je Kanal */
+.kanal-preis { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: 8px; }
+.preis-feld { width: 7em; padding: 4px 8px; }
+td.preis-regel { white-space: nowrap; }
+td.preis-regel label, label.haken { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; }
+td.preis-regel .preis-feld { width: 4.5em; }
+label.haken input { width: auto; }
+.form-grid label.haken { align-self: end; padding-bottom: 12px; }
+.knopf-spalte { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 150px; }
+.muted.klein { font-size: 0.85em; }

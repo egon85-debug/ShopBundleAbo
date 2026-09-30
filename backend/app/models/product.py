@@ -131,6 +131,9 @@ class Product(Base, IdMixin, TenantMixin, TimestampMixin):
     # Amazon, Kleinanzeigen …). Gewählt nach der Erfassung in App oder Lager-Web;
     # veröffentlicht wird bei der Freigabe auf allen gewählten.
     kanaele: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    # Fester Preis je Kanal ({connection_id: "12.99"}); ohne Eintrag gilt der
+    # Verkaufspreis plus Aufschlag des Kanals.
+    kanal_preise: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     processing_status: Mapped[str] = mapped_column(
         String(32), default=ProcessingStatus.DRAFT.value, nullable=False, index=True

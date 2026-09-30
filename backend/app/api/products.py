@@ -1,7 +1,8 @@
 import json
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -95,9 +96,11 @@ def _kanal_aufgaben(db: Session) -> list[dict]:
     (weil ausverkauft) löschen muss – auch bei längst veröffentlichten Artikeln."""
     from app.models import ShopConnection, ShopPublication
     from app.services import kanaele
+    manuell = [c.id for c in db.scalars(select(ShopConnection)).all() if kanaele.ist_manuell(c)]
     offen = db.scalars(select(ShopPublication).where(
-        ShopPublication.status.in_(["vorbereitet", "zu_loeschen"]))
-        .order_by(ShopPublication.updated_at.desc()).limit(200)).all()
+        or_(ShopPublication.status.in_(["vorbereitet", "zu_loeschen"]),
+            (ShopPublication.status == "published") & ShopPublication.connection_id.in_(manuell)))
+        .order_by(ShopPublication.updated_at.desc()).limit(500)).all()
     eintraege: dict[str, dict] = {}
     for pub in offen:
         product = db.get(Product, pub.product_id)
@@ -105,8 +108,16 @@ def _kanal_aufgaben(db: Session) -> list[dict]:
         if product is None or connection is None:
             continue
         portal = kanaele.anzeige_name(connection)
-        text = (f"{portal}: Anzeige einstellen" if pub.status == "vorbereitet"
-                else f"{portal}: Anzeige löschen – ausverkauft")
+        if pub.status == "published":
+            # Von Hand eingestellt: Preis geändert (Verkaufspreis, Aufschlag
+            # oder fester Preis) → dort ebenfalls von Hand ändern.
+            neu = kanaele.manueller_preis_offen(pub, product, connection)
+            if neu is None:
+                continue
+            text = f"{portal}: Preis auf {kanaele.preis_text(neu)} ändern"
+        else:
+            text = (f"{portal}: Anzeige einstellen" if pub.status == "vorbereitet"
+                    else f"{portal}: Anzeige löschen – ausverkauft")
         eintrag = eintraege.setdefault(product.id, {
             "id": product.id, "internal_sku": product.internal_sku,
             "product_name": product.product_name,
@@ -116,7 +127,8 @@ def _kanal_aufgaben(db: Session) -> list[dict]:
             "updated_at": pub.updated_at,
         })
         eintrag["kanal_aufgaben"].append({"publication_id": pub.id, "status": pub.status,
-                                          "text": text})
+                                          "text": text,
+                                          "art": "preis" if pub.status == "published" else pub.status})
     return list(eintraege.values())
 
 
@@ -165,6 +177,19 @@ def offene_aufgaben(db: Session = Depends(get_db),
 
 class KanaeleIn(BaseModel):
     connection_ids: list[str]
+    # Optional: fester Preis je Kanal; null = wieder Verkaufspreis + Aufschlag.
+    # Nicht genannte Kanäle bleiben, wie sie sind.
+    preise: dict[str, Decimal | None] | None = None
+
+    @field_validator("preise", mode="before")
+    @classmethod
+    def _leer_ist_kein_preis(cls, wert):
+        # Die App schickt "" für „wieder Aufschlag verwenden“ (Gson lässt null weg);
+        # Komma als Dezimaltrenner ist erlaubt.
+        if isinstance(wert, dict):
+            return {k: (None if v in ("", None) else (v.replace(",", ".") if isinstance(v, str) else v))
+                    for k, v in wert.items()}
+        return wert
 
 
 @router.put("/{product_id}/kanaele", response_model=ProductOut)
@@ -178,6 +203,10 @@ def kanaele_waehlen(product_id: str, body: KanaeleIn, db: Session = Depends(get_
         raise HTTPException(403, "Nur eigene Erfassungen bearbeitbar")
     try:
         kanaele.kanaele_setzen(db, product, body.connection_ids, user=user)
+        if body.preise:
+            geaendert = kanaele.preise_setzen(db, product, body.preise, user=user)
+            db.flush()
+            kanaele.preis_nachziehen(db, product, geaendert)
     except kanaele.KanalFehler as exc:
         raise HTTPException(422, str(exc))
     db.commit()
@@ -201,7 +230,13 @@ def update_product(product_id: str, body: ProductUpdate,
     supplier_name = changes.pop("supplier_name", None)
     if supplier_name:
         changes["supplier_id"] = supplier_service.match_or_create(db, supplier_name).id
+    preis_vorher = product.sale_price
     product_service.apply_user_update(db, product=product, changes=changes, user=user)
+    if product.sale_price != preis_vorher:
+        # Neuer Verkaufspreis → auf allen Kanälen nachziehen (mit deren Aufschlag).
+        from app.services import kanaele
+        db.flush()
+        kanaele.preis_nachziehen(db, product)
     # Eine Rückfrage zu einem Feld ist beantwortet, sobald jemand das Feld selbst
     # ausfüllt (z. B. den Namen in der App-Detailansicht).
     filled = {field for field, value in changes.items() if value not in (None, "")}

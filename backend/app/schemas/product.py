@@ -166,6 +166,8 @@ class ProductOut(ApiModel):
     field_sources: dict
     open_questions: list
     kanaele: list[str] = []
+    # Feste Preise je Kanal ({connection_id: "12.99"}); sonst Verkaufspreis + Aufschlag.
+    kanal_preise: dict[str, str] = {}
     research_candidates: list
     processing_status: str
     publication_status: str

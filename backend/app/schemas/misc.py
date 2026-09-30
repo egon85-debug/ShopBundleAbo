@@ -72,6 +72,9 @@ class ShopConnectionIn(BaseModel):
     credentials: dict | None = None  # z. B. {"consumer_key": …, "consumer_secret": …}
     webhook_secret: str | None = None
     is_active: bool = True
+    # Aufschlag in Prozent auf den Verkaufspreis (Provision des Portals).
+    preis_aufschlag: Decimal = Field(default=Decimal("0"), ge=-50, le=200)
+    preis_runden: bool = False
 
 
 class ShopConnectionOut(ApiModel):
@@ -83,6 +86,8 @@ class ShopConnectionOut(ApiModel):
     has_credentials: bool = False
     # Nur eBay: Verkäuferkonto angemeldet?
     angemeldet: bool | None = None
+    preis_aufschlag: Decimal = Decimal("0")
+    preis_runden: bool = False
 
 
 class ShopConnectionUpdate(BaseModel):
@@ -90,6 +95,8 @@ class ShopConnectionUpdate(BaseModel):
     is_active: bool | None = None
     webhook_secret: str | None = None
     credentials: dict | None = None
+    preis_aufschlag: Decimal | None = Field(default=None, ge=-50, le=200)
+    preis_runden: bool | None = None
 
 
 class ListingOut(ApiModel):

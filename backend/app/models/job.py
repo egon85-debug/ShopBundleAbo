@@ -25,6 +25,8 @@ class JobType(StrEnum):
     GENERATE_SHOPTEXT = "generate_shoptext"
     PUBLISH_PRODUCT = "publish_product"
     SYNC_STOCK = "sync_stock"
+    # Preis auf einem Kanal nachziehen (Verkaufspreis, Aufschlag oder fester Preis geändert).
+    SYNC_PRICE = "sync_price"
     CLEANUP_VOICE = "cleanup_voice"
     # Verkäufe auf Marktplätzen (eBay …) abholen; plant sich selbst neu ein.
     MARKTPLATZ_ABGLEICH = "marktplatz_abgleich"

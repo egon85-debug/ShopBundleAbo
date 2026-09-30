@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+from decimal import Decimal
 from html import escape as html_escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -59,7 +60,8 @@ def _verbindung_out(c: ShopConnection) -> ShopConnectionOut:
     return ShopConnectionOut(
         id=c.id, name=c.name, connector_type=c.connector_type, base_url=c.base_url,
         is_active=c.is_active, has_credentials=bool(c.credentials_encrypted),
-        angemeldet=angemeldet)
+        angemeldet=angemeldet, preis_aufschlag=Decimal(c.preis_aufschlag or 0).quantize(Decimal("0.01")),
+        preis_runden=bool(c.preis_runden))
 
 
 @router.get("/connections", response_model=list[ShopConnectionOut])
@@ -81,6 +83,7 @@ def create_connection(body: ShopConnectionIn, db: Session = Depends(get_db),
     connection = ShopConnection(
         name=body.name, connector_type=body.connector_type, base_url=base_url,
         webhook_secret=body.webhook_secret, is_active=body.is_active,
+        preis_aufschlag=body.preis_aufschlag, preis_runden=body.preis_runden,
     )
     zugang = {k: v for k, v in (body.credentials or {}).items() if v not in (None, "")}
     if zugang:
@@ -107,6 +110,17 @@ def update_connection(connection_id: str, body: ShopConnectionUpdate, db: Sessio
         connection.is_active = body.is_active
     if body.webhook_secret:
         connection.webhook_secret = body.webhook_secret
+    preis_neu = False
+    if body.preis_aufschlag is not None and body.preis_aufschlag != connection.preis_aufschlag:
+        connection.preis_aufschlag = body.preis_aufschlag
+        preis_neu = True
+    if body.preis_runden is not None and body.preis_runden != connection.preis_runden:
+        connection.preis_runden = body.preis_runden
+        preis_neu = True
+    if preis_neu:
+        from app.services import kanaele
+        db.flush()
+        kanaele.verbindung_preise_nachziehen(db, connection)
     zugang = {k: v for k, v in (body.credentials or {}).items() if v not in (None, "")}
     if zugang:
         from app.services import ebay_konto
@@ -265,11 +279,17 @@ def publish(product_id: str, connection_id: str, db: Session = Depends(get_db),
 # ── Kanäle: eigener Shop, eBay, Amazon, Kleinanzeigen … ─────────────────────
 
 @router.get("/kanaele")
-def kanaele_liste(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def kanaele_liste(product_id: str | None = None, db: Session = Depends(get_db),
+                  user: User = Depends(get_current_user)):
     """Aktive Kanäle zur Auswahl nach der Erfassung – auch für Mitarbeitende,
-    ohne Adressen und Zugangsdaten."""
+    ohne Adressen und Zugangsdaten. Mit product_id auch der Preis je Kanal."""
     from app.services import kanaele
-    return kanaele.kanal_liste(db)
+    product = None
+    if product_id:
+        product = db.get(Product, product_id)
+        if product is None:
+            raise HTTPException(404, "Artikel nicht gefunden")
+    return kanaele.kanal_liste(db, product)
 
 
 @router.post("/products/{product_id}/veroeffentlichen")
@@ -292,7 +312,8 @@ def veroeffentlichungen(product_id: str, db: Session = Depends(get_db),
                         user: User = Depends(get_current_user)):
     """Wo der Artikel steht – je Kanal der letzte Stand."""
     from app.services import kanaele
-    if db.get(Product, product_id) is None:
+    product = db.get(Product, product_id)
+    if product is None:
         raise HTTPException(404, "Artikel nicht gefunden")
     publikationen = db.scalars(select(ShopPublication).where(
         ShopPublication.product_id == product_id)
@@ -310,6 +331,11 @@ def veroeffentlichungen(product_id: str, db: Session = Depends(get_db),
             "manuell": kanaele.ist_manuell(connection) if connection else False,
             "status": pub.status, "external_id": pub.external_id,
             "url": (pub.payload_snapshot or {}).get("url"),
+            # Preis, mit dem der Artikel dort steht (zuletzt übertragen bzw. von Hand eingestellt).
+            "preis": (pub.payload_snapshot or {}).get("price"),
+            # Kanal ohne Schnittstelle mit veraltetem Preis → neuer Preis zum Eintragen.
+            "preis_aendern": (str(neu) if connection and kanaele.ist_manuell(connection) and (
+                neu := kanaele.manueller_preis_offen(pub, product, connection)) is not None else None),
             "error": pub.error, "published_at": pub.published_at,
         })
     return ergebnis
@@ -325,14 +351,18 @@ def _manuelle_publikation(db: Session, publication_id: str) -> ShopPublication:
 
 
 @router.get("/products/{product_id}/kleinanzeigen")
-def kleinanzeigen_entwurf(product_id: str, db: Session = Depends(get_db),
+def kleinanzeigen_entwurf(product_id: str, connection_id: str | None = None,
+                          db: Session = Depends(get_db),
                           user: User = Depends(get_current_user)):
     """Assistent: Titel, Text, Preis und Fotos zum Einstellen bei Kleinanzeigen."""
     from app.services import kanaele
     product = db.get(Product, product_id)
     if product is None:
         raise HTTPException(404, "Artikel nicht gefunden")
-    return kanaele.kleinanzeigen_entwurf(db, product)
+    connection = db.get(ShopConnection, connection_id) if connection_id else next(
+        (c for c in (db.get(ShopConnection, i) for i in product.kanaele or [])
+         if c is not None and kanaele.ist_manuell(c)), None)
+    return kanaele.kleinanzeigen_entwurf(db, product, connection)
 
 
 @router.post("/publications/{publication_id}/online")
@@ -341,17 +371,36 @@ def anzeige_online(publication_id: str, body: dict | None = None, db: Session = 
     """Von Hand eingestellte Anzeige bestätigen (optional mit Adresse)."""
     from app.services import kanaele
     pub = _manuelle_publikation(db, publication_id)
+    product = db.get(Product, pub.product_id)
+    connection = db.get(ShopConnection, pub.connection_id)
+    preis = kanaele.kanal_preis(product, connection) if product and connection else None
     try:
-        kanaele.kleinanzeigen_online(pub, (body or {}).get("url"))
+        kanaele.kleinanzeigen_online(pub, (body or {}).get("url"), preis)
     except kanaele.KanalFehler as exc:
         raise HTTPException(422, str(exc))
-    product = db.get(Product, pub.product_id)
     if product is not None:
         kanaele.manuell_nachziehen(pub, product)  # schon ausverkauft? → gleich löschen lassen
     audit_service.log(db, user=user, entity_type="product", entity_id=pub.product_id,
                       action="anzeige_online", new_value=(body or {}).get("url"))
     db.commit()
     return {"status": pub.status, "external_id": pub.external_id}
+
+
+@router.post("/publications/{publication_id}/preis-geaendert")
+def anzeige_preis_geaendert(publication_id: str, db: Session = Depends(get_db),
+                            user: User = Depends(require_role(*_PUBLISHER))):
+    """Preis der Anzeige von Hand angepasst → Aufgabe erledigt."""
+    from app.services import kanaele
+    pub = _manuelle_publikation(db, publication_id)
+    product = db.get(Product, pub.product_id)
+    connection = db.get(ShopConnection, pub.connection_id)
+    preis = kanaele.kanal_preis(product, connection) if product and connection else None
+    pub.payload_snapshot = {**(pub.payload_snapshot or {}),
+                            "price": str(preis) if preis is not None else None}
+    audit_service.log(db, user=user, entity_type="product", entity_id=pub.product_id,
+                      action="anzeige_preis", new_value=str(preis))
+    db.commit()
+    return {"status": pub.status, "preis": str(preis) if preis is not None else None}
 
 
 @router.post("/publications/{publication_id}/geloescht")

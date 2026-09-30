@@ -443,16 +443,24 @@ const views = {
           `<option value="${esc(d.typ)}">${esc(d.name)}</option>`).join("")}</select></label>
         <label>Name <input name="name" required></label>
         <div id="conn-felder" style="display:contents"></div>
+        <label>Preisaufschlag in % <input name="preis_aufschlag" inputmode="decimal" placeholder="0"
+          title="Aufschlag auf den Verkaufspreis, z. B. für die Provision des Portals"></label>
+        <label class="haken"><input type="checkbox" name="preis_runden"> Preise auf ,99 aufrunden</label>
         <button class="btn primary" type="submit">Anlegen</button>
       </form>
-      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Portal</th><th>URL</th>
-        <th>Zugangsdaten</th><th>Status</th><th></th></tr></thead><tbody>
-        ${connections.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(portal(c.connector_type))}</td>
-          <td>${esc(c.base_url)}</td>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Portal</th>
+        <th>Preis</th><th>Zugangsdaten</th><th>Status</th><th></th></tr></thead><tbody>
+        ${connections.map((c) => `<tr><td>${esc(c.name)}<br><span class="muted klein">${esc(c.base_url)}</span></td>
+          <td>${esc(portal(c.connector_type))}</td>
+          <td class="preis-regel"><label>+ <input class="preis-feld" data-aufschlag="${c.id}"
+                value="${esc(Number(c.preis_aufschlag || 0).toLocaleString("de-DE"))}" inputmode="decimal"
+                aria-label="Preisaufschlag in Prozent für ${esc(c.name)}"> %</label>
+              <label class="haken"><input type="checkbox" data-runden="${c.id}" ${c.preis_runden ? "checked" : ""}> auf ,99</label>
+              <button class="btn small" data-preis-regel="${c.id}">Speichern</button></td>
           <td>${c.has_credentials ? "hinterlegt (verschlüsselt)" : "–"} ${anmeldung(c)}</td>
           <td>${c.is_active ? '<span class="badge ok">aktiv</span>'
                             : '<span class="badge err">inaktiv</span>'}</td>
-          <td>${knoepfe(c)}</td>
+          <td><div class="knopf-spalte">${knoepfe(c)}</div></td>
           </tr>`).join("")}
       </tbody></table></div>
       <p id="conn-result"></p>`;
@@ -480,7 +488,9 @@ const views = {
       d.felder.forEach((f) => { if (raw["z_" + f.schluessel]) credentials[f.schluessel] = raw["z_" + f.schluessel]; });
       const body = { name: raw.name, connector_type: raw.connector_type,
                      base_url: raw.base_url || "", webhook_secret: raw.webhook_secret || null,
-                     credentials: Object.keys(credentials).length ? credentials : null };
+                     credentials: Object.keys(credentials).length ? credentials : null,
+                     preis_aufschlag: (raw.preis_aufschlag || "0").replace(",", "."),
+                     preis_runden: Boolean(raw.preis_runden) };
       try {
         await api("/shop/connections", { method: "POST", body });
         views.connections();
@@ -503,6 +513,17 @@ const views = {
         try {
           const { url } = await api("/shop/ebay/verbinden?connection_id=" + encodeURIComponent(btn.dataset.ebay));
           window.location.href = url;  // eBay leitet nach der Anmeldung zurück
+        } catch (err) { ausgabe(`<span class="error">${esc(err.message)}</span>`); }
+      };
+    });
+    main().querySelectorAll("[data-preis-regel]").forEach((btn) => {
+      btn.onclick = async () => {
+        const id = btn.dataset.preisRegel;
+        const wert = main().querySelector(`[data-aufschlag="${id}"]`).value.trim().replace(",", ".") || "0";
+        try {
+          await api("/shop/connections/" + id, { method: "PATCH", body: {
+            preis_aufschlag: wert, preis_runden: main().querySelector(`[data-runden="${id}"]`).checked } });
+          ausgabe('<span class="ok">✓ Preisregel gespeichert – veröffentlichte Artikel werden angepasst.</span>');
         } catch (err) { ausgabe(`<span class="error">${esc(err.message)}</span>`); }
       };
     });
@@ -632,11 +653,26 @@ function darfFreigeben() {
   return ["shop_manager", "warehouse_manager", "admin"].includes(currentUser?.role);
 }
 
+/** Preis eines Kanals in der Freigabe: wirksamer Preis, Herkunft und Feld für
+ *  einen festen Preis (leer = Verkaufspreis + Aufschlag des Kanals). */
+function kanalPreisFeld(k) {
+  const aufschlag = Number(k.preis_aufschlag || 0);
+  const regel = k.preis_fest ? "fester Preis"
+    : aufschlag ? `Verkaufspreis ${aufschlag > 0 ? "+" : "−"} ${Math.abs(aufschlag).toLocaleString("de-DE")} %${k.preis_runden ? ", auf ,99" : ""}`
+    : `Verkaufspreis${k.preis_runden ? ", auf ,99" : ""}`;
+  const fest = k.preis_fest ? Number(k.preis_fest).toLocaleString("de-DE", { minimumFractionDigits: 2 }) : "";
+  return `<span class="kanal-preis"><strong>${fmtMoney(k.preis)}</strong> <span class="muted">${esc(regel)}</span>
+    <input class="preis-feld" data-preis-fest="${k.id}" value="${esc(fest)}" placeholder="fester Preis" inputmode="decimal"
+      aria-label="Fester Preis für ${esc(k.name)}">
+    <button class="btn small" data-preis-speichern="${k.id}">Preis speichern</button>
+    ${k.preis_fest ? `<button class="btn small" data-preis-zurueck="${k.id}">Aufschlag verwenden</button>` : ""}</span>`;
+}
+
 async function freigabeDetail(productId) {
   const [product, quality, kanaele, stand] = await Promise.all([
     api("/products/" + productId),
     api("/products/" + productId + "/quality"),
-    api("/shop/kanaele").catch(() => []),
+    api(`/shop/kanaele?product_id=${encodeURIComponent(productId)}`).catch(() => []),
     api(`/shop/products/${productId}/veroeffentlichungen`).catch(() => []),
   ]);
   const standJe = Object.fromEntries(stand.map((v) => [v.connection_id, v]));
@@ -710,6 +746,7 @@ async function freigabeDetail(productId) {
             const v = standJe[k.id];
             return `<li><label><input type="checkbox" data-kanal="${k.id}" ${gewaehlt.has(k.id) ? "checked" : ""}>
               <strong>${esc(k.name)}</strong> <span class="muted">${esc(k.portal)}${k.manuell ? " · von Hand" : ""}</span></label>
+              ${kanalPreisFeld(k)}
               ${v ? statusBadge(v.status) : ""}
               ${v && v.url ? `<a href="${esc(v.url)}" target="_blank" rel="noopener">Anzeige ansehen</a>` : ""}
               ${v && v.error ? `<span class="error">${esc(v.error)}</span>` : ""}</li>`;
@@ -766,6 +803,24 @@ async function freigabeDetail(productId) {
     };
   });
 
+  // Preis je Kanal: fester Preis oder (leer) Verkaufspreis + Aufschlag des Kanals.
+  const preisSpeichern = async (id, wert) => {
+    const ids = [...main().querySelectorAll("[data-kanal]:checked")].map((b) => b.dataset.kanal);
+    await api(`/products/${productId}/kanaele`, { method: "PUT",
+      body: { connection_ids: ids, preise: { [id]: wert } } });
+  };
+  main().querySelectorAll("[data-preis-speichern]").forEach((btn) => {
+    btn.onclick = () => aktion(() => {
+      const feld = main().querySelector(`[data-preis-fest="${btn.dataset.preisSpeichern}"]`);
+      const wert = feld.value.trim().replace(/\./g, "").replace(",", ".");
+      if (wert && !(Number(wert) > 0)) throw new Error("Bitte einen Preis wie 12,99 eingeben");
+      return preisSpeichern(btn.dataset.preisSpeichern, wert || null);
+    });
+  });
+  main().querySelectorAll("[data-preis-zurueck]").forEach((btn) => {
+    btn.onclick = () => aktion(() => preisSpeichern(btn.dataset.preisZurueck, null));
+  });
+
   const pubBtn = document.getElementById("pub-btn");
   if (pubBtn) {
     pubBtn.onclick = async () => {
@@ -796,13 +851,18 @@ async function kleinanzeigenAssistent(productId, pub, neuLaden) {
   const box = document.getElementById("kleinanzeigen-assistent");
   if (!box) return;
   let e;
-  try { e = await api(`/shop/products/${productId}/kleinanzeigen`); }
+  try { e = await api(`/shop/products/${productId}/kleinanzeigen?connection_id=${encodeURIComponent(pub.connection_id)}`); }
   catch (err) { box.innerHTML = `<p class="error">Assistent: ${esc(err.message)}</p>`; return; }
   const kopieren = (id, label) => `<button class="btn small" type="button" data-kopieren="${id}">${label}</button>`;
   const schritt = pub.status === "zu_loeschen"
     ? `<p class="error"><strong>Ausverkauft:</strong> Bitte die Anzeige bei Kleinanzeigen löschen und hier bestätigen.</p>
        <div class="toolbar">${pub.url ? `<a class="btn" href="${esc(pub.url)}" target="_blank" rel="noopener">Anzeige öffnen</a>` : ""}
          <button class="btn primary" id="ka-geloescht">Anzeige ist gelöscht</button></div>`
+    : pub.status === "published" && pub.preis_aendern
+      ? `<p class="error"><strong>Preis geändert:</strong> Bitte in der Anzeige bei Kleinanzeigen den Preis auf
+           ${fmtMoney(pub.preis_aendern)} ändern (bisher ${fmtMoney(pub.preis)}) und hier bestätigen.</p>
+         <div class="toolbar">${pub.url ? `<a class="btn" href="${esc(pub.url)}" target="_blank" rel="noopener">Anzeige öffnen</a>` : ""}
+           <button class="btn primary" id="ka-preis-ok">Preis ist geändert</button></div>`
     : pub.status === "published"
       ? `<p class="ok">✓ Anzeige ist online${pub.url ? ` – <a href="${esc(pub.url)}" target="_blank" rel="noopener">ansehen</a>` : ""}.
            Ist der Artikel ausverkauft, erscheint hier und unter „Offene Aufgaben“ die Erinnerung zum Löschen.</p>`
@@ -848,6 +908,11 @@ async function kleinanzeigenAssistent(productId, pub, neuLaden) {
         body: { url: document.getElementById("ka-url").value.trim() || null } });
       neuLaden();
     } catch (err) { meldung("Fehler: " + err.message, true); }
+  };
+  const preisOk = document.getElementById("ka-preis-ok");
+  if (preisOk) preisOk.onclick = async () => {
+    try { await api(`/shop/publications/${pub.id}/preis-geaendert`, { method: "POST" }); neuLaden(); }
+    catch (err) { meldung("Fehler: " + err.message, true); }
   };
   const geloescht = document.getElementById("ka-geloescht");
   if (geloescht) geloescht.onclick = async () => {

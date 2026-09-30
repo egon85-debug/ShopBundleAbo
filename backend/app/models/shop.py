@@ -19,6 +19,11 @@ class ShopConnection(Base, IdMixin, TenantMixin, TimestampMixin):
     credentials_encrypted: Mapped[str | None] = mapped_column(Text)
     webhook_secret: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Preis auf diesem Kanal = Shop-Verkaufspreis + Aufschlag (z. B. für die
+    # Provision von eBay/Amazon), optional auf ,99 aufgerundet. Ein fester
+    # Preis je Artikel (Product.kanal_preise) geht vor.
+    preis_aufschlag: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0"), nullable=False)
+    preis_runden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class PublicationStatusEnum(StrEnum):

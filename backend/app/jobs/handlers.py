@@ -698,6 +698,28 @@ def handle_sync_stock(db: Session, job: Job) -> None:
     db.commit()
 
 
+def handle_sync_price(db: Session, job: Job) -> None:
+    """Preis eines Kanals nachziehen. Kanäle ohne Schnittstelle bekommen eine
+    Aufgabe („Preis ändern“) – die ergibt sich aus dem gemerkten Preis."""
+    from app.connectors.registry import build_connector
+    from app.models import ShopConnection
+    from app.services import kanaele
+    publication = db.get(ShopPublication, job.payload["publication_id"])
+    if publication is None or not publication.external_id or publication.status != "published":
+        return
+    product = db.get(Product, publication.product_id)
+    connection = db.get(ShopConnection, publication.connection_id)
+    if product is None or connection is None or not connection.is_active:
+        return
+    connector = build_connector(connection)
+    preis = kanaele.kanal_preis(product, connection)
+    if connector.manuell or preis is None:
+        return
+    connector.update_price(publication.external_id, preis)
+    publication.payload_snapshot = {**(publication.payload_snapshot or {}), "price": str(preis)}
+    db.commit()
+
+
 def handle_marktplatz_abgleich(db: Session, job: Job) -> None:
     """Verkäufe eines Marktplatzes abholen und sich selbst neu einplanen."""
     from app.models import ShopConnection
@@ -753,6 +775,7 @@ HANDLERS = {
     JobType.GENERATE_SHOPTEXT.value: handle_generate_shoptext,
     JobType.PUBLISH_PRODUCT.value: handle_publish_product,
     JobType.SYNC_STOCK.value: handle_sync_stock,
+    JobType.SYNC_PRICE.value: handle_sync_price,
     JobType.MARKTPLATZ_ABGLEICH.value: handle_marktplatz_abgleich,
     JobType.BESTELLUNG_WEITERGEBEN.value: handle_bestellung_weitergeben,
     JobType.VERSAND_MELDEN.value: handle_versand_melden,

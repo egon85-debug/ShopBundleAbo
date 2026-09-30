@@ -23,7 +23,8 @@ class PublishError(Exception):
     pass
 
 
-def build_payload(db: Session, product: Product) -> ShopListingPayload:
+def build_payload(db: Session, product: Product,
+                  connection: ShopConnection | None = None) -> ShopListingPayload:
     listing = db.scalar(select(ShopListing).where(ShopListing.product_id == product.id))
     images = db.scalars(
         select(ProductImage)
@@ -37,6 +38,9 @@ def build_payload(db: Session, product: Product) -> ShopListingPayload:
 
     if product.sale_price is None:
         raise PublishError("Kein Verkaufspreis gesetzt")
+    # Je Kanal eigener Preis (Aufschlag für Provisionen oder fester Preis).
+    from app.services.kanaele import kanal_preis
+    preis = kanal_preis(product, connection) if connection is not None else product.sale_price
 
     return ShopListingPayload(
         sku=product.internal_sku,
@@ -45,7 +49,7 @@ def build_payload(db: Session, product: Product) -> ShopListingPayload:
         or product.short_description or "",
         long_description=(listing.long_description if listing else None)
         or product.long_description or "",
-        price=product.sale_price,
+        price=preis,
         stock_quantity=product.available_quantity,
         condition=product.condition,
         category=product.category,
@@ -81,7 +85,7 @@ def execute_publication(db: Session, publication: ShopPublication) -> None:
         raise PublishError("Produkt oder Shop-Verbindung nicht verfügbar")
 
     connector = build_connector(connection)
-    payload = build_payload(db, product)
+    payload = build_payload(db, product, connection)
     publication.payload_snapshot = _snapshot(payload)
 
     if publication.external_id:

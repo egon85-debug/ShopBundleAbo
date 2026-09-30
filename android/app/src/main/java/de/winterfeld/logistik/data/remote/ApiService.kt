@@ -85,7 +85,9 @@ interface ApiService {
     suspend fun patchProduct(@Path("id") id: String, @Body fields: okhttp3.RequestBody): ProductDto
 
     @GET("shop/kanaele")
-    suspend fun kanaele(): List<de.winterfeld.logistik.data.remote.dto.KanalDto>
+    suspend fun kanaele(
+        @Query("product_id") productId: String? = null,
+    ): List<de.winterfeld.logistik.data.remote.dto.KanalDto>
 
     @PUT("products/{id}/kanaele")
     suspend fun kanaeleSetzen(

@@ -31,7 +31,7 @@ def test_kanalliste_fuer_mitarbeitende_ohne_zugangsdaten(client, db, employee):
     assert [k["name"] for k in kanaele] == ["Eigener Shop", "Kleinanzeigen"]
     assert kanaele[1] == {"id": kanaele[1]["id"], "name": "Kleinanzeigen",
                           "connector_type": "kleinanzeigen", "portal": "Kleinanzeigen",
-                          "manuell": True}
+                          "manuell": True, "preis_aufschlag": "0.00", "preis_runden": False}
     assert "base_url" not in kanaele[0]
 
 

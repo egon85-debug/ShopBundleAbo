@@ -368,8 +368,10 @@ fun ProductDetailScreen(products: ProductRepository, productId: String, baseUrl:
             ProductDetailContent(p, baseUrl, error, onEdit = { editing = it },
                 onQuestion = { question = it },
                 onUseRecommended = { price -> speichern(mapOf("sale_price" to price)) },
-                kanalLaden = products::kanaele,
-                kanalSetzen = { ids -> products.kanaeleSetzen(productId, ids) })
+                kanalLaden = { products.kanaele(productId) },
+                kanalSetzen = { ids -> products.kanaeleSetzen(productId, ids) },
+                kanalPreisSetzen = { ids, kanal, preis ->
+                    products.kanaeleSetzen(productId, ids, mapOf(kanal to preis)) })
         }
     }
 
@@ -396,7 +398,8 @@ fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
                          onEdit: (Feld) -> Unit, onQuestion: (QuestionDto) -> Unit,
                          onUseRecommended: (String) -> Unit,
                          kanalLaden: (suspend () -> List<KanalDto>)? = null,
-                         kanalSetzen: (suspend (List<String>) -> List<String>)? = null) {
+                         kanalSetzen: (suspend (List<String>) -> List<String>)? = null,
+                         kanalPreisSetzen: (suspend (List<String>, String, String) -> Unit)? = null) {
     // Für Werkzeug & Co. keine acht leeren Zeilen: erst auf Antippen aufklappen.
     val hatLebensmittel = FELDER_LEBENSMITTEL.any { feldWert(p, it) != null }
     var lebensmittelOffen by rememberSaveable(p.id) { mutableStateOf(false) }
@@ -447,7 +450,8 @@ fun ProductDetailContent(p: ProductDto, baseUrl: String, error: String?,
         }
 
         if (kanalLaden != null && kanalSetzen != null) {
-            item { KanalAuswahl(p.id, p.kanaele.orEmpty(), kanalLaden, kanalSetzen) }
+            item { KanalAuswahl(p.id, p.kanaele.orEmpty(), kanalLaden, kanalSetzen, kanalPreisSetzen,
+                                      neuLadenBei = p.salePrice) }
         }
         item { SectionHeader("Artikel") }
         item { FeldKarte(p, FELDER_ARTIKEL, onEdit) }

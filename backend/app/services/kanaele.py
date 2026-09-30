@@ -11,7 +11,7 @@ Veröffentlichung weitergegeben, damit nichts doppelt verkauft wird.
 """
 import html
 import re
-from decimal import Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,12 +57,119 @@ def anzeige_name(connection: ShopConnection) -> str:
     return (cls.anzeige_name if cls and cls.anzeige_name else connection.connector_type)
 
 
-def kanal_liste(db: Session) -> list[dict]:
-    """Aktive Kanäle für die Auswahl in App und Lager-Web (ohne Zugangsdaten)."""
+# ── Preise je Kanal ────────────────────────────────────────────────────────
+
+CENT = Decimal("0.01")
+
+
+def aufgeschlagen(basis: Decimal, aufschlag: Decimal | None, runden: bool) -> Decimal:
+    """Verkaufspreis + Aufschlag in Prozent, kaufmännisch auf Cent; mit
+    [runden] auf ,99 aufgerundet (13,33 → 13,99; 12,99 bleibt)."""
+    preis = (Decimal(basis) * (1 + Decimal(aufschlag or 0) / 100)).quantize(CENT, ROUND_HALF_UP)
+    if runden:
+        preis = (preis + CENT).to_integral_value(ROUND_CEILING) - CENT
+    return preis
+
+
+def fester_preis(product: Product, connection_id: str) -> Decimal | None:
+    wert = (product.kanal_preise or {}).get(connection_id)
+    if wert in (None, ""):
+        return None
+    try:
+        return Decimal(str(wert)).quantize(CENT)
+    except InvalidOperation:
+        return None
+
+
+def kanal_preis(product: Product, connection: ShopConnection) -> Decimal | None:
+    """Preis des Artikels auf diesem Kanal: fester Preis, sonst Verkaufspreis
+    plus Aufschlag des Kanals. None, solange kein Verkaufspreis gesetzt ist."""
+    fest = fester_preis(product, connection.id)
+    if fest is not None:
+        return fest
+    if product.sale_price is None:
+        return None
+    return aufgeschlagen(product.sale_price, connection.preis_aufschlag, connection.preis_runden)
+
+
+def preise_setzen(db: Session, product: Product, preise: dict[str, Decimal | None], *,
+                  user: User) -> list[str]:
+    """Feste Preise je Kanal setzen (None = wieder Verkaufspreis + Aufschlag).
+    Gibt die Kanäle zurück, deren Preis sich geändert hat."""
+    gueltig = {c.id for c in db.scalars(select(ShopConnection).where(
+        ShopConnection.id.in_(list(preise)))).all()} if preise else set()
+    if any(i not in gueltig for i in preise):
+        raise KanalFehler("Unbekannter Kanal")
+    neu = dict(product.kanal_preise or {})
+    geaendert = []
+    for connection_id, wert in preise.items():
+        if wert is not None and Decimal(wert) <= 0:
+            raise KanalFehler("Preis muss größer als 0 sein")
+        text = str(Decimal(wert).quantize(CENT)) if wert is not None else None
+        if neu.get(connection_id) == text:
+            continue
+        if text is None:
+            neu.pop(connection_id, None)
+        else:
+            neu[connection_id] = text
+        geaendert.append(connection_id)
+    if geaendert:
+        audit_service.log(db, user=user, entity_type="product", entity_id=product.id,
+                          action="kanal_preise", old_value=str(product.kanal_preise or {}),
+                          new_value=str(neu))
+        product.kanal_preise = neu
+    return geaendert
+
+
+def preis_nachziehen(db: Session, product: Product, connection_ids: list[str] | None = None) -> int:
+    """Preisänderung an die Veröffentlichungen weitergeben (alle Kanäle oder die genannten)."""
+    abfrage = select(ShopPublication).where(
+        ShopPublication.product_id == product.id,
+        ShopPublication.status == PublicationStatusEnum.PUBLISHED.value)
+    if connection_ids is not None:
+        if not connection_ids:
+            return 0
+        abfrage = abfrage.where(ShopPublication.connection_id.in_(connection_ids))
+    publikationen = db.scalars(abfrage).all()
+    for publication in publikationen:
+        queue.enqueue(db, job_type=JobType.SYNC_PRICE.value,
+                      payload={"publication_id": publication.id}, product_id=product.id)
+    return len(publikationen)
+
+
+def verbindung_preise_nachziehen(db: Session, connection: ShopConnection) -> int:
+    """Aufschlag eines Kanals geändert → alle dort veröffentlichten Artikel ohne festen Preis."""
+    publikationen = db.scalars(select(ShopPublication).where(
+        ShopPublication.connection_id == connection.id,
+        ShopPublication.status == PublicationStatusEnum.PUBLISHED.value)).all()
+    anzahl = 0
+    for publication in publikationen:
+        product = db.get(Product, publication.product_id)
+        if product is None or fester_preis(product, connection.id) is not None:
+            continue
+        queue.enqueue(db, job_type=JobType.SYNC_PRICE.value,
+                      payload={"publication_id": publication.id}, product_id=product.id)
+        anzahl += 1
+    return anzahl
+
+
+def kanal_liste(db: Session, product: Product | None = None) -> list[dict]:
+    """Aktive Kanäle für die Auswahl in App und Lager-Web (ohne Zugangsdaten);
+    mit [product] zusätzlich der Preis je Kanal."""
     verbindungen = db.scalars(select(ShopConnection).where(ShopConnection.is_active.is_(True))
                               .order_by(ShopConnection.name)).all()
-    return [{"id": c.id, "name": c.name, "connector_type": c.connector_type,
-             "portal": anzeige_name(c), "manuell": ist_manuell(c)} for c in verbindungen]
+    liste = []
+    for c in verbindungen:
+        eintrag = {"id": c.id, "name": c.name, "connector_type": c.connector_type,
+                   "portal": anzeige_name(c), "manuell": ist_manuell(c),
+                   "preis_aufschlag": str(Decimal(c.preis_aufschlag or 0).quantize(CENT)),
+                   "preis_runden": bool(c.preis_runden)}
+        if product is not None:
+            preis, fest = kanal_preis(product, c), fester_preis(product, c.id)
+            eintrag["preis"] = str(preis) if preis is not None else None
+            eintrag["preis_fest"] = str(fest) if fest is not None else None
+        liste.append(eintrag)
+    return liste
 
 
 def kanaele_setzen(db: Session, product: Product, ids: list[str], *, user: User) -> list[str]:
@@ -192,7 +299,8 @@ def _kuerzen(text: str, grenze: int) -> str:
     return text[: grenze - 1].rsplit(" ", 1)[0].rstrip(" ,;–-") + "…"
 
 
-def kleinanzeigen_entwurf(db: Session, product: Product) -> dict:
+def kleinanzeigen_entwurf(db: Session, product: Product,
+                          connection: ShopConnection | None = None) -> dict:
     listing = db.scalar(select(ShopListing).where(ShopListing.product_id == product.id))
     titel = _kuerzen(((listing.seo_title if listing else None) or product.product_name or "").strip(),
                      TITEL_MAX)
@@ -212,7 +320,7 @@ def kleinanzeigen_entwurf(db: Session, product: Product) -> dict:
     bilder = db.scalars(select(ProductImage).where(
         ProductImage.product_id == product.id, ProductImage.kind == ImageKind.OPTIMIZED.value)
         .order_by(ProductImage.is_primary.desc(), ProductImage.sort_order)).all()
-    preis = product.sale_price
+    preis = kanal_preis(product, connection) if connection is not None else product.sale_price
     return {
         "titel": titel,
         "text": text,
@@ -229,13 +337,31 @@ def kleinanzeigen_entwurf(db: Session, product: Product) -> dict:
 _ANZEIGE_ID = re.compile(r"/s-anzeige/[^/]+/(\d+)")
 
 
-def kleinanzeigen_online(publication: ShopPublication, url: str | None) -> None:
+def kleinanzeigen_online(publication: ShopPublication, url: str | None,
+                         preis: Decimal | None = None) -> None:
     url = (url or "").strip() or None
     if url and not url.startswith("https://www.kleinanzeigen.de/"):
         raise KanalFehler("Bitte die Adresse der Anzeige von kleinanzeigen.de einfügen")
     treffer = _ANZEIGE_ID.search(url or "")
     publication.external_id = treffer.group(1) if treffer else (publication.external_id or "manuell")
-    publication.payload_snapshot = {**(publication.payload_snapshot or {}), "url": url}
+    publication.payload_snapshot = {**(publication.payload_snapshot or {}), "url": url,
+                                    "price": str(preis) if preis is not None else None}
     publication.status = PublicationStatusEnum.PUBLISHED.value
     publication.published_at = utcnow()
     publication.error = None
+
+
+def manueller_preis_offen(publication: ShopPublication, product: Product,
+                          connection: ShopConnection) -> Decimal | None:
+    """Kleinanzeige mit veraltetem Preis → der neue Preis (sonst None)."""
+    if publication.status != PublicationStatusEnum.PUBLISHED.value:
+        return None
+    gemerkt = (publication.payload_snapshot or {}).get("price")
+    aktuell = kanal_preis(product, connection)
+    if gemerkt in (None, "") or aktuell is None:
+        return None
+    return aktuell if Decimal(gemerkt) != aktuell else None
+
+
+def preis_text(preis: Decimal) -> str:
+    return f"{preis:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")

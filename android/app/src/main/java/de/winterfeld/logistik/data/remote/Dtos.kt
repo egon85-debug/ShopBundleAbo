@@ -138,6 +138,18 @@ data class KanalDto(
     val portal: String,
     /** Ohne Schnittstelle – wird im Lager-Web vorbereitet und von Hand eingestellt. */
     val manuell: Boolean,
+    /** Aufschlag in Prozent auf den Verkaufspreis (Provision des Portals), z. B. "12.00". */
+    @SerializedName("preis_aufschlag") val preisAufschlag: String? = null,
+    /** Preise auf ,99 aufrunden. */
+    @SerializedName("preis_runden") val preisRunden: Boolean? = null,
+    /** Preis des Artikels auf diesem Kanal (nur mit product_id abgefragt). */
+    val preis: String? = null,
+    /** Fester Preis für diesen Kanal, sonst null (= Verkaufspreis + Aufschlag). */
+    @SerializedName("preis_fest") val preisFest: String? = null,
 )
 
-data class KanaeleRequest(@SerializedName("connection_ids") val connectionIds: List<String>)
+data class KanaeleRequest(
+    @SerializedName("connection_ids") val connectionIds: List<String>,
+    /** Fester Preis je Kanal; "" = wieder Verkaufspreis + Aufschlag. null = unverändert. */
+    val preise: Map<String, String>? = null,
+)

@@ -157,7 +157,13 @@ class CaptureViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Vertriebskanäle zur Auswahl im Prüfbildschirm. */
-    suspend fun kanaele() = products.kanaele()
+    suspend fun kanaele() = products.kanaele(_state.value.serverState?.id)
+
+    /** Festen Preis für einen Kanal setzen ("" = wieder Verkaufspreis + Aufschlag). */
+    suspend fun kanalPreisSetzen(ids: List<String>, kanalId: String, preis: String) {
+        val id = _state.value.serverState?.id ?: error("Artikel ist noch nicht beim Server")
+        products.kanaeleSetzen(id, ids, mapOf(kanalId to preis))
+    }
 
     /** Gewählte Kanäle des erfassten Artikels speichern. */
     suspend fun kanaeleSetzen(ids: List<String>): List<String> {

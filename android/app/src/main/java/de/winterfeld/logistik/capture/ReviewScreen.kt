@@ -54,6 +54,7 @@ fun ReviewScreen(
     onDuplicateAction: (action: String, duplicateId: String?) -> Unit,
     kanalLaden: (suspend () -> List<KanalDto>)? = null,
     kanalSetzen: (suspend (List<String>) -> List<String>)? = null,
+    kanalPreisSetzen: (suspend (List<String>, String, String) -> Unit)? = null,
 ) {
     if (savedFlash) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
@@ -115,7 +116,8 @@ fun ReviewScreen(
             }
 
             if (kanalLaden != null && kanalSetzen != null) {
-                KanalAuswahl(product.id, product.kanaele.orEmpty(), kanalLaden, kanalSetzen)
+                KanalAuswahl(product.id, product.kanaele.orEmpty(), kanalLaden, kanalSetzen, kanalPreisSetzen,
+                             neuLadenBei = product.salePrice)
             }
         }
 
