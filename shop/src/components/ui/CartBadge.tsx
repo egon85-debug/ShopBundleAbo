@@ -54,8 +54,22 @@ export function CartBadge() {
   }, [laden]);
 
   return (
-    <Link href="/warenkorb" className="knopf-nav" aria-label={`Warenkorb${count ? `, ${count} Artikel` : ""}`}>
-      Warenkorb
+    <Link
+      href="/warenkorb"
+      className="knopf-nav max-sm:px-3"
+      aria-label={`Warenkorb${count ? `, ${count} Artikel` : ""}`}
+    >
+      {/* Am Handy nur das Symbol – das Logo in der Mitte braucht den Platz. */}
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" className="shrink-0 sm:hidden">
+        <path
+          d="M3.5 6.5h11l-.8 8.2a1.5 1.5 0 0 1-1.5 1.3H5.8a1.5 1.5 0 0 1-1.5-1.3L3.5 6.5ZM6.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="max-sm:hidden">Warenkorb</span>
       {count !== null && count > 0 && (
         <span className="tabular rounded-klein bg-white/25 px-1.5 text-caption">{count}</span>
       )}

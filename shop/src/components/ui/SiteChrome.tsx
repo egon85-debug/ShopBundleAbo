@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 import { CartBadge } from "@/components/ui/CartBadge";
+import { KategorienMenue, type MenueKategorie } from "@/components/ui/KategorienMenue";
 import { NeuheitenBand } from "@/components/ui/NeuheitenBand";
+import type { CategoryNode } from "@/services/catalog";
 import { navigationCategories, neuheiten } from "@/services/navigation";
 
 /**
@@ -12,13 +14,25 @@ import { navigationCategories, neuheiten } from "@/services/navigation";
  * hängt und die Seiten sonst nicht mehr statisch ausgeliefert werden könnten.
  */
 
+/** Das Logo in der Mitte der Kopfzeile – bewusst groß, es trägt die Marke. */
 function Wortmarke() {
   return (
     <Link href="/" className="shrink-0" aria-label="Winterfeld Logistik – Startseite">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/marke/winterfeld-logistik.svg" alt="" width={147} height={24} className="h-6 w-auto" />
+      <img
+        src="/marke/winterfeld-logistik.svg"
+        alt=""
+        width={344}
+        height={56}
+        className="h-6 w-auto min-[380px]:h-7 sm:h-9 md:h-10 lg:h-14"
+      />
     </Link>
   );
+}
+
+/** Nur was das Menü im Browser braucht (keine Datumsfelder, keine Beschreibungen). */
+function fuersMenue(knoten: CategoryNode[]): MenueKategorie[] {
+  return knoten.map((k) => ({ id: k.id, name: k.name, slug: k.slug, kinder: fuersMenue(k.children) }));
 }
 
 /**
@@ -43,27 +57,19 @@ export async function SiteHeader() {
 
       <NeuheitenBand artikel={neueArtikel} />
 
+      {/* Links das Kategorien-Menü, in der Mitte das Logo, rechts Suche, Konto, Warenkorb.
+          Drei Spalten 1fr · auto · 1fr halten das Logo genau mittig; was rechts nicht
+          mehr passt (Suche unter 1280 px, Konto unter 768 px), steht im Menü. */}
       <header className="sticky top-0 z-50 border-b border-haarlinie bg-white">
-        <div className="seite flex h-16 items-center gap-4 sm:gap-8 lg:h-[72px]">
+        <div className="seite grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-6 lg:h-24">
+          <div className="justify-self-start">
+            <KategorienMenue kategorien={fuersMenue(categories)} />
+          </div>
+
           <Wortmarke />
 
-          <nav className="hidden flex-1 items-center gap-8 lg:flex" aria-label="Kategorien">
-            <Link href="/shop" className="text-body-sm text-kohle hover:text-tinte">
-              Alle Produkte
-            </Link>
-            {categories.slice(0, 4).map((category) => (
-              <Link
-                key={category.id}
-                href={`/shop/${category.slug}`}
-                className="text-body-sm text-kohle hover:text-tinte"
-              >
-                {category.name}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="ml-auto flex items-center gap-4">
-            <form action="/shop" className="hidden w-56 md:block" role="search">
+          <div className="flex items-center justify-self-end gap-3">
+            <form action="/shop" className="hidden w-40 xl:block" role="search">
               <input
                 type="search"
                 name="q"
@@ -72,25 +78,12 @@ export async function SiteHeader() {
                 className="feld py-2 text-body-sm"
               />
             </form>
-            <Link href="/konto" className="text-body-sm text-kohle hover:text-tinte">
+            <Link href="/konto" className="hidden text-body-sm text-kohle hover:text-tinte md:inline">
               Konto
             </Link>
             <CartBadge />
           </div>
         </div>
-
-        {/* Auf dem Handy: Kategorien als wischbare Zeile unter der Kopfzeile. */}
-        <nav
-          className="seite flex gap-6 overflow-x-auto pb-3 text-body-sm text-kohle lg:hidden"
-          aria-label="Kategorien"
-        >
-          <Link href="/shop" className="shrink-0 hover:text-tinte">Alle Produkte</Link>
-          {categories.map((category) => (
-            <Link key={category.id} href={`/shop/${category.slug}`} className="shrink-0 hover:text-tinte">
-              {category.name}
-            </Link>
-          ))}
-        </nav>
       </header>
     </>
   );
