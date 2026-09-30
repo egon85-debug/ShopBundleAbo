@@ -110,9 +110,38 @@ async function freierSlug(wunsch: string, sku: string, eigeneId: string | null):
   return `${wunsch}-${slugify(sku)}`.slice(0, 320);
 }
 
-/** Kategorie anhand des Slugs finden oder anlegen – nichts ist fest verdrahtet. */
+/**
+ * „Getränke > Alkoholfreie Getränke > Cola/Limonade“ → die einzelnen Ebenen.
+ * Die KI im Lager liefert Kategorien oft als solchen Pfad; ohne Aufteilung
+ * entstand eine einzige Kategorie mit dem ganzen Pfad als Namen.
+ */
+export function kategoriePfad(name: string): string[] {
+  return name
+    .split(/\s+>\s+|\s*›\s*/)
+    .map((teil) => teil.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Kategorie anhand des Slugs finden oder anlegen – nichts ist fest verdrahtet.
+ * Bei einem Pfad wird jede Ebene als Unterkategorie der vorigen angelegt
+ * (vorhandene werden wiederverwendet) und die unterste zurückgegeben.
+ */
 async function kategorieId(name: string, slugWunsch?: string): Promise<string> {
-  const slug = (slugWunsch?.trim() || slugify(name)).slice(0, 180);
+  const ebenen = kategoriePfad(name);
+  if (ebenen.length === 0) ebenen.push(name.trim());
+  let elternId: string | null = null;
+  let id = "";
+  for (const ebene of ebenen) {
+    // Der Wunsch-Slug gilt nur, wenn es keinen Pfad gibt – sonst beschreibt er den ganzen Pfad.
+    const wunsch = ebenen.length === 1 ? slugWunsch?.trim() : undefined;
+    id = await kategorieEbene(ebene, (wunsch || slugify(ebene)).slice(0, 180), elternId);
+    elternId = id;
+  }
+  return id;
+}
+
+async function kategorieEbene(name: string, slug: string, parentId: string | null): Promise<string> {
   const [vorhanden] = await db
     .select({ id: categories.id })
     .from(categories)
@@ -125,7 +154,7 @@ async function kategorieId(name: string, slugWunsch?: string): Promise<string> {
     .from(categories);
   const [neu] = await db
     .insert(categories)
-    .values({ name, slug, position: Number(max) + 1 })
+    .values({ name, slug, parentId, position: Number(max) + 1 })
     .returning({ id: categories.id });
   return neu.id;
 }
