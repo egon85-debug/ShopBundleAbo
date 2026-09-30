@@ -23,6 +23,12 @@ class ShopListingPayload:
     meta_title: str | None = None
     meta_description: str | None = None
     attributes: dict = field(default_factory=dict)
+    # Für Marktplätze (eBay-Pflichtangaben je Kategorie)
+    brand: str | None = None
+    manufacturer: str | None = None
+    mpn: str | None = None
+    model: str | None = None
+    technical_data: dict = field(default_factory=dict)
     # Lebensmittel & Getränke
     net_content_amount: Decimal | None = None
     net_content_unit: str | None = None

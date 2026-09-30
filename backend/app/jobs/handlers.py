@@ -698,6 +698,29 @@ def handle_sync_stock(db: Session, job: Job) -> None:
     db.commit()
 
 
+def handle_marktplatz_abgleich(db: Session, job: Job) -> None:
+    """Verkäufe eines Marktplatzes abholen und sich selbst neu einplanen."""
+    from app.models import ShopConnection
+    from app.services import ebay_konto
+    connection = db.get(ShopConnection, job.payload.get("connection_id"))
+    if connection is None or not connection.is_active or connection.connector_type != "ebay":
+        return  # Verbindung gelöscht oder abgeschaltet → Kette endet
+    if not ebay_konto.zugangsdaten(connection).get("refresh_token"):
+        return
+    try:
+        ergebnis = ebay_konto.verkaeufe_abholen(db, connection)
+        log.info("Marktplatz %s: %s", connection.name, ergebnis)
+        db.commit()
+    except Exception:
+        # Ein Aussetzer (eBay nicht erreichbar …) beendet die Kette nicht; der
+        # nächste Abruf holt nach, das Abruffenster überlappt.
+        db.rollback()
+        log.exception("Marktplatz-Abruf %s fehlgeschlagen", connection.name)
+    ebay_konto.abruf_einplanen(db, connection, ausser=job.id,
+                               verzoegerung=get_settings().ebay_bestellabruf_minuten * 60)
+    db.commit()
+
+
 HANDLERS = {
     JobType.RECOGNIZE_PRODUCT.value: handle_recognize_product,
     JobType.RESEARCH_PRODUCT.value: handle_research_product,
@@ -709,4 +732,5 @@ HANDLERS = {
     JobType.GENERATE_SHOPTEXT.value: handle_generate_shoptext,
     JobType.PUBLISH_PRODUCT.value: handle_publish_product,
     JobType.SYNC_STOCK.value: handle_sync_stock,
+    JobType.MARKTPLATZ_ABGLEICH.value: handle_marktplatz_abgleich,
 }

@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+from html import escape as html_escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -76,10 +77,73 @@ def test_connection(connection_id: str, db: Session = Depends(get_db),
     if connection is None:
         raise HTTPException(404, "Verbindung nicht gefunden")
     try:
-        build_connector(connection).test_connection()
+        connector = build_connector(connection)
+        if connection.connector_type == "ebay":
+            # Geschäftsbedingungen und Lagerort merken, Verkaufsabruf starten.
+            from app.services import ebay_konto
+            ebay_konto.einrichten(connection)
+            ebay_konto.abruf_einplanen(db, connection)
+            db.commit()
+        else:
+            connector.test_connection()
     except Exception as exc:
         raise HTTPException(502, f"Verbindungstest fehlgeschlagen: {exc}")
     return {"detail": "Verbindung erfolgreich"}
+
+
+# ── eBay: Anmeldung beim Verkäuferkonto ─────────────────────────────────────
+
+@router.get("/ebay/verbinden")
+def ebay_verbinden(connection_id: str, db: Session = Depends(get_db),
+                   user: User = Depends(require_role(Role.ADMIN.value))):
+    """Adresse der eBay-Anmeldeseite für diese Verbindung."""
+    from app.services import ebay_konto
+    connection = db.get(ShopConnection, connection_id)
+    if connection is None or connection.connector_type != "ebay":
+        raise HTTPException(404, "eBay-Verbindung nicht gefunden")
+    try:
+        return {"url": ebay_konto.anmelde_url(connection)}
+    except ebay_konto.EbayFehler as exc:
+        raise HTTPException(409, str(exc))
+
+
+@router.get("/ebay/rueckruf", include_in_schema=False)
+def ebay_rueckruf(state: str = "", code: str = "", error: str = "",
+                  db: Session = Depends(get_db)):
+    """Hierher leitet eBay nach der Anmeldung zurück (ohne Lager-Anmeldung;
+    die Verbindung steht im signierten state)."""
+    from fastapi.responses import HTMLResponse
+    from app.services import ebay_konto
+
+    def seite(text: str, ok: bool) -> HTMLResponse:
+        farbe = "#12805c" if ok else "#d92d20"
+        return HTMLResponse(
+            f"""<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+            <title>eBay-Verbindung</title><body style="font-family:system-ui;max-width:560px;margin:15vh auto;padding:0 20px">
+            <h2 style="color:{farbe}">{'✓ ' if ok else ''}{html_escape(text)}</h2>
+            <p><a href="/admin/#connections">Zurück zu den Shop-Verbindungen</a></p>""",
+            status_code=200 if ok else 400)
+
+    if error:
+        return seite("eBay-Anmeldung abgebrochen", False)
+    try:
+        connection_id, tenant_id = ebay_konto.state_pruefen(state)
+    except ebay_konto.EbayFehler as exc:
+        return seite(str(exc), False)
+    mandant_setzen(db, tenant_id)
+    connection = db.get(ShopConnection, connection_id)
+    if connection is None or connection.connector_type != "ebay" or not code:
+        return seite("Verbindung nicht gefunden", False)
+    try:
+        ergebnis = ebay_konto.rueckruf(db, connection, code)
+    except Exception as exc:
+        return seite(f"eBay-Anmeldung fehlgeschlagen: {exc}", False)
+    audit_service.log(db, user=None, entity_type="shop_connection", entity_id=connection.id,
+                      action="ebay_verbunden")
+    db.commit()
+    if ergebnis.get("einrichtung_fehler"):
+        return seite(f"Mit eBay verbunden. Noch offen: {ergebnis['einrichtung_fehler']}", True)
+    return seite("Mit eBay verbunden – Artikel können jetzt bei eBay erscheinen.", True)
 
 
 # ── Listings ────────────────────────────────────────────────────────────────

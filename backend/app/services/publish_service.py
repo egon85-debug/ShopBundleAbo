@@ -57,6 +57,11 @@ def build_payload(db: Session, product: Product) -> ShopListingPayload:
         meta_title=listing.meta_title if listing else None,
         meta_description=listing.meta_description if listing else None,
         attributes=dict(product.attributes or {}),
+        brand=product.brand,
+        manufacturer=product.manufacturer,
+        mpn=product.mpn,
+        model=product.model,
+        technical_data=dict(product.technical_data or {}),
         net_content_amount=product.net_content_amount,
         net_content_unit=product.net_content_unit,
         units_per_pack=product.units_per_pack,
@@ -85,6 +90,9 @@ def execute_publication(db: Session, publication: ShopPublication) -> None:
     else:
         result = connector.publish_product(payload)
         result_id = result.external_id
+        if result.external_url:
+            # Link zur Anzeige (z. B. ebay.de/itm/…) für Lager-Web und App.
+            publication.payload_snapshot = {**publication.payload_snapshot, "url": result.external_url}
 
     publication.external_id = result_id
     publication.status = PublicationStatusEnum.PUBLISHED.value

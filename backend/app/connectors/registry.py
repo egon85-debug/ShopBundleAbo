@@ -3,6 +3,7 @@ Neue Shopsysteme = neue Adapterklasse + Registrierung hier."""
 import json
 
 from app.connectors.base import ShopConnector, ShopConnectorError
+from app.connectors.ebay import EbayConnector
 from app.connectors.kleinanzeigen import KleinanzeigenConnector
 from app.connectors.winterfeld import WinterfeldShopConnector
 from app.connectors.woocommerce import WooCommerceConnector
@@ -13,6 +14,7 @@ _CONNECTORS: dict[str, type[ShopConnector]] = {
     WinterfeldShopConnector.connector_type: WinterfeldShopConnector,
     WooCommerceConnector.connector_type: WooCommerceConnector,
     KleinanzeigenConnector.connector_type: KleinanzeigenConnector,
+    EbayConnector.connector_type: EbayConnector,
 }
 
 

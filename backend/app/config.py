@@ -43,6 +43,15 @@ class Settings(BaseSettings):
         name = self.domain.strip().removeprefix("https://").removeprefix("http://").rstrip("/")
         return f"https://{name}" if name else ""
 
+    # eBay-Verkäuferschnittstelle. Schlüssel aus developer.ebay.com → Application
+    # Keys. RuName aus „User Tokens“; dort als „Auth accepted URL“
+    # https://<domain>/api/v1/shop/ebay/rueckruf eintragen.
+    ebay_client_id: str = ""
+    ebay_client_secret: str = ""
+    ebay_runame: str = ""
+    ebay_umgebung: str = "production"  # oder sandbox (Testsystem)
+    ebay_bestellabruf_minuten: int = 5
+
     # KI-Provider
     anthropic_api_key: str = ""
     # Sonnet 5 kostet etwa 40 % von Opus 5 – nötig für das Budget je Artikel.

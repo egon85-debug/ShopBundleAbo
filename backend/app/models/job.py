@@ -26,6 +26,8 @@ class JobType(StrEnum):
     PUBLISH_PRODUCT = "publish_product"
     SYNC_STOCK = "sync_stock"
     CLEANUP_VOICE = "cleanup_voice"
+    # Verkäufe auf Marktplätzen (eBay …) abholen; plant sich selbst neu ein.
+    MARKTPLATZ_ABGLEICH = "marktplatz_abgleich"
 
 
 class Job(Base, IdMixin, TenantMixin, TimestampMixin):
