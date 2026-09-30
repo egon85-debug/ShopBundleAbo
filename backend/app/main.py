@@ -1,4 +1,4 @@
-"""Winterfeld Logistik — Backend-API."""
+"""Winterfeldt Logistik — Backend-API."""
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -63,7 +63,7 @@ class _AdminDateien(StaticFiles):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
-        title="Winterfeld Logistik API",
+        title="Winterfeldt Logistik API",
         version="1.0.0",
         docs_url="/docs" if not settings.is_production else None,
         lifespan=lifespan,

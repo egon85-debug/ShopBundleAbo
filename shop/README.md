@@ -1,4 +1,4 @@
-# Winterfeld Logistik – Premium E-Commerce Shop
+# Winterfeldt Logistik – Premium E-Commerce Shop
 
 Produktionsnahe E-Commerce-Plattform: ruhige, helle Storefront, Warenkorb und
 Checkout, Stripe-Zahlungen, automatisierte DHL-/DHL-Express-Versandabwicklung und

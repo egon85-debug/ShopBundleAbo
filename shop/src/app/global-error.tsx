@@ -28,7 +28,7 @@ export default function GlobalError({
         }}
       >
         <div style={{ maxWidth: "34rem", textAlign: "center" }}>
-          <p style={{ fontSize: "14px", color: "#7a7b7b", margin: 0 }}>Winterfeld Logistik</p>
+          <p style={{ fontSize: "14px", color: "#7a7b7b", margin: 0 }}>Winterfeldt Logistik</p>
           <h1 style={{ fontSize: "32px", lineHeight: 1.22, fontWeight: 300, letterSpacing: "-0.02em", margin: "16px 0 0" }}>
             Die Seite ist gerade nicht erreichbar
           </h1>

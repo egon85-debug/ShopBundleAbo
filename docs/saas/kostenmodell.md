@@ -26,7 +26,7 @@ Stand: 28.09.2026. Alle Beträge **netto (ohne USt.)**. Dollar-Preise umgerechne
 
 | Annahme | Wert | Begründung / wie prüfen |
 |---|---|---|
-| KI-Kosten je Artikel im Mittel | 0,15 $ ≈ **0,13 €** | Budgetbremse liegt bei 0,35 $; typische Artikel liegen deutlich darunter. **Vor der Preisfreigabe mit den echten Zahlen aus `ai_runs` von Winterfeld abgleichen.** |
+| KI-Kosten je Artikel im Mittel | 0,15 $ ≈ **0,13 €** | Budgetbremse liegt bei 0,35 $; typische Artikel liegen deutlich darunter. **Vor der Preisfreigabe mit den echten Zahlen aus `ai_runs` von Winterfeldt abgleichen.** |
 | KI-Kosten je Artikel im schlechtesten Fall | 0,35 $ ≈ **0,30 €** | harte Obergrenze je Artikel |
 | Ausnutzung des KI-Kontingents | 70 % | vorsichtig |
 | Speicher je Artikel | ca. 20 MB (6 Originale + 6 Shopbilder) | 1.000 Artikel ≈ 20 GB ≈ 0,13 € / Monat — vernachlässigbar |
@@ -133,7 +133,7 @@ Variable Kosten typisch: 0,3 × 4,40 + 0,3 × 12,50 + 0,4 × 18,90 = **12,60 €
 **Mit Gründerpreis** (alle Kunden 30 % Rabatt): Mischpreis 92,40 €; bei 10 Kunden
 ca. 740 € Deckungsbeitrag im Monat — weiterhin deutlich im Plus.
 
-Winterfeld (Kunde Nr. 1) zahlt heute bereits für Hetzner, Vercel und Supabase — ein
+Winterfeldt (Kunde Nr. 1) zahlt heute bereits für Hetzner, Vercel und Supabase — ein
 Teil dieser Kosten entfällt durch den Umzug.
 
 ## 8. Einmalige Kosten (außerhalb der Monatsrechnung)
@@ -147,7 +147,7 @@ Teil dieser Kosten entfällt durch den Umzug.
 ## 9. Was das Modell unsicher macht
 
 1. **KI-Kosten je Artikel** sind geschätzt. Die echten Zahlen stehen in `ai_runs` bei
-   Winterfeld; vor der Preisfreigabe auswerten.
+   Winterfeldt; vor der Preisfreigabe auswerten.
 2. **Mail-Dienst**: Preis und vor allem die Frage, ob viele Absender-Domains per API
    anlegbar sind, beim Anbieter bestätigen.
 3. **Storage-Box-Preis** vor Bestellung prüfen.

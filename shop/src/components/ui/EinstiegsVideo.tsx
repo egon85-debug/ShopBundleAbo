@@ -112,7 +112,7 @@ export function EinstiegsVideo({
         viewBox="0 0 720 720"
         preserveAspectRatio="xMidYMid slice"
         role="img"
-        aria-label="Lagernd, verpackt, versendet, verfolgbar – Winterfeld Logistik"
+        aria-label="Lagernd, verpackt, versendet, verfolgbar – Winterfeldt Logistik"
       >
         <g fontSize="30" letterSpacing="-0.6" fill="#0a0a0a">
           {WOERTER.map(({ wort, x, punkt }, i) => (
@@ -140,7 +140,7 @@ export function EinstiegsVideo({
               <rect width="260" height="16" fill="#ff6105" />
             </g>
             <rect width="260" height="170" rx="6" fill="none" stroke="rgba(0,0,0,.12)" />
-            <image href="/marke/winterfeld-logistik.svg" x="18" y="32" width="224" height="36.5" />
+            <image href="/marke/winterfeld-logistik.svg" x="18" y="32.6" width="224" height="35.3" />
             <g fill="#0a0a0a">
               {STRICHE.map(({ x, breite }) => (
                 <rect key={x} x={18 + x} y="90" width={breite} height="56" />

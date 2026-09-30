@@ -9,7 +9,7 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-carbon-950 p-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <p className="font-display text-lg font-extrabold tracking-[.14em] text-white">WINTERFELD</p>
+          <p className="font-display text-lg font-extrabold tracking-[.14em] text-white">WINTERFELDT</p>
           <p className="font-mono text-[11px] tracking-[.2em] text-signal-300">BACKOFFICE</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white p-7 shadow-lift">

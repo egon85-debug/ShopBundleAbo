@@ -1,6 +1,6 @@
 """Änderungen aus dem Shop-Admin ins Lager übernehmen.
 
-Der Winterfeld-Shop schickt sie signiert an /shop/webhooks/{id}/product.
+Der Winterfeldt-Shop schickt sie signiert an /shop/webhooks/{id}/product.
 Abbildung spiegelbildlich zu connectors/winterfeld.py: Was dort aus dem
 Shoptext (Listing) in den Shop geht, wird hier wieder dorthin geschrieben,
 damit die nächste Veröffentlichung die Änderung nicht überschreibt.

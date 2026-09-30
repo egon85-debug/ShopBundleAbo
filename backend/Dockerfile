@@ -1,4 +1,4 @@
-# Winterfeld Logistik – Backend (FastAPI + Job-Worker)
+# Winterfeldt Logistik – Backend (FastAPI + Job-Worker)
 FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

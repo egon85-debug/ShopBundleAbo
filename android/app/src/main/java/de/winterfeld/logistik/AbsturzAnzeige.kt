@@ -53,7 +53,7 @@ object AbsturzAnzeige {
                 text = "Teilen"
                 setOnClickListener {
                     val senden = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_SUBJECT, "Winterfeld Lager: Absturzbericht")
+                        .putExtra(Intent.EXTRA_SUBJECT, "Winterfeldt Lager: Absturzbericht")
                         .putExtra(Intent.EXTRA_TEXT, bericht)
                     activity.startActivity(Intent.createChooser(senden, "Bericht teilen"))
                 }

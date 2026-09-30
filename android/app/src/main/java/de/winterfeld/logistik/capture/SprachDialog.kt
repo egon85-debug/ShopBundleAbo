@@ -250,7 +250,7 @@ class SprachDialog(
             }
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
                 abbrechen("Die App darf das Mikrofon nicht benutzen. Bitte in den Android-" +
-                          "Einstellungen → Apps → Winterfeld Lager → Berechtigungen das Mikrofon erlauben.")
+                          "Einstellungen → Apps → Winterfeldt Lager → Berechtigungen das Mikrofon erlauben.")
             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
             SpeechRecognizer.ERROR_SERVER ->
                 abbrechen("Die Spracherkennung braucht eine Internetverbindung (Code $code).")

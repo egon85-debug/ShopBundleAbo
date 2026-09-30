@@ -5,7 +5,7 @@ import { getPriceRange, listProducts, getCategoryTree } from "@/services/catalog
 
 export const metadata: Metadata = {
   title: "Shop",
-  description: "Alle Produkte von Winterfeld Logistik – gefiltert, sortiert und sofort lieferbar.",
+  description: "Alle Produkte von Winterfeldt Logistik – gefiltert, sortiert und sofort lieferbar.",
 };
 
 export default async function ShopPage({

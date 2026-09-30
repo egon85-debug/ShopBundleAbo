@@ -38,7 +38,7 @@ Firma B sieht:
 
 SKU (`WL-000001`), Lieferantenname, Lagerplatz-Code, QR-Wert, Erfassungs-ID des Tablets,
 Shop-Verbindungsname, Preisquelle und Idempotenz-Schlüssel sind **je Firma** eindeutig.
-Das SKU-Präfix steht je Firma in `tenants.sku_praefix` (Winterfeld: `WL`).
+Das SKU-Präfix steht je Firma in `tenants.sku_praefix` (Winterfeldt: `WL`).
 
 ## Faire Warteschlange
 
@@ -63,7 +63,7 @@ die zweite Sicherung dort wirkungslos ist; das ist bis zum Umzug (Phase B) so ge
 
 ## Migration einspielen
 
-Die Migration ordnet alle bestehenden Daten **Winterfeld Logistik** zu
+Die Migration ordnet alle bestehenden Daten **Winterfeldt Logistik** zu
 (`tenants.id = 00000000-0000-4000-8000-000000000001`). Sie ist die bewusste Ausnahme von
 „Updates ohne Ausfall“: Die alte Version kann danach nicht mehr speichern. Deshalb im
 Wartungsfenster: alte Version stoppen → `migrate` → neue Version starten. Rückweg:
@@ -78,7 +78,7 @@ Wartungsfenster: alte Version stoppen → `migrate` → neue Version starten. R�
 - Webhook mit der Verbindung von B bucht nur Bestand bei B, obwohl A dieselbe SKU hat.
 - Worker führt jeden Auftrag im Mandanten des Auftrags aus; kleine Firma kommt trotz
   langer Schlange einer großen Firma sofort dran.
-- **PostgreSQL**: Migration mit Altdaten (alles bei Winterfeld, Rollen übernommen);
+- **PostgreSQL**: Migration mit Altdaten (alles bei Winterfeldt, Rollen übernommen);
   jede Tabelle mit `tenant_id` hat erzwungenes RLS (neue Tabelle ohne Regel → Test rot);
   ohne gesetzte Firma sieht die Anwendungsrolle **nichts**, auch der Eigentümer nicht;
   fremde Zeilen schreiben wird verweigert; Rücknahme der Migration funktioniert.

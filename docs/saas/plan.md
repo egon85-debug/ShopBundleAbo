@@ -1,4 +1,4 @@
-# Plan: B.Y.O.B. — Winterfeld Logistik als Abo-Produkt
+# Plan: B.Y.O.B. — Winterfeldt Logistik als Abo-Produkt
 
 Stand: 29.09.2026 · Status: **angepasst nach Marktprüfung** (§ 0), Umsetzung Phase A läuft
 (erledigt: Schritt 1 Mandantentrennung im Lager-Backend, Schritt 2 Bilder je Firma mit
@@ -204,7 +204,7 @@ Die heutigen HTTP-Aufrufe über das Internet werden ersetzt durch eine
 Vorteile: kein Geheimnis je Händler, keine verlorenen Meldungen (das Ereignis liegt in der
 Datenbank, bis es verarbeitet ist), jede Meldung trägt ihren Mandanten.
 **Übergang**: In Phase A bleibt der vorhandene HTTP-Weg intern erhalten (Docker-Netz,
-Mandant im signierten Aufruf), damit Winterfeld in Phase B unverändert weiterläuft. Die
+Mandant im signierten Aufruf), damit Winterfeldt in Phase B unverändert weiterläuft. Die
 Umstellung auf Ereignisse folgt in Phase C.
 
 Der WooCommerce-Connector bleibt für Kunden im Paket „Lager + App“, die einen **externen**
@@ -532,7 +532,7 @@ ist; er folgt, wenn Pilotkunden danach fragen. Werbung und Videos sprechen bis d
   kein Abruf bei Google zur Laufzeit — auch aus Datenschutzgründen).
 - **Kuratierte Kombinationen** (zum Start 12, Ausbau bis 100) mit Nummer, Name,
   Beschreibung, Filtermerkmalen (hell/dunkel, ruhig/verspielt, Branche). Das heutige
-  Winterfeld-Design ist Nr. 1.
+  Winterfeldt-Design ist Nr. 1.
 - **Automatische Prüfung** (Playwright + axe-core) je Design, sonst nicht in der Galerie:
   Kontrast WCAG AA für Text und Knöpfe, Mindestschriftgröße am Handy, kein seitliches
   Scrollen bei 360 px, kompletter Checkout im Testmodus, Vorschaubilder Desktop/Handy.
@@ -567,11 +567,11 @@ Pflichtteil der Anbindung, nicht Zusatz.
 Testkauf auf einem Kanal beendet das Angebot auf dem anderen nachweislich innerhalb von
 Minuten (Test in der eBay-Testumgebung, der „Sandbox“).
 
-## 10. Migration von Kunde Nr. 1 (Winterfeld)
+## 10. Migration von Kunde Nr. 1 (Winterfeldt)
 
 ### 10.1 Ablauf
 
-1. **Mandant „Winterfeld“** wird in Staging angelegt.
+1. **Mandant „Winterfeldt“** wird in Staging angelegt.
 2. **Probelauf**: Kopie der Lager-DB (Hetzner) und der Shop-DB (Supabase) + aller Bilder
    (Volume des Lager-Servers bzw. `public/uploads`) → Staging. Ein Migrationsskript setzt
    `tenant_id`, schreibt Bildpfade um, führt die zwei Benutzertabellen zusammen (gleiche
@@ -580,9 +580,9 @@ Minuten (Test in der eBay-Testumgebung, der „Sandbox“).
    Bestellungen (Anzahl, Summen, Status), Kunden, Bilder (Anzahl + Prüfsummen), KI-Läufe
    und Kosten, Audit-Einträge, Bestandsbewegungen. Jede Abweichung ≠ 0 stoppt.
 4. **Probelauf wiederholen**, bis der Bericht zweimal hintereinander sauber ist.
-5. **Stripe**: Winterfeld verbindet sein bestehendes Stripe-Konto per Connect-Onboarding
+5. **Stripe**: Winterfeldt verbindet sein bestehendes Stripe-Konto per Connect-Onboarding
    (das bestehende Konto kann weiterverwendet werden; Zahlungen laufen weiter auf
-   Winterfeld). Die alten Webhook-Endpunkte werden erst nach dem Umzug abgeschaltet.
+   Winterfeldt). Die alten Webhook-Endpunkte werden erst nach dem Umzug abgeschaltet.
 6. **Umschalten** mit angekündigter Wartung (Ziel: unter 30 Minuten, nachts):
    Shop auf Wartungsseite → letzte Änderungen kopieren → Abgleich → DNS umstellen →
    Stichproben → Shop live.
@@ -619,7 +619,7 @@ BreadcrumbList, Organization, LocalBusiness wenn Ladengeschäft), Open-Graph-Bil
 Produkt und Kategorie, Alt-Texte (KI-Vorschlag, Händler bestätigt), SEO-Checkliste im
 Shop-Admin mit Direktlinks.
 
-Fachlicher Fehler im heutigen Code: JSON-LD nennt „Winterfeld Logistik“ als **Marke**
+Fachlicher Fehler im heutigen Code: JSON-LD nennt „Winterfeldt Logistik“ als **Marke**
 jedes Produkts. Richtig ist der Hersteller; der Händler gehört in `Offer.seller`.
 
 **SEO Plus** (Phase E): KI-Optimierung einzigartig je Shop (Suchbegriffe, Region, eigener
@@ -641,7 +641,7 @@ Händlerangaben vor KI-Vorschlag, keine Massenproduktion dünner Seiten.
 - Früh erledigen (Fehler 14): Entwicklerkonto **als Organisation** (D-U-N-S-Nummer), dann
   entfällt der 12-Tester-/14-Tage-Pflichttest für neue Privatkonten
   (support.google.com/googleplay/android-developer/answer/14151465); trotzdem
-  interne/geschlossene Testphase mit Winterfeld-Tablets; Datenschutzerklärung der App;
+  interne/geschlossene Testphase mit Winterfeldt-Tablets; Datenschutzerklärung der App;
   Formular „Datensicherheit“; Weg zur Kontolöschung in App **und** im Web; Release-
   Schlüssel über Play App Signing, nie im Repository.
 
@@ -685,7 +685,7 @@ Selbstbedienungs-Weg für viele Kunden bauen. Pilotkunden richtet eg-dynamics an
 (Phase C) folgt erst nach bestandener Validierung.
 
 ```
-A Fundament ──▶ B Umzug Winterfeld ──▶ M Marktplätze ──▶ P Pilotbetrieb ──▶ [Entscheidung]
+A Fundament ──▶ B Umzug Winterfeldt ──▶ M Marktplätze ──▶ P Pilotbetrieb ──▶ [Entscheidung]
       V Validierung (parallel ab sofort) ─────────────────────────────────────▲
                                                          ja ──▶ C ──▶ E ──▶ D ──▶ G
                                           F App (parallel ab B, wegen Play-Store-Wartezeiten)
@@ -694,15 +694,15 @@ A Fundament ──▶ B Umzug Winterfeld ──▶ M Marktplätze ──▶ P Pi
 | Phase | Inhalt | Fertig, wenn … |
 |---|---|---|
 | **A Fundament** (läuft) | Terraform/Ansible, Staging + Produktion, Mandanten-Tabellen, `tenant_id` + RLS in allen Tabellen, Trennungstests, Shop im Node-Modus auf Hetzner, eine Datenbank, Bilder im Object Storage, Sicherung + erste Test-Wiederherstellung, Update-Pipeline | Staging und Produktion per Befehl aufbaubar; Trennungstests grün (inkl. „jede Tabelle hat RLS“); Wiederherstellung auf Staging dokumentiert und einmal durchgeführt; Update ohne Ausfall vorgeführt |
-| **V Validierung** (neu, parallel ab sofort, überwiegend deine Aufgabe) | Zeitmessung bei Winterfeld; 10–20 Gespräche mit Händlern der Zielgruppe (§ 0.1); Landingpage mit Warteliste und den fertigen Werbevideos; Gründerpreis-Angebot für Pilotkunden | Zeit je Artikel **vorher/nachher** bei Winterfeld gemessen und dokumentiert; mindestens 10 Gespräche ausgewertet; mindestens 5 Händler haben einer Pilotphase zugesagt |
-| **B Umzug Winterfeld** | Migrationsskript, Probeläufe, Zahlenabgleich, Umschalten, Rückweg | zwei saubere Probeläufe; Umschalten erledigt; Abgleichbericht mit 0 Abweichungen; Tablets ohne Datenverlust umgestellt |
-| **M Marktplätze** (neu, vorgezogen) | eBay-Anbindung mit Bestandsabgleich (§ 9a), Kanalwahl je Artikel, Abgleich-Bericht im Lager-Web | Doppelverkauf-Test in der eBay-Sandbox bestanden; Winterfeld verkauft produktiv über Shop und eBay |
+| **V Validierung** (neu, parallel ab sofort, überwiegend deine Aufgabe) | Zeitmessung bei Winterfeldt; 10–20 Gespräche mit Händlern der Zielgruppe (§ 0.1); Landingpage mit Warteliste und den fertigen Werbevideos; Gründerpreis-Angebot für Pilotkunden | Zeit je Artikel **vorher/nachher** bei Winterfeldt gemessen und dokumentiert; mindestens 10 Gespräche ausgewertet; mindestens 5 Händler haben einer Pilotphase zugesagt |
+| **B Umzug Winterfeldt** | Migrationsskript, Probeläufe, Zahlenabgleich, Umschalten, Rückweg | zwei saubere Probeläufe; Umschalten erledigt; Abgleichbericht mit 0 Abweichungen; Tablets ohne Datenverlust umgestellt |
+| **M Marktplätze** (neu, vorgezogen) | eBay-Anbindung mit Bestandsabgleich (§ 9a), Kanalwahl je Artikel, Abgleich-Bericht im Lager-Web | Doppelverkauf-Test in der eBay-Sandbox bestanden; Winterfeldt verkauft produktiv über Shop und eBay |
 | **P Pilotbetrieb** (neu) | 3–5 Pilotkunden, von Hand eingerichtet, Gründerpreis; Abrechnung zunächst über Stripe-Zahlungslinks; eigener Shop optional (Pakete „Lager + App“ mit eBay reicht) | Pilotkunden arbeiten mindestens 8 Wochen produktiv; Zeitersparnis bei ihnen gemessen; Rückmeldungen ausgewertet |
 | **Entscheidung** | Go/No-Go nach den Kriterien unten | Kriterien erfüllt → weiter mit C; sonst Anpassung (§ 16.1) |
 | **C Setup-Assistent** | alle 14 Schritte, Stripe Connect, DHL-Prüfanfrage, Mail-DNS, Domain-Assistent, Rechtstexte, Outbox Lager↔Shop, ein Konto für alles + 2FA, **Schritt „Marktplätze verbinden“** | neuer Testkunde kommt ohne Hilfe in < 30 Min. bis zur Testbestellung (ohne Wartezeiten externer Anbieter); kein Pflichtschritt überspringbar; Screenshots Desktop + Handy abgenommen |
 | **E Abrechnung, Plattform-Admin, SEO Plus** | Stripe Billing, Meter, Sperrlogik, Export, Löschung, Plattform-Admin, Kostenübersicht, SEO Plus | Testphase → Abo → Verzug → Sperre → Entsperren im Testmodus durchgespielt; Kosten je Kunde sichtbar |
 | **D Designs + SEO-Grundlagen** | Token-System, **3 Layouts, 12 Designs** (Ausbau auf 100 bei Bedarf), Galerie mit Live-Vorschau, SEO-Grundlagen | alle Designs bestehen Kontrast-, Handy- und Checkout-Prüfung; Sitemap, `robots.txt`, eine Canonical-Domain, gültige strukturierte Daten (Rich-Results-Test), `noindex` für Test/gesperrt |
-| **F App** | Play-Store-Version, Mandanten-Login, Branding, targetSdk 36 | App in geschlossener Testphase freigegeben; Winterfeld-Tablets umgestellt |
+| **F App** | Play-Store-Version, Mandanten-Login, Branding, targetSdk 36 | App in geschlossener Testphase freigegeben; Winterfeldt-Tablets umgestellt |
 | **G Betrieb** | Überwachung, Alarme, Statusseite, Betriebshandbuch, monatliche Test-Wiederherstellung | Alarm-Test ausgelöst und angekommen; Handbuch vorhanden |
 
 Reihenfolge-Hinweis: **Phase F kann parallel ab B beginnen**, weil die Play-Store-
@@ -714,7 +714,7 @@ ersten Pilotkunden eingerichtet.
 
 | Kriterium | Ziel |
 |---|---|
-| Zeitersparnis je Artikel (Erfassen bis online) | mindestens **50 %** gegenüber vorher, gemessen bei Winterfeld und bei den Piloten |
+| Zeitersparnis je Artikel (Erfassen bis online) | mindestens **50 %** gegenüber vorher, gemessen bei Winterfeldt und bei den Piloten |
 | Zahlungsbereitschaft | mindestens **3 von 5** Piloten zahlen nach dem Gründerpreis-Zeitraum weiter |
 | Nutzung | Piloten erfassen regelmäßig (mindestens wöchentlich) |
 | Preis | Rückmeldung zu 59/129/189 € ausgewertet; `kostenmodell.md` danach überarbeitet |
@@ -727,14 +727,14 @@ Werden die Ziele verfehlt, gibt es drei Wege, die dann gemeinsam entschieden wer
    (Setup-Assistent, Abrechnung, Support) entfällt.
 
 Die Arbeit aus Phase A ist in allen drei Fällen nicht verloren: Sicherung, Server als Code
-und saubere Datentrennung verbessern auch den Betrieb bei Winterfeld.
+und saubere Datentrennung verbessern auch den Betrieb bei Winterfeldt.
 
 ## 17. Risiken
 
 | Risiko | Wirkung | Gegenmaßnahme |
 |---|---|---|
 | Datenleck zwischen Mandanten | existenzbedrohend | RLS + Tests + „jede Tabelle hat RLS“-Test; Pentest vor dem ersten Fremdkunden |
-| Datenverlust beim Umzug Winterfeld | hoch | Probeläufe, Zahlenabgleich, 14 Tage Rückweg |
+| Datenverlust beim Umzug Winterfeldt | hoch | Probeläufe, Zahlenabgleich, 14 Tage Rückweg |
 | DHL-Produktionsfreigabe dauert | Versand-Schritt blockiert | sofort beantragen |
 | Rechtstexte-Anbieter bieten keine Plattform-Anbindung | Livegang blockiert | früh anfragen; Alternative: eigene, anwaltliche Texte hochladen (Frage 5) |
 | Stripe lehnt Managed Risk ab oder stellt Bedingungen | Haftungsfrage offen | vor Phase C mit Stripe klären; ohne Managed Risk **kein** Livegang von Fremdkunden |
@@ -762,7 +762,7 @@ und saubere Datentrennung verbessern auch den Betrieb bei Winterfeld.
 7. Anwalt: AVV/TOM/Unterauftragsverarbeiter-Vorlagen prüfen lassen.
 8. **Name B.Y.O.B.**: Markenrecherche beim DPMA und EUIPO (oder über einen Anwalt) und
    Verfügbarkeit einer Produktdomain prüfen — vor jeder Veröffentlichung der Werbevideos.
-9. **Zeitmessung bei Winterfeld** (Phase V): für 20 Artikel die Zeit vom Auspacken bis
+9. **Zeitmessung bei Winterfeldt** (Phase V): für 20 Artikel die Zeit vom Auspacken bis
    „online“ notieren, einmal im alten Ablauf, einmal mit App und KI. Vorlage mit
    automatischer Auswertung: [`validierung/Messtabelle_Zeiterfassung.xlsx`](validierung/Messtabelle_Zeiterfassung.xlsx).
 10. **10–20 Gespräche** mit Händlern der Zielgruppe (§ 0.1). Leitfaden mit 10 Fragen,

@@ -1,6 +1,6 @@
 """Mandantenfähigkeit: Firmen, Mitgliedschaften, tenant_id und Row Level Security
 
-Alle bestehenden Daten gehören danach Kunde Nr. 1 (Winterfeld Logistik).
+Alle bestehenden Daten gehören danach Kunde Nr. 1 (Winterfeldt Logistik).
 
 Ausnahme von der Regel „Migrationen sind rückwärtskompatibel“: Nach dieser
 Migration kann die Vorgängerversion zwar noch lesen und sich anmelden
@@ -78,7 +78,7 @@ def upgrade() -> None:
     op.create_index("ix_tenants_kurzname", "tenants", ["kurzname"], unique=True)
     op.execute(
         "INSERT INTO tenants (id, name, kurzname, status, sku_praefix, created_at, updated_at) "
-        f"VALUES ('{WINTERFELD_ID}', 'Winterfeld Logistik', 'winterfeld', 'aktiv', 'WL', "
+        f"VALUES ('{WINTERFELD_ID}', 'Winterfeldt Logistik', 'winterfeld', 'aktiv', 'WL', "
         "now(), now())")
 
     op.create_table(
@@ -96,7 +96,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_memberships_user_id", "memberships", ["user_id"])
     op.create_index("ix_memberships_tenant_id", "memberships", ["tenant_id"])
-    # Jedes bestehende Konto gehört mit seiner bisherigen Rolle zu Winterfeld.
+    # Jedes bestehende Konto gehört mit seiner bisherigen Rolle zu Winterfeldt.
     # gen_random_uuid() ist ab PostgreSQL 13 eingebaut.
     op.execute(
         "INSERT INTO memberships (id, user_id, tenant_id, role, is_active, created_at, "

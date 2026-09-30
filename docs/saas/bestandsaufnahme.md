@@ -46,12 +46,12 @@ verschlüsselt in die Datenbank).
 
 | Stelle | Inhalt |
 |---|---|
-| `shop/src/app/layout.tsx:16–28` | Seitentitel, Beschreibung, `siteName` „Winterfeld Logistik“ |
+| `shop/src/app/layout.tsx:16–28` | Seitentitel, Beschreibung, `siteName` „Winterfeldt Logistik“ |
 | `shop/src/components/ui/SiteChrome.tsx:17–139` | Logo `/marke/winterfeld-logistik.svg`, Copyright-Zeile |
 | `shop/src/components/ui/EinstiegsVideo.tsx` | Einstiegsvideo und Logo (Kartons, eigene Datei unter `public/einstieg/`) |
-| `shop/src/app/(shop)/produkt/[slug]/page.tsx:68` | JSON-LD `brand: "Winterfeld Logistik"` für **jedes** Produkt (auch fachlich falsch: Marke ist der Hersteller) |
+| `shop/src/app/(shop)/produkt/[slug]/page.tsx:68` | JSON-LD `brand: "Winterfeldt Logistik"` für **jedes** Produkt (auch fachlich falsch: Marke ist der Hersteller) |
 | `shop/src/app/(shop)/shop/page.tsx:8`, `versand/page.tsx:9` | Beschreibungstexte mit Firmennamen |
-| `shop/src/app/admin/layout.tsx:67`, `admin/login/page.tsx:12` | Schriftzug „WINTERFELD“ im Shop-Admin |
+| `shop/src/app/admin/layout.tsx:67`, `admin/login/page.tsx:12` | Schriftzug „WINTERFELDT“ im Shop-Admin |
 | `shop/src/app/global-error.tsx:31` | Firmenname auf der Fehlerseite |
 | `shop/src/lib/email/templates.ts:42–166` | Kopf, Fuß und Betreffzeilen aller Mails |
 | `shop/src/lib/stripe.ts:24` | `appInfo.name` |

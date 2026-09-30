@@ -38,7 +38,7 @@ ui/
 
 ## Screens / Userflows (Anforderung 18/19/37 Phase 2)
 
-1. **Login** → 2. **Dashboard** („WINTERFELD LOGISTIK“, großer Button `+ ARTIKEL ERFASSEN`,
+1. **Login** → 2. **Dashboard** („WINTERFELDT LOGISTIK“, großer Button `+ ARTIKEL ERFASSEN`,
    Kennzahlen: heute / gesamt / zu prüfen / shopbereit / veröffentlicht, Navigation:
    Artikel, Bestand, Lagerplätze, Lieferanten, Shop, Synchronisierung, Einstellungen).
 3. **Kamera** — öffnet sofort; erstes Foto startet Verarbeitung + Sprachaufnahme.

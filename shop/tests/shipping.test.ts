@@ -26,7 +26,7 @@ function configureDhlPaket() {
   process.env.DHL_PAKET_USER = "user";
   process.env.DHL_PAKET_PASSWORD = "pass";
   process.env.DHL_PAKET_BILLING_NUMBER = "33333333330102";
-  process.env.SHIP_FROM_NAME = "Winterfeld Logistik";
+  process.env.SHIP_FROM_NAME = "Winterfeldt Logistik";
   process.env.SHIP_FROM_STREET = "Musterstraße";
   process.env.SHIP_FROM_HOUSE_NUMBER = "1";
   process.env.SHIP_FROM_ZIP = "12345";

@@ -34,7 +34,7 @@ object ServerUrl {
         is HttpException -> when (e.code()) {
             401 -> "E-Mail oder Passwort falsch."
             403 -> "Dieses Konto ist gesperrt."
-            404 -> "Unter dieser Adresse läuft kein Winterfeld-Server. Adresse prüfen."
+            404 -> "Unter dieser Adresse läuft kein Winterfeldt-Server. Adresse prüfen."
             429 -> "Zu viele Versuche. Bitte eine Minute warten."
             in 500..599 -> "Der Server hat einen Fehler gemeldet (${e.code()}). Später erneut versuchen."
             else -> "Anmeldung abgelehnt (${e.code()})."

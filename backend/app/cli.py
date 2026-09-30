@@ -337,7 +337,7 @@ def main() -> None:
         "shop-verbinden", help="Verbindung zum eigenen Shop einrichten, Schluessel erzeugen")
     shop_parser.add_argument("--url", required=True,
                              help="z. B. https://winterfeld-logistik-shop.vercel.app")
-    shop_parser.add_argument("--name", default="Winterfeld Shop")
+    shop_parser.add_argument("--name", default="Winterfeldt Shop")
     shop_parser.add_argument("--mandant", default=None, help="Kurzname der Firma")
     shop_test_parser = sub.add_parser("shop-testen", help="Shop-Verbindungen pruefen")
     shop_test_parser.add_argument("--mandant", default=None, help="Kurzname der Firma")

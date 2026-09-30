@@ -74,7 +74,7 @@ def test_nachschlagen_fragt_die_datenbanken_der_reihe_nach(datenbanken):
     assert [r.url.host for r in anfragen] == [
         "world.openfoodfacts.org", "world.openbeautyfacts.org",
         "world.openpetfoodfacts.org", "world.openproductsfacts.org"]
-    assert anfragen[0].headers["User-Agent"].startswith("WinterfeldLager/")
+    assert anfragen[0].headers["User-Agent"].startswith("WinterfeldtLager/")
     assert treffer.product_name == "GSR 12V-35"
     assert treffer.brand == "Bosch Professional"
     assert treffer.ean == EAN and treffer.match_score >= 0.95

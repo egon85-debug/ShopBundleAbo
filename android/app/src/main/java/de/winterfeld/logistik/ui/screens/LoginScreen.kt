@@ -48,7 +48,7 @@ fun LoginScreen(auth: AuthRepository, initialServerUrl: String, onLoggedIn: () -
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
            verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
            horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Winterfeld Logistik", style = MaterialTheme.typography.headlineMedium)
+        Text("Winterfeldt Logistik", style = MaterialTheme.typography.headlineMedium)
         Text("Anmeldung Lager-App", color = MaterialTheme.colorScheme.outline)
         Column(Modifier.widthIn(max = 480.dp).fillMaxWidth(),
                verticalArrangement = Arrangement.spacedBy(14.dp)) {

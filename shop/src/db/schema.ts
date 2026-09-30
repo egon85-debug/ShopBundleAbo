@@ -1,5 +1,5 @@
 /**
- * Winterfeld Logistik – Shop-Datenmodell (PostgreSQL via Drizzle ORM).
+ * Winterfeldt Logistik – Shop-Datenmodell (PostgreSQL via Drizzle ORM).
  *
  * Grundsätze:
  *  - Geldbeträge IMMER als Integer in Cent (`integer`), nie als Float.
