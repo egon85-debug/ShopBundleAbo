@@ -75,7 +75,7 @@ fun DashboardContent(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                .padding(horizontal = 16.dp, vertical = 20.dp),
            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Winterfeld Logistik", style = MaterialTheme.typography.headlineMedium)
+        Text("Winterfeldt Logistik", style = MaterialTheme.typography.headlineMedium)
 
         if (hinweis != null) {
             ListCard {

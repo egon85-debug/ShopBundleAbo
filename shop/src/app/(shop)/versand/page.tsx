@@ -6,7 +6,7 @@ import { shippingOptions } from "@/lib/shipping/registry";
 
 export const metadata: Metadata = {
   title: "Versandinformationen",
-  description: "Versandarten, Kosten und Lieferzeiten bei Winterfeld Logistik.",
+  description: "Versandarten, Kosten und Lieferzeiten bei Winterfeldt Logistik.",
 };
 
 export default function VersandPage() {

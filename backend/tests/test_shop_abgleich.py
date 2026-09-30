@@ -9,7 +9,7 @@ from app.services import product_service
 
 
 def _aufbau(db, employee, *, mit_listing=True, geheimnis="geheim"):
-    verbindung = ShopConnection(name="Winterfeld-Shop", connector_type="winterfeld",
+    verbindung = ShopConnection(name="Winterfeldt-Shop", connector_type="winterfeld",
                                 base_url="https://shop.example", webhook_secret=geheimnis)
     db.add(verbindung)
     produkt = product_service.create_draft(db, client_capture_id=f"abgleich-{mit_listing}",

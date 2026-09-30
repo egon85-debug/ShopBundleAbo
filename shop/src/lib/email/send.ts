@@ -34,7 +34,7 @@ export async function sendMail(params: { to: string; subject: string; html: stri
   }
   try {
     await mailer.sendMail({
-      from: process.env.SMTP_FROM ?? "Winterfeld Logistik <shop@example.de>",
+      from: process.env.SMTP_FROM ?? "Winterfeldt Logistik <shop@example.de>",
       to: params.to,
       subject: params.subject,
       html: params.html,

@@ -1,4 +1,4 @@
-/* Winterfeld Logistik – Admin-SPA. Nutzt ausschließlich die abgesicherte REST-API. */
+/* Winterfeldt Logistik – Admin-SPA. Nutzt ausschließlich die abgesicherte REST-API. */
 "use strict";
 
 const API = "/api/v1";

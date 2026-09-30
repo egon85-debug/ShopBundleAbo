@@ -1,9 +1,9 @@
 ---
 name: winterfeld-design
-description: Gestaltungsrichtung für den Winterfeld-Logistik-Shop — Farben, Schrift, Abstände, Radien, Regeln und bewusste Abweichungen. Vor jeder Änderung an der Storefront-Oberfläche lesen. Enthält die Prüfschritte, ohne die keine gestalterische Arbeit als fertig gilt.
+description: Gestaltungsrichtung für den Winterfeldt-Logistik-Shop — Farben, Schrift, Abstände, Radien, Regeln und bewusste Abweichungen. Vor jeder Änderung an der Storefront-Oberfläche lesen. Enthält die Prüfschritte, ohne die keine gestalterische Arbeit als fertig gilt.
 ---
 
-# Gestaltung: Winterfeld Logistik
+# Gestaltung: Winterfeldt Logistik
 
 ## Die Grundregel
 
@@ -35,7 +35,7 @@ der Marke selbst (kein Logo, keine Bilder, keine Texte, kein Markenname).
 ## Logo
 
 Anhänger-Etikett in #ff6105 (Lochung und drei Zeilen ausgestanzt) plus
-Wortmarke „**Winterfeld** Logistik“ in Inter 500/300. Dateien in
+Wortmarke „**Winterfeldt** Logistik“ in Inter 500/300. Dateien in
 `shop/public/marke/`: `winterfeld-logistik.svg` (Standard),
 `winterfeld-logistik-weiss.svg` (auf Orange oder dunklem Grund),
 `zeichen.svg` (nur das Zeichen, auch Browsersymbol `src/app/icon.svg`).

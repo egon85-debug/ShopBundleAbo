@@ -2,7 +2,7 @@
   "name": "winterfeld-shop",
   "version": "1.0.0",
   "private": true,
-  "description": "Winterfeld Logistik – Premium E-Commerce Storefront, Admin und Order-Fulfillment",
+  "description": "Winterfeldt Logistik – Premium E-Commerce Storefront, Admin und Order-Fulfillment",
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/schema-ergaenzen.mjs && next build",

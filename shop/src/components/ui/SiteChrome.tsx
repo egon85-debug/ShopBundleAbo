@@ -17,12 +17,12 @@ import { navigationCategories, neuheiten } from "@/services/navigation";
 /** Das Logo in der Mitte der Kopfzeile – bewusst groß, es trägt die Marke. */
 function Wortmarke() {
   return (
-    <Link href="/" className="shrink-0" aria-label="Winterfeld Logistik – Startseite">
+    <Link href="/" className="shrink-0" aria-label="Winterfeldt Logistik – Startseite">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/marke/winterfeld-logistik.svg"
         alt=""
-        width={344}
+        width={355}
         height={56}
         className="h-6 w-auto min-[380px]:h-7 sm:h-9 md:h-10 lg:h-14"
       />
@@ -69,7 +69,7 @@ export async function SiteHeader() {
           <Wortmarke />
 
           <div className="flex items-center justify-self-end gap-3">
-            <form action="/shop" className="hidden w-40 xl:block" role="search">
+            <form action="/shop" className="hidden w-36 xl:block" role="search">
               <input
                 type="search"
                 name="q"
@@ -97,7 +97,7 @@ export async function SiteFooter() {
       <div className="seite grid gap-10 py-16 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/marke/winterfeld-logistik.svg" alt="Winterfeld Logistik" width={147} height={24} className="h-6 w-auto" />
+          <img src="/marke/winterfeld-logistik.svg" alt="Winterfeldt Logistik" width={152} height={24} className="h-6 w-auto" />
           <p className="mt-4 max-w-xs text-body-sm">
             Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen.
           </p>
@@ -129,7 +129,7 @@ export async function SiteFooter() {
 
       <div className="border-t border-nebel">
         <div className="seite flex flex-col gap-2 py-6 text-caption text-schiefer sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Winterfeld Logistik</p>
+          <p>© {new Date().getFullYear()} Winterfeldt Logistik</p>
           <div className="flex flex-wrap items-center gap-4">
             <p>Versand mit DHL &amp; DHL Express · Zahlung über Stripe</p>
             {/* Zugang zum Backoffice; ohne Anmeldung führt er auf die Anmeldeseite. */}

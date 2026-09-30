@@ -15,7 +15,7 @@ def _github(apk=APK, groesse=None, digest=None, privat=False):
             return httpx.Response(404)
         if request.url.path.endswith("/releases/latest"):
             return httpx.Response(200, json={"tag_name": "app-1.0.47", "assets": [
-                {"name": "winterfeld-lager-1.0.47.apk", "size": groesse or len(apk),
+                {"name": "winterfeldt-lager-1.0.47.apk", "size": groesse or len(apk),
                  "digest": digest or "sha256:" + hashlib.sha256(apk).hexdigest(),
                  "url": "https://api.github.example/repos/x/releases/assets/1",
                  "browser_download_url": "https://github.example/app.apk"}]})
@@ -39,7 +39,7 @@ def test_holen_und_ausliefern(client):
     assert res.status_code == 200
     assert res.content == APK
     assert res.headers["content-type"] == "application/vnd.android.package-archive"
-    assert "winterfeld-lager-1.0.47.apk" in res.headers["content-disposition"]
+    assert "winterfeldt-lager-1.0.47.apk" in res.headers["content-disposition"]
 
     # Download-Manager fragen zuerst per HEAD nach Groesse und Wiederaufnahme
     kopf = client.head("/app")

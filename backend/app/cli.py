@@ -273,7 +273,7 @@ def main() -> None:
         "shop-verbinden", help="Verbindung zum eigenen Shop einrichten, Schluessel erzeugen")
     shop_parser.add_argument("--url", required=True,
                              help="z. B. https://winterfeld-logistik-shop.vercel.app")
-    shop_parser.add_argument("--name", default="Winterfeld Shop")
+    shop_parser.add_argument("--name", default="Winterfeldt Shop")
     sub.add_parser("shop-testen", help="Shop-Verbindungen pruefen")
     sub.add_parser("app-holen", help="Neueste Android-App von GitHub unter /app bereitstellen")
 

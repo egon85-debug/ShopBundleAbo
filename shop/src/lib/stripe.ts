@@ -21,7 +21,7 @@ export function getStripe(): Stripe {
   if (!client) {
     client = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: "2025-08-27.basil",
-      appInfo: { name: "Winterfeld Logistik Shop", version: "1.0.0" },
+      appInfo: { name: "Winterfeldt Logistik Shop", version: "1.0.0" },
     });
   }
   return client;

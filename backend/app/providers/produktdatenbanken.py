@@ -26,7 +26,7 @@ DATENBANKEN = (
 )
 FELDER = "code,product_name,product_name_de,generic_name_de,brands,quantity"
 # Die Betreiber bitten um eine erkennbare Kennung statt eines Browser-Namens.
-KENNUNG = "WinterfeldLager/1.0 (+https://winterfeld-logistik.de)"
+KENNUNG = "WinterfeldtLager/1.0 (+https://winterfeld-logistik.de)"
 ZEITLIMIT = 6.0
 # Offene Datenbanken enthalten auch Test- und Platzhaltereinträge.
 MUELL = re.compile(r"delete|diagnostic|test ?product|dummy|placeholder|^x+$|^test$", re.I)

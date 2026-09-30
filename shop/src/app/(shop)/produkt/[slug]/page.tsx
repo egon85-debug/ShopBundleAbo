@@ -65,7 +65,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     sku: product.sku,
     description: product.shortDescription ?? undefined,
     image: product.images.map((image) => image.url),
-    brand: { "@type": "Brand", name: "Winterfeld Logistik" },
+    brand: { "@type": "Brand", name: "Winterfeldt Logistik" },
     offers: {
       "@type": "Offer",
       price: (product.priceCents / 100).toFixed(2),

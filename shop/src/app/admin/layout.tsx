@@ -64,7 +64,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Am Handy rutscht die Navigation in eine eigene, wischbare Zeile. */}
         <div className="mx-auto flex min-h-16 w-full max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-1 px-5 py-2 md:flex-nowrap md:py-0">
           <Link href="/admin" className="flex flex-col leading-none">
-            <span className="font-display text-[13px] font-extrabold tracking-[.14em]">WINTERFELD</span>
+            <span className="font-display text-[13px] font-extrabold tracking-[.14em]">WINTERFELDT</span>
             <span className="font-mono text-[10px] tracking-[.18em] text-signal-600">BACKOFFICE</span>
           </Link>
 

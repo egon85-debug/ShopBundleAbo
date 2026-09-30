@@ -15,15 +15,15 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
-    default: "Winterfeld Logistik – Logistik. Einfach. Digital.",
-    template: "%s | Winterfeld Logistik",
+    default: "Winterfeldt Logistik – Logistik. Einfach. Digital.",
+    template: "%s | Winterfeldt Logistik",
   },
   description:
-    "Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen. Der Onlineshop von Winterfeld Logistik.",
+    "Produkte bestellen, sicher bezahlen und zuverlässig mit DHL geliefert bekommen. Der Onlineshop von Winterfeldt Logistik.",
   openGraph: {
     type: "website",
     locale: "de_DE",
-    siteName: "Winterfeld Logistik",
+    siteName: "Winterfeldt Logistik",
   },
   robots: { index: true, follow: true },
 };

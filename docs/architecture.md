@@ -2,7 +2,7 @@
 
 ## 1. Zusammenfassung des Systems
 
-Winterfeld Logistik ist ein Client-Server-System zur schnellen Lagerartikel-Erfassung:
+Winterfeldt Logistik ist ein Client-Server-System zur schnellen Lagerartikel-Erfassung:
 
 1. **Android-Tablet-App** (Kotlin + Jetpack Compose): Kamera, Barcode, Mikrofon,
    Offline-Puffer, Upload-Queue, touch-optimierte Kontroll- und Verwaltungs-Screens.

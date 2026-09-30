@@ -1,5 +1,5 @@
 /**
- * Transaktionale E-Mails im Winterfeld-Design (Punkt 12).
+ * Transaktionale E-Mails im Winterfeldt-Design (Punkt 12).
  * Reines HTML mit Inline-Styles – so rendern sie in allen gängigen Clients.
  */
 import { formatCents } from "../money";
@@ -39,12 +39,12 @@ function layout(title: string, preheader: string, content: string): string {
 <tr><td align="center">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border-radius:16px;overflow:hidden;border:1px solid ${LINE};">
     <tr><td style="padding:26px 32px;border-bottom:3px solid ${BRAND};">
-      <span style="font-size:18px;font-weight:800;letter-spacing:.12em;color:${INK};">WINTERFELD LOGISTIK</span><br>
+      <span style="font-size:18px;font-weight:800;letter-spacing:.12em;color:${INK};">WINTERFELDT LOGISTIK</span><br>
       <span style="font-size:12px;color:${MUTED};letter-spacing:.06em;">LOGISTIK. EINFACH. DIGITAL.</span>
     </td></tr>
     <tr><td style="padding:32px;">${content}</td></tr>
     <tr><td style="padding:22px 32px;background:#F8FAFC;border-top:1px solid ${LINE};font-size:12px;color:${MUTED};line-height:1.6;">
-      Winterfeld Logistik · Diese E-Mail wurde automatisch erzeugt.<br>
+      Winterfeldt Logistik · Diese E-Mail wurde automatisch erzeugt.<br>
       Fragen? Antworten Sie einfach auf diese Nachricht.
     </td></tr>
   </table>
@@ -92,7 +92,7 @@ const para = (text: string) =>
 
 export function orderConfirmationMail(data: OrderMailData) {
   return {
-    subject: `Bestellbestätigung ${data.orderNumber} – Winterfeld Logistik`,
+    subject: `Bestellbestätigung ${data.orderNumber} – Winterfeldt Logistik`,
     html: layout(
       "Bestellbestätigung",
       `Ihre Bestellung ${data.orderNumber} ist eingegangen.`,
@@ -163,7 +163,7 @@ export function refundMail(data: OrderMailData) {
 
 export function passwordResetMail(params: { name: string; resetUrl: string }) {
   return {
-    subject: "Passwort zurücksetzen – Winterfeld Logistik",
+    subject: "Passwort zurücksetzen – Winterfeldt Logistik",
     html: layout(
       "Passwort zurücksetzen",
       "Link zum Zurücksetzen Ihres Passworts.",

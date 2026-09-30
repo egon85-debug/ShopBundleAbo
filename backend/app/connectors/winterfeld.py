@@ -1,4 +1,4 @@
-"""Connector für den eigenen Winterfeld-Shop (Next.js).
+"""Connector für den eigenen Winterfeldt-Shop (Next.js).
 
 Der Shop nimmt Artikel über einen einzigen Endpunkt entgegen, der anlegt oder
 aktualisiert – Schlüssel ist die SKU. Dadurch ist ein wiederholter Versuch nach
@@ -49,7 +49,7 @@ class WinterfeldShopConnector(ShopConnector):
     def _client(self) -> httpx.Client:
         api_key = self.credentials.get("api_key", "")
         if not api_key:
-            raise ShopConnectorError("Winterfeld-Shop: api_key fehlt in den Zugangsdaten")
+            raise ShopConnectorError("Winterfeldt-Shop: api_key fehlt in den Zugangsdaten")
         return httpx.Client(
             base_url=self.base_url,
             headers={"x-api-key": api_key, "content-type": "application/json"},
@@ -61,22 +61,22 @@ class WinterfeldShopConnector(ShopConnector):
             with self._client() as client:
                 response = client.post(_INGEST_PFAD, json=payload)
                 if response.status_code == 401:
-                    raise ShopConnectorError("Winterfeld-Shop: Zugang verweigert (falscher API-Schlüssel)")
+                    raise ShopConnectorError("Winterfeldt-Shop: Zugang verweigert (falscher API-Schlüssel)")
                 if response.status_code == 503:
                     raise ShopConnectorError(
-                        "Winterfeld-Shop: Schnittstelle nicht eingerichtet (INGEST_API_KEY fehlt)"
+                        "Winterfeldt-Shop: Schnittstelle nicht eingerichtet (INGEST_API_KEY fehlt)"
                     )
                 if response.status_code == 422:
-                    raise ShopConnectorError(f"Winterfeld-Shop lehnt die Daten ab: {response.text[:500]}")
+                    raise ShopConnectorError(f"Winterfeldt-Shop lehnt die Daten ab: {response.text[:500]}")
                 response.raise_for_status()
                 return response.json() if response.content else {}
         except httpx.HTTPStatusError as exc:
             raise ShopConnectorError(
-                f"Winterfeld-Shop POST {_INGEST_PFAD}: HTTP {exc.response.status_code} — "
+                f"Winterfeldt-Shop POST {_INGEST_PFAD}: HTTP {exc.response.status_code} — "
                 f"{exc.response.text[:500]}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise ShopConnectorError(f"Winterfeld-Shop nicht erreichbar: {exc}") from exc
+            raise ShopConnectorError(f"Winterfeldt-Shop nicht erreichbar: {exc}") from exc
 
     def test_connection(self) -> None:
         """Der Gesundheitsendpunkt sagt, ob Shop *und* Datenbank antworten."""
@@ -86,7 +86,7 @@ class WinterfeldShopConnector(ShopConnector):
                 response.raise_for_status()
                 zustand = response.json()
         except httpx.HTTPError as exc:
-            raise ShopConnectorError(f"Winterfeld-Shop nicht erreichbar: {exc}") from exc
+            raise ShopConnectorError(f"Winterfeldt-Shop nicht erreichbar: {exc}") from exc
         if zustand.get("status") != "ok":
             raise ShopConnectorError(
                 f"Shop erreichbar, aber nicht betriebsbereit: {zustand.get('datenbank', {}).get('ursache')}"
@@ -96,14 +96,14 @@ class WinterfeldShopConnector(ShopConnector):
         # falscher Schlüssel mit 401; nur Letzteres ist ein Fehler.
         api_key = self.credentials.get("api_key", "")
         if not api_key:
-            raise ShopConnectorError("Winterfeld-Shop: api_key fehlt in den Zugangsdaten")
+            raise ShopConnectorError("Winterfeldt-Shop: api_key fehlt in den Zugangsdaten")
         with self._client() as client:
             probe = client.post(_INGEST_PFAD, json={})
         if probe.status_code == 401:
-            raise ShopConnectorError("Winterfeld-Shop: API-Schlüssel wird abgelehnt")
+            raise ShopConnectorError("Winterfeldt-Shop: API-Schlüssel wird abgelehnt")
         if probe.status_code == 503:
             raise ShopConnectorError(
-                "Winterfeld-Shop: Schnittstelle nicht eingerichtet (INGEST_API_KEY fehlt)"
+                "Winterfeldt-Shop: Schnittstelle nicht eingerichtet (INGEST_API_KEY fehlt)"
             )
 
     def _payload(self, listing: ShopListingPayload, aktiv: bool = True) -> dict:

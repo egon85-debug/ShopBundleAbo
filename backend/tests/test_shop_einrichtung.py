@@ -25,7 +25,7 @@ def _werte(ausgabe: str) -> dict:
 
 
 def test_verbindung_anlegen_und_werte_fuer_vercel(engine, db, domain, capsys):
-    cli.shop_verbinden("https://shop.example.app/", "Winterfeld Shop")
+    cli.shop_verbinden("https://shop.example.app/", "Winterfeldt Shop")
     werte = _werte(capsys.readouterr().out)
 
     verbindung = db.query(ShopConnection).one()
@@ -40,9 +40,9 @@ def test_verbindung_anlegen_und_werte_fuer_vercel(engine, db, domain, capsys):
 
 
 def test_zweiter_aufruf_erneuert_statt_zu_verdoppeln(engine, db, domain, capsys):
-    cli.shop_verbinden("https://shop.example.app", "Winterfeld Shop")
+    cli.shop_verbinden("https://shop.example.app", "Winterfeldt Shop")
     erster = _werte(capsys.readouterr().out)
-    cli.shop_verbinden("https://shop.example.app", "Winterfeld Shop")
+    cli.shop_verbinden("https://shop.example.app", "Winterfeldt Shop")
     zweiter = _werte(capsys.readouterr().out)
     assert db.query(ShopConnection).count() == 1
     assert erster["INGEST_API_KEY"] != zweiter["INGEST_API_KEY"]
@@ -52,14 +52,14 @@ def test_zweiter_aufruf_erneuert_statt_zu_verdoppeln(engine, db, domain, capsys)
 def test_ohne_domain_kein_webhook(engine, monkeypatch):
     monkeypatch.setattr(get_settings(), "domain", "")
     with pytest.raises(SystemExit):
-        cli.shop_verbinden("https://shop.example.app", "Winterfeld Shop")
+        cli.shop_verbinden("https://shop.example.app", "Winterfeldt Shop")
 
 
 def test_webhook_mit_den_ausgegebenen_werten(client, engine, db, domain, capsys, employee):
     """Der Shop signiert mit LAGER_WEBHOOK_SECRET — das Lager muss das annehmen."""
     import hashlib
     import hmac
-    cli.shop_verbinden("https://shop.example.app", "Winterfeld Shop")
+    cli.shop_verbinden("https://shop.example.app", "Winterfeldt Shop")
     werte = _werte(capsys.readouterr().out)
     pfad = werte["LAGER_WEBHOOK_URL"].removeprefix("https://lager.example.de")
     koerper = json.dumps({"order_id": "B-1", "items": [{"sku": "gibt-es-nicht", "quantity": 1}]})

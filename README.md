@@ -1,4 +1,4 @@
-# Winterfeld Logistik
+# Winterfeldt Logistik
 
 **Blitzschnelle digitale Erfassung von Lagerartikeln per Android-Tablet.**
 
