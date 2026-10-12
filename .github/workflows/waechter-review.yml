@@ -1,0 +1,44 @@
+# Projekt-Wächter: Claude liest jeden Pull Request und kommentiert Fehler direkt im PR.
+# Benötigt das Repository-Secret CLAUDE_CODE_OAUTH_TOKEN (Erzeugen mit `claude setup-token`).
+# Ohne Secret wird der Schritt übersprungen.
+name: Wächter Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Secret vorhanden?
+        id: secret
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: echo "ok=$([ -n "$TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.secret.outputs.ok == 'true'
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        if: steps.secret.outputs.ok == 'true'
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Prüfe diesen Pull Request in ${{ github.repository }} (öffentliches Repo! Shop-Abo-Plattform: FastAPI-Backend, Next.js-Shop, Android-App, Terraform/Ansible).
+            Achte auf: Fehler und Bugs, Sicherheit (auch Geheimnisse im Code), Performance,
+            SEO, Barrierefreiheit, DSGVO (keine Drittanbieter ohne Einwilligung), Texte und
+            Rechtschreibung, Mobilansicht.
+            Melde nur echte Probleme, kurz auf Deutsch: was, wo (Datei:Zeile), wie schlimm
+            (kritisch / wichtig / Kür). Nutze Inline-Kommentare für konkrete Stellen und
+            einen kurzen Gesamtkommentar. Wenn alles passt, schreibe nur „Keine Probleme gefunden.“
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

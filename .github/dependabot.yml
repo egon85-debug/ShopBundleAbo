@@ -1,0 +1,33 @@
+# Projekt-Wächter: hält Pakete aktuell. Kleine Updates werden gebündelt,
+# große Versionssprünge kommen einzeln zur Freigabe.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /shop
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Berlin }
+    open-pull-requests-limit: 5
+    groups:
+      kleine-updates: { update-types: [minor, patch] }
+    commit-message: { prefix: "Shop-Pakete" }
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Berlin }
+    open-pull-requests-limit: 5
+    groups:
+      kleine-updates: { update-types: [minor, patch] }
+    commit-message: { prefix: "Backend-Pakete" }
+  - package-ecosystem: gradle
+    directory: /android
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Berlin }
+    open-pull-requests-limit: 3
+    groups:
+      kleine-updates: { update-types: [minor, patch] }
+    commit-message: { prefix: "App-Pakete" }
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: { interval: monthly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }
