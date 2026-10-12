@@ -1,0 +1,37 @@
+# Projekt-Wächter: kleine Paket-Updates von Dependabot gehen automatisch live,
+# sobald alle Prüfungen auf dem PR grün sind. Große Versionssprünge bleiben zur Freigabe offen.
+name: Wächter Auto-Merge
+
+on:
+  workflow_run:
+    workflows: ["Shop-Tests", "Backend-Tests", "Android-App", "Infrastruktur prüfen"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nur kleine Updates mergen, wenn alle Prüfungen grün sind
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh pr list -R "$REPO" --head "$BRANCH" --state open --json number,author -q '.[] | select(.author.login=="app/dependabot") | .number' | head -1)
+          [ -z "$pr" ] && { echo "Kein offener Dependabot-PR"; exit 0; }
+          if [[ "$BRANCH" != *kleine-updates* && "$BRANCH" != *actions* ]]; then
+            echo "PR #$pr ist ein größeres Update und bleibt zur Freigabe offen."; exit 0
+          fi
+          offen=$(gh api "repos/$REPO/commits/$SHA/check-runs" -q '[.check_runs[] | select(.name != "merge") | select(.status != "completed" or (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | length')
+          if [ "$offen" != "0" ]; then echo "$offen Prüfungen laufen noch oder sind rot, später erneut."; exit 0; fi
+          gh pr merge -R "$REPO" "$pr" --squash --delete-branch
