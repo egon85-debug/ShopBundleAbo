@@ -18,7 +18,7 @@
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.45.4",
     "next": "^15.5.4",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "^10.0.16",
     "postgres": "^3.4.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
