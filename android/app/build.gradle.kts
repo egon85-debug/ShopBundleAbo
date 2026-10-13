@@ -105,7 +105,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.navigation:navigation-compose:2.8.1")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     // Artikelbilder in Liste und Detailansicht
@@ -118,10 +118,10 @@ dependencies {
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     // Lokale Datenbank + Hintergrund-Sync
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.room:room-ktx:2.8.5")
+    ksp("androidx.room:room-compiler:2.8.5")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 
     // Netzwerk
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
@@ -137,11 +137,11 @@ dependencies {
     // einen nachgebauten Server (MockWebServer mit echten Server-Antworten)
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("androidx.work:work-testing:2.9.1")
-    testImplementation("androidx.test:core-ktx:1.6.1")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.work:work-testing:2.12.0")
+    testImplementation("androidx.test:core-ktx:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation(composeBom)
     debugImplementation("androidx.compose.ui:ui-tooling")
