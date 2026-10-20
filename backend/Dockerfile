@@ -1,5 +1,5 @@
 # Winterfeldt Logistik – Backend (FastAPI + Job-Worker)
-FROM python:3.11-slim AS base
+FROM python:3.14-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
