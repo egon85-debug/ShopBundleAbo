@@ -10,7 +10,7 @@ PyJWT>=2.15.1,<3
 cryptography>=42
 httpx>=0.28.1,<1
 anthropic>=1.15.0,<2
-Pillow>=10.3
+Pillow>=13.0.0
 python-slugify>=8
 boto3>=1.43.125
 # Hintergrund entfernen fuer Shopbilder, lokal auf dem Server (ONNX, CPU)
